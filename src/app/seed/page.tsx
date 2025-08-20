@@ -22,6 +22,7 @@ export default function SeedPage() {
         description: 'Your database has been seeded with sample data.',
       });
       router.push('/projects');
+      router.refresh(); // Refresh the page to ensure server components refetch data
     } catch (error) {
       console.error('Failed to seed data:', error);
       toast({

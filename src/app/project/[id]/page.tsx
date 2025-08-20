@@ -1,5 +1,5 @@
 import type { Task, TaskStatus, Project, ProjectType } from '@/lib/types';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,7 +25,7 @@ async function getProject(id: string): Promise<Project | null> {
     return {
       id: projectDoc.id,
       name: data.ProjectName,
-      description: data.description || '',
+      description: data.description || 'No description available.',
       startDate: data.StartDate,
       endDate: data.EndDate,
       ...data
@@ -120,6 +120,12 @@ function TaskColumn({ title, tasks, status }: { title: string; tasks: Task[]; st
 export default async function ProjectDetailsPage({ params }: { params: { id: string } }) {
   const project = await getProject(params.id);
   if (!project) {
+    // Check if any projects exist at all. If not, maybe redirect to seed page.
+    const projectsCol = collection(db, 'projects');
+    const projectSnapshot = await getDocs(projectsCol);
+    if(projectSnapshot.empty) {
+      redirect('/seed');
+    }
     notFound();
   }
 

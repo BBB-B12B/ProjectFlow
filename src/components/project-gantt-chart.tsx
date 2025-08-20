@@ -28,10 +28,10 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const data = projects.map((project) => {
+    const chartData = projects.map((project) => {
       const startDate = parseISO(project.startDate)
       const endDate = parseISO(project.endDate)
-      const duration = differenceInDays(endDate, startDate)
+      const duration = differenceInDays(endDate, startDate) || 1;
       
       const completedDuration = differenceInDays(today, startDate)
       const progress = Math.min(Math.max(completedDuration / duration, 0), 1)
@@ -43,7 +43,7 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
         range: [startDate.getTime(), endDate.getTime()],
         duration,
         progress: Math.round(progress * 100),
-        status: isComplete ? 'จบงานแล้ว' : 'กำลังดำเนินการ'
+        status: isComplete ? 'จบงานแล้ว' : project.Status || 'กำลังดำเนินการ'
       }
     });
 
@@ -51,10 +51,10 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
     const minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
     const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
 
-    const yAxisTicks = data.map(d => d.name)
+    const yAxisTicks = chartData.map(d => d.name)
     const xAxisDomain = [minDate.getTime(), maxDate.getTime()]
     
-    let xAxisTicks = [];
+    let xAxisTicks: number[] = [];
     if (timeframe === 'Weekly') {
         let currentTick = startOfWeek(minDate, { weekStartsOn: 1 });
         while (currentTick <= maxDate) {
@@ -63,8 +63,16 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
         }
     }
 
-    return { data, yAxisTicks, xAxisDomain, xAxisTicks }
+    return { data: chartData, yAxisTicks, xAxisDomain, xAxisTicks }
   }, [projects, timeframe])
+
+  if (projects.length === 0) {
+      return (
+        <div className="flex justify-center items-center h-[300px]">
+            <p>No projects found. Try seeding data.</p>
+        </div>
+      )
+  }
 
   return (
     <ResponsiveContainer width="100%" height={100 + projects.length * 50}>
@@ -73,7 +81,7 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
         layout="vertical"
         margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
         barCategoryGap="35%"
-        onClick={handleBarClick}
+        onClick={(e) => handleBarClick(e.activePayload?.[0]?.payload)}
       >
         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
         <XAxis 
@@ -81,8 +89,8 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
           domain={xAxisDomain}
           tickFormatter={(time) => format(new Date(time), timeframe === 'Monthly' ? 'MMM yyyy' : 'MMM d')}
           scale="time"
-          ticks={timeframe === 'Weekly' ? xAxisTicks : undefined}
-          interval={timeframe === 'Monthly' ? 0 : undefined}
+          ticks={xAxisTicks.length > 0 ? xAxisTicks : undefined}
+          interval={timeframe === 'Monthly' ? 0 : 'preserveStartEnd'}
         />
         <YAxis 
           type="category" 
@@ -123,24 +131,16 @@ export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
           }}
         />
         <Bar dataKey="range" radius={4} className="cursor-pointer">
-          {data.map((entry) => {
+          {data.map((entry, index) => {
             const range = entry.range as number[];
             const progressWidth = ((range[1] - range[0]) * entry.progress) / 100
             const progressEnd = range[0] + progressWidth
             
             return (
               <Bar
-                key={`cell-${entry.id}`}
+                key={`cell-${entry.id || index}`}
                 fill="hsl(var(--secondary))"
               >
-                <rect
-                    fill="hsl(var(--primary))"
-                    x={0}
-                    y={0}
-                    width={progressEnd}
-                    height="100%"
-                    radius={4}
-                  />
               </Bar>
             )
           })}
