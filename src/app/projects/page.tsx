@@ -1,10 +1,22 @@
+
+'use client';
+
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { ProjectGanttChart } from '@/components/project-gantt-chart';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Project } from '@/lib/types';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Label } from '@/components/ui/label';
 
 async function getProjects(): Promise<Project[]> {
   const projectsCol = collection(db, 'projects');
@@ -23,8 +35,13 @@ async function getProjects(): Promise<Project[]> {
   return projectList;
 }
 
-export default async function ProjectsPage() {
-  const projects = await getProjects();
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [timeframe, setTimeframe] = useState('Monthly');
+
+  useState(() => {
+    getProjects().then(setProjects);
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -39,8 +56,25 @@ export default async function ProjectsPage() {
         </Button>
       </div>
       <Card>
-        <CardContent className="pt-6">
-          <ProjectGanttChart projects={projects} />
+        <CardHeader>
+            <div className="flex items-center justify-between">
+                <CardTitle>Project Gantt Chart</CardTitle>
+                <div className="flex items-center gap-2">
+                    <Label htmlFor="timeframe" className="text-sm font-medium">Timeframe</Label>
+                    <Select value={timeframe} onValueChange={setTimeframe}>
+                        <SelectTrigger className="w-[120px]" id="timeframe">
+                            <SelectValue placeholder="Select timeframe" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Monthly">Monthly</SelectItem>
+                            <SelectItem value="Weekly">Weekly</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ProjectGanttChart projects={projects} timeframe={timeframe} />
         </CardContent>
       </Card>
     </div>

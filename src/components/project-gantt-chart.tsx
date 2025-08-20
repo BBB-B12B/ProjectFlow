@@ -1,16 +1,18 @@
+
 "use client"
 
 import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import type { Project } from "@/lib/types"
-import { addDays, differenceInDays, format, parseISO } from "date-fns"
+import { addDays, differenceInDays, format, parseISO, startOfWeek, addWeeks } from "date-fns"
 
 interface GanttChartProps {
   projects: Project[]
+  timeframe: string
 }
 
-export function ProjectGanttChart({ projects }: GanttChartProps) {
+export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
   const router = useRouter();
 
   const handleBarClick = (data: any) => {
@@ -19,9 +21,9 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
     }
   };
 
-  const { data, yAxisTicks, xAxisDomain } = useMemo(() => {
+  const { data, yAxisTicks, xAxisDomain, xAxisTicks } = useMemo(() => {
     if (projects.length === 0) {
-      return { data: [], yAxisTicks: [], xAxisDomain: [0, 0] };
+      return { data: [], yAxisTicks: [], xAxisDomain: [0, 0], xAxisTicks: [] };
     }
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -51,9 +53,18 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
 
     const yAxisTicks = data.map(d => d.name)
     const xAxisDomain = [minDate.getTime(), maxDate.getTime()]
+    
+    let xAxisTicks = [];
+    if (timeframe === 'Weekly') {
+        let currentTick = startOfWeek(minDate, { weekStartsOn: 1 });
+        while (currentTick <= maxDate) {
+            xAxisTicks.push(currentTick.getTime());
+            currentTick = addWeeks(currentTick, 1);
+        }
+    }
 
-    return { data, yAxisTicks, xAxisDomain }
-  }, [projects])
+    return { data, yAxisTicks, xAxisDomain, xAxisTicks }
+  }, [projects, timeframe])
 
   return (
     <ResponsiveContainer width="100%" height={100 + projects.length * 50}>
@@ -68,8 +79,10 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
         <XAxis 
           type="number" 
           domain={xAxisDomain}
-          tickFormatter={(time) => format(new Date(time), 'MMM d')}
+          tickFormatter={(time) => format(new Date(time), timeframe === 'Monthly' ? 'MMM yyyy' : 'MMM d')}
           scale="time"
+          ticks={timeframe === 'Weekly' ? xAxisTicks : undefined}
+          interval={timeframe === 'Monthly' ? 0 : undefined}
         />
         <YAxis 
           type="category" 
