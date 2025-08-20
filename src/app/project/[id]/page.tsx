@@ -1,4 +1,4 @@
-import type { Task, TaskPriority, TaskStatus, Project } from '@/lib/types';
+import type { Task, TaskStatus, Project, ProjectType } from '@/lib/types';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -21,34 +21,53 @@ async function getProject(id: string): Promise<Project | null> {
     if (!projectDoc.exists()) {
         return null;
     }
-    return { id: projectDoc.id, ...projectDoc.data() } as Project;
+    const data = projectDoc.data();
+    return {
+      id: projectDoc.id,
+      name: data.ProjectName,
+      description: data.description || '',
+      startDate: data.StartDate,
+      endDate: data.EndDate,
+      ...data
+    } as Project;
 }
 
 async function getProjectTasks(projectId: string): Promise<Task[]> {
     const tasksCol = collection(db, 'tasks');
     const q = query(tasksCol, where('projectId', '==', projectId));
     const taskSnapshot = await getDocs(q);
-    const taskList = taskSnapshot.docs.map(doc => ({
+    const taskList = taskSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
         id: doc.id,
-        ...(doc.data() as Omit<Task, 'id'>),
-    }));
+        ...(data as Omit<Task, 'id'>),
+        title: data.TaskName,
+        status: data.Status,
+        dueDate: data.EndDate,
+        // A default priority is needed for the card display
+        priority: 'Medium',
+      }
+    });
     return taskList;
 }
 
-
-function TaskCard({ task }: { task: { id: string; title: string; priority: TaskPriority; dueDate: string } }) {
-  const priorityConfig: Record<TaskPriority, { className: string; tooltip: string }> = {
-    High: {
+function TaskCard({ task }: { task: Task }) {
+  const priorityConfig: Record<ProjectType, { className: string; tooltip: string }> = {
+    Main: {
       className: 'border-transparent bg-destructive/20 text-destructive hover:bg-destructive/30',
-      tooltip: 'High Priority',
+      tooltip: 'Main Project',
     },
-    Medium: {
-      className: 'border-transparent bg-warning/20 text-warning-dark hover:bg-warning/30',
-      tooltip: 'Medium Priority',
-    },
-    Low: {
+    QuickWin: {
       className: 'border-transparent bg-success/20 text-success-dark hover:bg-success/30',
-      tooltip: 'Low Priority',
+      tooltip: 'Quick Win',
+    },
+    Fillin: {
+      className: 'border-transparent bg-warning/20 text-warning-dark hover:bg-warning/30',
+      tooltip: 'Fill-in Task',
+    },
+    Thankless: {
+        className: 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted/60',
+        tooltip: 'Thankless Task',
     },
   };
 
@@ -56,22 +75,22 @@ function TaskCard({ task }: { task: { id: string; title: string; priority: TaskP
     <Card className="cursor-pointer transition-all hover:shadow-md active:scale-[0.98]">
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-4">
-          <p className="font-medium text-card-foreground">{task.title}</p>
+          <p className="font-medium text-card-foreground">{task.TaskName}</p>
           <TooltipProvider>
             <Tooltip delayDuration={0}>
               <TooltipTrigger>
-                <Badge className={cn('whitespace-nowrap', priorityConfig[task.priority].className)}>
-                  {task.priority}
+                <Badge className={cn('whitespace-nowrap', priorityConfig[task.ProjectType]?.className)}>
+                  {task.ProjectType}
                 </Badge>
               </TooltipTrigger>
               <TooltipContent>
-                <p>{priorityConfig[task.priority].tooltip}</p>
+                <p>{priorityConfig[task.ProjectType]?.tooltip}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Due: {format(parseISO(task.dueDate), 'MMM d, yyyy')}
+          Due: {format(parseISO(task.EndDate), 'MMM d, yyyy')}
         </p>
       </CardContent>
     </Card>
@@ -80,19 +99,14 @@ function TaskCard({ task }: { task: { id: string; title: string; priority: TaskP
 
 function TaskColumn({ title, tasks, status }: { title: string; tasks: Task[]; status: TaskStatus }) {
   const statusConfig: Record<TaskStatus, { borderColor: string }> = {
-    'To Do': {
-        borderColor: 'border-t-primary/50',
-    },
-    'In Progress': {
-        borderColor: 'border-t-accent',
-    },
-    'Done': {
-        borderColor: 'border-t-success',
-    }
+    'หยุดงาน': { borderColor: 'border-t-destructive' },
+    'กำลังดำเนินการ': { borderColor: 'border-t-accent' },
+    'จบงานแล้ว': { borderColor: 'border-t-success' },
+    '': { borderColor: 'border-t-primary/50' },
   };
 
   return (
-    <div className={cn("flex h-full flex-col gap-4 rounded-lg bg-card p-4 border-t-4", statusConfig[status].borderColor)}>
+    <div className={cn("flex h-full flex-col gap-4 rounded-lg bg-card p-4 border-t-4", statusConfig[status]?.borderColor || 'border-t-muted')}>
       <h3 className="font-semibold text-lg text-foreground">{title} <span className='text-sm font-normal text-muted-foreground'>({tasks.length})</span></h3>
       <div className="flex flex-1 flex-col gap-4">
         {tasks.length > 0 ? tasks.map((task) => (
@@ -110,17 +124,18 @@ export default async function ProjectDetailsPage({ params }: { params: { id: str
   }
 
   const projectTasks = await getProjectTasks(params.id);
-  const tasksByStatus: Record<TaskStatus, Task[]> = {
-    'To Do': projectTasks.filter((t) => t.status === 'To Do'),
-    'In Progress': projectTasks.filter((t) => t.status === 'In Progress'),
-    'Done': projectTasks.filter((t) => t.status === 'Done'),
+  
+  const tasksByStatus = {
+    'To Do': projectTasks.filter((t) => t.Status === 'กำลังดำเนินการ' && new Date(t.StartDate) > new Date()), // Not started yet
+    'In Progress': projectTasks.filter((t) => t.Status === 'กำลังดำเนินการ' && new Date(t.StartDate) <= new Date()),
+    'Done': projectTasks.filter((t) => t.Status === 'จบงานแล้ว'),
   };
 
   return (
     <div className="flex h-full flex-col gap-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{project.ProjectName}</h1>
           <p className="text-muted-foreground">{project.description}</p>
         </div>
         <Button>
@@ -129,9 +144,9 @@ export default async function ProjectDetailsPage({ params }: { params: { id: str
         </Button>
       </div>
       <div className="grid flex-1 grid-cols-1 items-start gap-6 md:grid-cols-3">
-        <TaskColumn title="To Do" tasks={tasksByStatus['To Do']} status="To Do" />
-        <TaskColumn title="In Progress" tasks={tasksByStatus['In Progress']} status="In Progress" />
-        <TaskColumn title="Done" tasks={tasksByStatus['Done']} status="Done" />
+        <TaskColumn title="To Do" tasks={tasksByStatus['To Do']} status="กำลังดำเนินการ" />
+        <TaskColumn title="In Progress" tasks={tasksByStatus['In Progress']} status="กำลังดำเนินการ" />
+        <TaskColumn title="Done" tasks={tasksByStatus['Done']} status="จบงานแล้ว" />
       </div>
     </div>
   );

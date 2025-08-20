@@ -9,10 +9,17 @@ import { Card, CardContent } from '@/components/ui/card';
 async function getProjects(): Promise<Project[]> {
   const projectsCol = collection(db, 'projects');
   const projectSnapshot = await getDocs(projectsCol);
-  const projectList = projectSnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...(doc.data() as Omit<Project, 'id'>),
-  }));
+  const projectList = projectSnapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      name: data.ProjectName,
+      description: data.description || '',
+      startDate: data.StartDate,
+      endDate: data.EndDate,
+      ...(data as Omit<Project, 'id' | 'name' | 'description' | 'startDate' | 'endDate'>),
+    };
+  });
   return projectList;
 }
 

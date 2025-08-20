@@ -23,6 +23,14 @@ const chartConfig = {
 }
 
 export function TaskEffortChart({ data }: { data: Task[] }) {
+  const chartData = data.map(task => ({
+    ...task,
+    effort: task.Effort,
+    effect: task.Effect,
+    title: task.TaskName,
+    priority: task.ProjectType,
+  }));
+
   return (
     <ChartContainer config={chartConfig} className="h-[450px] w-full">
       <ScatterChart
@@ -79,7 +87,7 @@ export function TaskEffortChart({ data }: { data: Task[] }) {
             />
           }
         />
-        <Scatter data={data} fill="var(--color-tasks)" />
+        <Scatter data={chartData} fill="var(--color-tasks)" />
       </ScatterChart>
     </ChartContainer>
   )
