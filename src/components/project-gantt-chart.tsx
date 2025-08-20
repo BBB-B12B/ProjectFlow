@@ -33,6 +33,7 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
       
       const completedDuration = differenceInDays(today, startDate)
       const progress = Math.min(Math.max(completedDuration / duration, 0), 1)
+      const isComplete = today > endDate;
 
       return {
         id: project.id,
@@ -40,6 +41,7 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
         range: [startDate.getTime(), endDate.getTime()],
         duration,
         progress: Math.round(progress * 100),
+        status: isComplete ? 'จบงานแล้ว' : 'กำลังดำเนินการ'
       }
     });
 
@@ -79,18 +81,27 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
         <Tooltip
           content={({ payload }) => {
             if (payload && payload.length > 0) {
-              const { name, range, progress } = payload[0].payload;
+              const { name, range, progress, status } = payload[0].payload;
               return (
-                <div className="rounded-lg border bg-background p-2 shadow-sm text-sm">
-                  <p className="font-bold">{name}</p>
-                  <p className="text-muted-foreground">
-                    {format(new Date(range[0]), 'MMM d')} - {format(new Date(range[1]), 'MMM d')}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="w-full bg-secondary rounded-full h-2.5">
-                      <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
-                    </div>
-                    <span className="text-xs font-semibold">{progress}%</span>
+                <div className="rounded-lg border bg-background p-2 shadow-sm text-sm w-48">
+                  <p className="font-bold mb-2">{name}</p>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground flex justify-between">
+                      <span>Start:</span> 
+                      <span className="font-medium text-foreground">{format(new Date(range[0]), 'MMM d, yyyy')}</span>
+                    </p>
+                    <p className="text-muted-foreground flex justify-between">
+                      <span>End:</span>
+                      <span className="font-medium text-foreground">{format(new Date(range[1]), 'MMM d, yyyy')}</span>
+                    </p>
+                    <p className="text-muted-foreground flex justify-between">
+                      <span>Status:</span>
+                      <span className="font-medium text-foreground">{status}</span>
+                    </p>
+                  </div>
+                  <p className="text-muted-foreground mt-2">Progress: {progress}%</p>
+                  <div className="w-full bg-secondary rounded-full h-2.5 mt-1">
+                    <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
                   </div>
                 </div>
               );
