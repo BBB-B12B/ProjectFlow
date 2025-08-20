@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import type { Project } from "@/lib/types"
 import { addDays, differenceInDays, format, parseISO } from "date-fns"
@@ -10,6 +11,14 @@ interface GanttChartProps {
 }
 
 export function ProjectGanttChart({ projects }: GanttChartProps) {
+  const router = useRouter();
+
+  const handleBarClick = (data: any) => {
+    if (data && data.id) {
+      router.push(`/project/${data.id}`);
+    }
+  };
+
   const { data, yAxisTicks, xAxisDomain } = useMemo(() => {
     if (projects.length === 0) {
       return { data: [], yAxisTicks: [], xAxisDomain: [0, 0] };
@@ -51,6 +60,7 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
         layout="vertical"
         margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
         barCategoryGap="35%"
+        onClick={handleBarClick}
       >
         <CartesianGrid strokeDasharray="3 3" horizontal={false} />
         <XAxis 
@@ -88,7 +98,7 @@ export function ProjectGanttChart({ projects }: GanttChartProps) {
             return null;
           }}
         />
-        <Bar dataKey="range" radius={4}>
+        <Bar dataKey="range" radius={4} className="cursor-pointer">
           {data.map((entry) => {
             const range = entry.range as number[];
             const progressWidth = ((range[1] - range[0]) * entry.progress) / 100
