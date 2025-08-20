@@ -1,5 +1,4 @@
-import { projects, tasks } from '@/lib/data';
-import type { Task, TaskPriority, TaskStatus } from '@/lib/types';
+import type { Task, TaskPriority, TaskStatus, Project } from '@/lib/types';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
@@ -13,6 +12,29 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+
+async function getProject(id: string): Promise<Project | null> {
+    const projectDocRef = doc(db, 'projects', id);
+    const projectDoc = await getDoc(projectDocRef);
+    if (!projectDoc.exists()) {
+        return null;
+    }
+    return { id: projectDoc.id, ...projectDoc.data() } as Project;
+}
+
+async function getProjectTasks(projectId: string): Promise<Task[]> {
+    const tasksCol = collection(db, 'tasks');
+    const q = query(tasksCol, where('projectId', '==', projectId));
+    const taskSnapshot = await getDocs(q);
+    const taskList = taskSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Task, 'id'>),
+    }));
+    return taskList;
+}
+
 
 function TaskCard({ task }: { task: { id: string; title: string; priority: TaskPriority; dueDate: string } }) {
   const priorityConfig: Record<TaskPriority, { className: string; tooltip: string }> = {
@@ -81,13 +103,13 @@ function TaskColumn({ title, tasks, status }: { title: string; tasks: Task[]; st
   );
 }
 
-export default function ProjectDetailsPage({ params }: { params: { id: string } }) {
-  const project = projects.find((p) => p.id === params.id);
+export default async function ProjectDetailsPage({ params }: { params: { id: string } }) {
+  const project = await getProject(params.id);
   if (!project) {
     notFound();
   }
 
-  const projectTasks = tasks.filter((t) => t.projectId === params.id);
+  const projectTasks = await getProjectTasks(params.id);
   const tasksByStatus: Record<TaskStatus, Task[]> = {
     'To Do': projectTasks.filter((t) => t.status === 'To Do'),
     'In Progress': projectTasks.filter((t) => t.status === 'In Progress'),

@@ -1,11 +1,23 @@
-import { tasks } from '@/lib/data';
-import type { TaskStatus } from '@/lib/types';
+import type { Task, TaskStatus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Lightbulb, Zap,ClipboardList, Hourglass, CheckCircle2 } from 'lucide-react';
 import { TaskEffortChart } from '@/components/task-effort-chart';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
-export default function AnalyticsPage() {
+async function getTasks(): Promise<Task[]> {
+    const tasksCol = collection(db, 'tasks');
+    const taskSnapshot = await getDocs(tasksCol);
+    const taskList = taskSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Task, 'id'>)
+    }));
+    return taskList;
+}
+
+export default async function AnalyticsPage() {
+  const tasks = await getTasks();
   const totalTasks = tasks.length;
   const tasksByStatus: Record<TaskStatus, number> = {
     'To Do': tasks.filter((t) => t.status === 'To Do').length,

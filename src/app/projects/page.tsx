@@ -1,10 +1,24 @@
-import { projects } from '@/lib/data';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { ProjectGanttChart } from '@/components/project-gantt-chart';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { Project } from '@/lib/types';
+import { Card, CardContent } from '@/components/ui/card';
 
-export default function ProjectsPage() {
+async function getProjects(): Promise<Project[]> {
+  const projectsCol = collection(db, 'projects');
+  const projectSnapshot = await getDocs(projectsCol);
+  const projectList = projectSnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...(doc.data() as Omit<Project, 'id'>),
+  }));
+  return projectList;
+}
+
+export default async function ProjectsPage() {
+  const projects = await getProjects();
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
