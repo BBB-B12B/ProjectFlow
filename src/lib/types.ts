@@ -2,6 +2,8 @@ export type Project = {
   id: string;
   name: string;
   description: string;
+  startDate: string;
+  endDate: string;
 };
 
 export type TaskStatus = 'To Do' | 'In Progress' | 'Done';

@@ -5,21 +5,29 @@ export const projects: Project[] = [
     id: 'proj-1',
     name: 'Website Redesign',
     description: 'Complete overhaul of the main company website.',
+    startDate: '2024-08-01',
+    endDate: '2024-09-30',
   },
   {
     id: 'proj-2',
     name: 'Mobile App Launch',
     description: 'Develop and launch the new iOS and Android mobile applications.',
+    startDate: '2024-08-05',
+    endDate: '2024-10-15',
   },
   {
     id: 'proj-3',
     name: 'Q3 Marketing Campaign',
     description: 'Plan and execute the marketing campaign for the third quarter.',
+    startDate: '2024-07-15',
+    endDate: '2024-09-30',
   },
   {
     id: 'proj-4',
     name: 'API Integration',
     description: 'Integrate third-party APIs for enhanced functionality.',
+    startDate: '2024-08-10',
+    endDate: '2024-09-20',
   },
 ];
 
