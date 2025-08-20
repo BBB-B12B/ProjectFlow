@@ -1,6 +1,8 @@
+
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +11,7 @@ import { seedData } from './actions';
 export default function SeedPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const router = useRouter();
 
   const handleSeed = async () => {
     setIsLoading(true);
@@ -18,6 +21,7 @@ export default function SeedPage() {
         title: 'Success!',
         description: 'Your database has been seeded with sample data.',
       });
+      router.push('/projects');
     } catch (error) {
       console.error('Failed to seed data:', error);
       toast({

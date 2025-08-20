@@ -1,3 +1,4 @@
-// This file is deprecated. The data is now sourced from Firestore.
-// The sample data for seeding the database can be found in `src/lib/seed-data.ts`.
+
+// This file is no longer in use. Data is sourced from Firestore.
+// Sample data for seeding is now in `src/lib/seed-data.ts`.
 export {};

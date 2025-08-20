@@ -1,11 +1,11 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { ProjectGanttChart } from '@/components/project-gantt-chart';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Project } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,30 +18,38 @@ import {
 } from "@/components/ui/select"
 import { Label } from '@/components/ui/label';
 
-async function getProjects(): Promise<Project[]> {
-  const projectsCol = collection(db, 'projects');
-  const projectSnapshot = await getDocs(projectsCol);
-  const projectList = projectSnapshot.docs.map(doc => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      name: data.ProjectName,
-      description: data.description || '',
-      startDate: data.StartDate,
-      endDate: data.EndDate,
-      ...(data as Omit<Project, 'id' | 'name' | 'description' | 'startDate' | 'endDate'>),
-    };
-  });
-  return projectList;
-}
-
 export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [timeframe, setTimeframe] = useState('Monthly');
+  const [isLoading, setIsLoading] = useState(true);
 
-  useState(() => {
-    getProjects().then(setProjects);
-  });
+  useEffect(() => {
+    const projectsCol = collection(db, 'projects');
+    const unsubscribe = onSnapshot(projectsCol, (snapshot) => {
+      if (snapshot.empty) {
+        setIsLoading(false);
+        // Optionally, redirect to seed page if no projects found after a delay
+        // setTimeout(() => router.push('/seed'), 1000);
+        return;
+      }
+      const projectList = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.ProjectName,
+          description: data.description || '',
+          startDate: data.StartDate,
+          endDate: data.EndDate,
+          ...data
+        } as Project;
+      });
+      setProjects(projectList);
+      setIsLoading(false);
+    });
+
+    // Cleanup subscription on unmount
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="flex flex-col gap-8">
@@ -74,7 +82,17 @@ export default function ProjectsPage() {
             </div>
         </CardHeader>
         <CardContent className="pt-0">
-          <ProjectGanttChart projects={projects} timeframe={timeframe} />
+          {isLoading ? (
+            <div className="flex justify-center items-center h-[300px]">
+                <p>Loading projects...</p>
+            </div>
+           ) : projects.length > 0 ? (
+            <ProjectGanttChart projects={projects} timeframe={timeframe} />
+          ) : (
+            <div className="flex justify-center items-center h-[300px]">
+                <p>No projects found. Try seeding data.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
