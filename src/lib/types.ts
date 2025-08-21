@@ -1,34 +1,30 @@
 export type TaskStatus = 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'หยุดงาน' | 'ยังไม่ได้เริ่ม' | '';
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
 
-// Cleaned up Task interface
+// A more streamlined Task interface based on actual usage in the app
 export interface Task {
     id: string;
-    No: number;
     TaskName: string;
     StartDate: string;
     EndDate: string;
-    Duration: number;
     Status: TaskStatus;
-    LastUpdateDate: string;
     Assignee: string;
     Owner: string;
-    User: string;
     Effect: number;
     Effort: number;
-    ProjectName: string;
     projectId: string;
     Want: string;
     Category: string;
     ProjectType: ProjectType;
+    Progress?: number; // Optional as older tasks might not have it
 }
 
-// Cleaned up Project interface for consistency
+// A streamlined Project interface
 export interface Project {
     id: string;
-    name: string; // Use camelCase for consistency
+    name: string;
     description: string;
     startDate: string;
     endDate: string;
-    status: 'จบงานแล้ว' | 'กำลังดำเนินการ'; // Use camelCase
+    status: 'จบงานแล้ว' | 'กำลังดำเนินการ';
 }

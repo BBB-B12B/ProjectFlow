@@ -1,11 +1,8 @@
 import type { Task, Project } from '@/lib/types';
 import { notFound, redirect } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { PlusCircle } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { ProjectDetailsClient } from '@/components/project-details-client';
-import { BackButton } from '@/components/back-button';
 import { getUniqueAssignees } from './actions';
 
 async function getProject(id: string): Promise<Project | null> {
@@ -31,7 +28,6 @@ async function getProjectTasks(projectId: string): Promise<Task[]> {
     const taskSnapshot = await getDocs(q);
     const taskList = taskSnapshot.docs.map(doc => {
       const data = doc.data();
-      // Ensure all necessary fields from the DB are explicitly mapped
       return {
         id: doc.id,
         TaskName: data.TaskName || '',
@@ -43,7 +39,7 @@ async function getProjectTasks(projectId: string): Promise<Task[]> {
         Category: data.Category || '',
         Owner: data.Owner || '',
         Want: data.Want || '',
-        // Add any other fields from your DB schema here with defaults
+        Progress: data.Progress || 0,
         ...data,
       } as Task;
     });
@@ -67,20 +63,5 @@ export default async function ProjectDetailsPage({ params }: { params: { id: str
     notFound();
   }
 
-  return (
-    <div className="flex h-full flex-col gap-2">
-      <BackButton />
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-          <p className="text-muted-foreground">{project.description}</p>
-        </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Task
-        </Button>
-      </div>
-      <ProjectDetailsClient tasks={projectTasks} assignees={assignees} />
-    </div>
-  );
+  return <ProjectDetailsClient project={project} tasks={projectTasks} assignees={assignees} />;
 }

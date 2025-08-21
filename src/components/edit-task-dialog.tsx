@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useActionState } from "react";
+import { useEffect, useState, useMemo, useActionState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
   Dialog,
@@ -11,6 +10,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+  } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,29 +28,37 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import type { Task, ProjectType } from "@/lib/types";
-import { updateTask } from "@/app/project/[id]/actions";
+import { updateTask, createTask, deleteTask } from "@/app/project/[id]/actions";
 import { useToast } from "@/hooks/use-toast";
 import { MultiSelectAutocomplete } from "./ui/multi-select-autocomplete";
+import { Trash2 } from "lucide-react";
 
-interface EditTaskDialogProps {
+interface TaskDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  task: Task | null;
+  task?: Task | null;
+  projectId: string;
   assignees: string[];
 }
 
-function SubmitButton() {
+function SubmitButton({ isEditMode }: { isEditMode: boolean }) {
     const { pending } = useFormStatus();
-    return <Button type="submit" disabled={pending}>{pending ? "Saving..." : "Save changes"}</Button>;
+    return <Button type="submit" disabled={pending}>{pending ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save changes" : "Create Task")}</Button>;
 }
 
-export function EditTaskDialog({ isOpen, onOpenChange, task, assignees }: EditTaskDialogProps) {
+export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignees }: TaskDialogProps) {
+  const isEditMode = !!task;
   const { toast } = useToast();
-  const [state, formAction] = useActionState(updateTask, { success: false, message: "" });
+  const action = isEditMode ? updateTask : createTask;
+  const [state, formAction] = useActionState(action, { success: false, message: "" });
+  const [isDeletePending, startDeleteTransition] = useTransition();
   
-  const [effort, setEffort] = useState(task?.Effort || 10);
-  const [effect, setEffect] = useState(task?.Effect || 10);
-  const [projectType, setProjectType] = useState<ProjectType>(task?.ProjectType || 'Main');
+  const [effort, setEffort] = useState(10);
+  const [effect, setEffect] = useState(10);
+  const [progress, setProgress] = useState(0);
+  const [projectType, setProjectType] = useState<ProjectType>('Main');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const suggestedType = useMemo(() => {
     const isHighEffect = effect > 10;
@@ -52,57 +70,99 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, assignees }: EditTa
   }, [effort, effect]);
   
   useEffect(() => {
-    if (task) {
-      setEffort(task.Effort || 10);
-      setEffect(task.Effect || 10);
-      setProjectType(task.ProjectType || 'Main');
+    if (isOpen) {
+        if (task) {
+          setEffort(task.Effort || 10);
+          setEffect(task.Effect || 10);
+          setProgress(task.Progress || 0);
+          setProjectType(task.ProjectType || 'Main');
+          setStartDate(task.StartDate || '');
+          setEndDate(task.EndDate || '');
+        } else {
+          const today = new Date().toISOString().split('T')[0];
+          setEffort(10);
+          setEffect(10);
+          setProgress(0);
+          setProjectType('Main');
+          setStartDate(today);
+          setEndDate(today);
+        }
     }
-  }, [task]);
+  }, [task, isOpen]);
+
+  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newStartDate = e.target.value;
+    setStartDate(newStartDate);
+    if (newStartDate && endDate && newStartDate > endDate) {
+      setEndDate(newStartDate);
+    }
+  };
 
   useEffect(() => {
-    setProjectType(suggestedType);
-  }, [suggestedType]);
+    if (isOpen) {
+        setProjectType(suggestedType);
+    }
+  }, [suggestedType, isOpen]);
 
   useEffect(() => {
     if (state.success) {
-      toast({ title: "Success!", description: "Task has been updated." });
+      toast({ title: "Success!", description: `Task has been ${isEditMode ? 'updated' : 'created'}.` });
       onOpenChange(false);
     } else if (state.message) {
-      toast({ variant: "destructive", title: "Update Failed", description: state.message });
+      toast({ variant: "destructive", title: "Operation Failed", description: state.message });
     }
-  }, [state, onOpenChange, toast]);
+  }, [state, onOpenChange, toast, isEditMode]);
 
-  if (!task) return null;
+  const handleDelete = async () => {
+    if (!task) return;
+    startDeleteTransition(async () => {
+        const result = await deleteTask(task.id, projectId);
+        if (result.success) {
+            toast({ title: "Success!", description: result.message });
+            onOpenChange(false);
+        } else {
+            toast({ variant: "destructive", title: "Deletion Failed", description: result.message });
+        }
+    });
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Edit Task</DialogTitle>
+          <DialogTitle>{isEditMode ? "Edit Task" : "Create New Task"}</DialogTitle>
           <DialogDescription>
-            Update the details of your task. Click save when you're done.
+            {isEditMode ? "Update the details of your task. Click save when you're done." : "Fill in the details for the new task."}
           </DialogDescription>
         </DialogHeader>
         <form action={formAction}>
-          <input type="hidden" name="taskId" value={task.id} />
+          {isEditMode && task && <input type="hidden" name="taskId" value={task.id} />}
+          {!isEditMode && <input type="hidden" name="projectId" value={projectId} />}
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
             <div className="space-y-2">
               <Label htmlFor="TaskName">Task Name</Label>
-              <Input id="TaskName" name="TaskName" defaultValue={task.TaskName} />
+              <Input id="TaskName" name="TaskName" defaultValue={task?.TaskName || ''} placeholder="e.g. Design new homepage mockups" required/>
             </div>
             <div className="space-y-2">
               <Label htmlFor="Category">Category</Label>
-              <Input id="Category" name="Category" defaultValue={task.Category} />
+              <Input id="Category" name="Category" defaultValue={task?.Category || ''} placeholder="e.g. Design" />
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="StartDate">Start Date</Label>
-                    <Input id="StartDate" name="StartDate" type="date" defaultValue={task.StartDate} />
+                    <Input id="StartDate" name="StartDate" type="date" value={startDate} onChange={handleStartDateChange} required/>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="EndDate">End Date</Label>
-                    <Input id="EndDate" name="EndDate" type="date" defaultValue={task.EndDate} />
+                    <Input id="EndDate" name="EndDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate} required/>
                 </div>
+            </div>
+            <div className="space-y-2">
+                <div className="flex justify-between">
+                <Label htmlFor="Progress">Progress</Label>
+                <span className="text-sm text-muted-foreground">{progress}%</span>
+                </div>
+                <Slider id="Progress" name="Progress" defaultValue={[progress]} max={100} step={1} onValueChange={(value) => setProgress(value[0])} />
             </div>
              <div className="space-y-2">
               <div className="flex justify-between">
@@ -121,7 +181,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, assignees }: EditTa
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="Status">Status</Label>
-                    <Select name="Status" defaultValue={task.Status}>
+                    <Select name="Status" defaultValue={task?.Status || 'ยังไม่ได้เริ่ม'}>
                         <SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger>
                         <SelectContent>
                             <SelectItem value="ยังไม่ได้เริ่ม">To Do</SelectItem>
@@ -149,23 +209,50 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, assignees }: EditTa
                     <Label>Assignee</Label>
                     <MultiSelectAutocomplete 
                         options={assignees} 
-                        initialValue={task.Assignee}
+                        initialValue={task?.Assignee}
                         name="Assignee"
                     />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="Owner">Owner</Label>
-                    <Input id="Owner" name="Owner" defaultValue={task.Owner} />
+                    <Input id="Owner" name="Owner" defaultValue={task?.Owner || ''} placeholder="e.g. Project Manager" />
                 </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="Want">Description / Want</Label>
-              <Textarea id="Want" name="Want" defaultValue={task.Want} placeholder="Describe the desired outcome..." />
+              <Textarea id="Want" name="Want" defaultValue={task?.Want || ''} placeholder="Describe the desired outcome..." />
             </div>
           </div>
-          <DialogFooter className="mt-4">
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <SubmitButton />
+          <DialogFooter className="mt-4 sm:justify-between">
+            <div>
+                {isEditMode && (
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button type="button" variant="destructive" size="icon" disabled={isDeletePending}>
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete this task.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDelete} disabled={isDeletePending}>
+                                {isDeletePending ? "Deleting..." : "Continue"}
+                            </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                )}
+            </div>
+            <div className="flex gap-2 justify-end">
+                <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+                <SubmitButton isEditMode={isEditMode} />
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>

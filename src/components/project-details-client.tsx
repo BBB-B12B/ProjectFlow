@@ -4,19 +4,23 @@ import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import type { Task, TaskStatus, Project, ProjectType } from '@/lib/types';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { format, parseISO } from 'date-fns';
+import { Progress } from '@/components/ui/progress';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { format, parseISO, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LayoutGrid, GanttChart } from 'lucide-react';
+import { LayoutGrid, GanttChart, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { updateTaskStatus } from '../app/project/[id]/actions';
 import { useToast } from '@/hooks/use-toast';
 import { EditTaskDialog } from './edit-task-dialog';
+import { Button } from '@/components/ui/button';
+import { BackButton } from './back-button';
 
 // Dynamically import the TaskGanttChart component
 const DynamicTaskGanttChart = dynamic(
@@ -32,6 +36,12 @@ function TaskCard({ task, index, onClick }: { task: Task; index: number; onClick
         Thankless: { className: 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted/60', tooltip: 'Thankless Task' },
     };
 
+    const isCompleted = task.Progress === 100;
+    const dueDate = parseISO(task.EndDate);
+    const isOverdue = (isPast(dueDate) && !isToday(dueDate)) && !isCompleted;
+
+    const assigneeInitials = task.Assignee?.split(',').map(name => name.trim().charAt(0).toUpperCase()).join('') || '?';
+
     return (
         <Draggable draggableId={task.id} index={index}>
             {(provided, snapshot) => (
@@ -42,24 +52,40 @@ function TaskCard({ task, index, onClick }: { task: Task; index: number; onClick
                     className={`mb-4 ${snapshot.isDragging ? 'shadow-lg' : ''}`}
                     onClick={onClick}
                 >
-                    <Card className="cursor-pointer transition-all hover:shadow-md active:scale-[0.98]">
-                        <CardContent className="p-4">
+                    <Card className={cn(
+                        "cursor-pointer transition-all hover:shadow-md active:scale-[0.98]",
+                        isCompleted ? "bg-success/10 border-success/50" : "",
+                        isOverdue ? "bg-destructive/10 border-destructive/50" : "",
+                        )}>
+                        <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between gap-4">
                                 <p className="font-medium text-card-foreground">{task.TaskName}</p>
-                                <TooltipProvider>
-                                    <Tooltip delayDuration={0}>
-                                        <TooltipTrigger>
-                                            <Badge className={cn('whitespace-nowrap', priorityConfig[task.ProjectType]?.className)}>
-                                                {task.ProjectType}
-                                            </Badge>
-                                        </TooltipTrigger>
-                                        <TooltipContent><p>{priorityConfig[task.ProjectType]?.tooltip}</p></TooltipContent>
-                                    </Tooltip>
-                                </TooltipProvider>
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger>
+                                        <Badge className={cn('whitespace-nowrap', priorityConfig[task.ProjectType]?.className)}>
+                                            {task.ProjectType}
+                                        </Badge>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>{priorityConfig[task.ProjectType]?.tooltip}</p></TooltipContent>
+                                </Tooltip>
                             </div>
-                            <p className="mt-2 text-sm text-muted-foreground">
-                                Due: {format(parseISO(task.EndDate), 'MMM d, yyyy')}
-                            </p>
+                            <div className='space-y-2'>
+                                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                    <p>Due: {format(dueDate, 'MMM d, yyyy')}</p>
+                                    <p>{task.Progress || 0}%</p>
+                                </div>
+                                <Progress value={task.Progress || 0} className="h-2" indicatorClassName={cn(isCompleted ? "bg-success" : "", isOverdue ? "bg-destructive" : "")} />
+                            </div>
+                            <div className="flex items-center justify-end">
+                                <Tooltip delayDuration={0}>
+                                    <TooltipTrigger>
+                                        <Avatar className="h-6 w-6">
+                                            <AvatarFallback>{assigneeInitials}</AvatarFallback>
+                                        </Avatar>
+                                    </TooltipTrigger>
+                                    <TooltipContent><p>{task.Assignee || 'Unassigned'}</p></TooltipContent>
+                                </Tooltip>
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -103,20 +129,30 @@ function TaskColumn({ title, tasks, droppableId, onTaskClick }: { title: string;
     );
 }
 
-export function ProjectDetailsClient({ tasks: initialTasks, assignees }: { tasks: Task[]; assignees: string[] }) {
+export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }: { project: Project, tasks: Task[]; assignees: string[] }) {
     const [tasks, setTasks] = useState(initialTasks);
     const { toast } = useToast();
     const [timeframe, setTimeframe] = useState('monthly');
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
+    const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     useEffect(() => {
         setTasks(initialTasks);
     }, [initialTasks]);
 
-    const handleTaskClick = (task: Task) => {
+    const handleEditTask = (task: Task) => {
         setSelectedTask(task);
-        setIsDialogOpen(true);
+        setIsTaskDialogOpen(true);
+    };
+
+    const handleNewTask = () => {
+        setSelectedTask(null);
+        setIsTaskDialogOpen(true);
     };
 
     const onDragEnd = async (result: any) => {
@@ -148,47 +184,69 @@ export function ProjectDetailsClient({ tasks: initialTasks, assignees }: { tasks
         'done': tasks.filter((t) => t.Status === 'จบงานแล้ว'),
     };
 
+    if (!isClient) {
+        // You can return a loading skeleton here if you want
+        return null;
+    }
+
     return (
-        <>
-            <Tabs defaultValue="cards">
-                <div className="flex justify-end">
-                    <TabsList>
-                        <TabsTrigger value="cards"><LayoutGrid className="w-4 h-4 mr-2" />Cards</TabsTrigger>
-                        <TabsTrigger value="gantt"><GanttChart className="w-4 h-4 mr-2" />Gantt Chart</TabsTrigger>
-                    </TabsList>
+        <TooltipProvider>
+            <div className="flex h-full flex-col gap-6">
+                <BackButton />
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+                    <p className="text-muted-foreground">{project.description}</p>
                 </div>
-                <TabsContent value="cards" className="mt-4">
-                    <DragDropContext onDragEnd={onDragEnd}>
-                        <div className="grid flex-1 grid-cols-1 items-start gap-6 md:grid-cols-3">
-                            <TaskColumn title="To Do" tasks={tasksByColumn['to-do']} droppableId="to-do" onTaskClick={handleTaskClick}/>
-                            <TaskColumn title="In Progress" tasks={tasksByColumn['in-progress']} droppableId="in-progress" onTaskClick={handleTaskClick}/>
-                            <TaskColumn title="Done" tasks={tasksByColumn['done']} droppableId="done" onTaskClick={handleTaskClick}/>
-                        </div>
-                    </DragDropContext>
-                </TabsContent>
-                <TabsContent value="gantt" className="mt-4">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-end">
-                                <RadioGroup defaultValue="monthly" onValueChange={setTimeframe} className="flex items-center gap-4">
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="monthly" id="monthly" />
-                                        <Label htmlFor="monthly">Monthly</Label>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                        <RadioGroupItem value="weekly" id="weekly" />
-                                        <Label htmlFor="weekly">Weekly</Label>
-                                    </div>
-                                </RadioGroup>
+                <Tabs defaultValue="cards">
+                    <div className="flex items-center justify-end gap-4">
+                        <TabsList>
+                            <TabsTrigger value="cards"><LayoutGrid className="w-4 h-4 mr-2" />Cards</TabsTrigger>
+                            <TabsTrigger value="gantt"><GanttChart className="w-4 h-4 mr-2" />Gantt Chart</TabsTrigger>
+                        </TabsList>
+                        <Button onClick={handleNewTask}>
+                            <PlusCircle className="mr-2 h-4 w-4" />
+                            New Task
+                        </Button>
+                    </div>
+                    <TabsContent value="cards" className="mt-4">
+                        <DragDropContext onDragEnd={onDragEnd}>
+                            <div className="grid flex-1 grid-cols-1 items-start gap-6 md:grid-cols-3">
+                                <TaskColumn title="To Do" tasks={tasksByColumn['to-do']} droppableId="to-do" onTaskClick={handleEditTask}/>
+                                <TaskColumn title="In Progress" tasks={tasksByColumn['in-progress']} droppableId="in-progress" onTaskClick={handleEditTask}/>
+                                <TaskColumn title="Done" tasks={tasksByColumn['done']} droppableId="done" onTaskClick={handleEditTask}/>
                             </div>
-                        </CardHeader>
-                        <CardContent className="p-4 pt-0">
-                            <DynamicTaskGanttChart tasks={tasks} timeframe={timeframe} onTaskClick={handleTaskClick} />
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
-            <EditTaskDialog isOpen={isDialogOpen} onOpenChange={setIsDialogOpen} task={selectedTask} assignees={assignees} />
-        </>
+                        </DragDropContext>
+                    </TabsContent>
+                    <TabsContent value="gantt" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center justify-end">
+                                    <RadioGroup defaultValue="monthly" onValueChange={setTimeframe} className="flex items-center gap-4">
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="monthly" id="monthly" />
+                                            <Label htmlFor="monthly">Monthly</Label>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <RadioGroupItem value="weekly" id="weekly" />
+                                            <Label htmlFor="weekly">Weekly</Label>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="p-4 pt-0">
+                                <DynamicTaskGanttChart tasks={tasks} timeframe={timeframe} onTaskClick={handleEditTask} />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+                <EditTaskDialog 
+                    isOpen={isTaskDialogOpen} 
+                    onOpenChange={setIsTaskDialogOpen} 
+                    task={selectedTask} 
+                    projectId={project.id} 
+                    assignees={assignees} 
+                />
+            </div>
+        </TooltipProvider>
     )
 }

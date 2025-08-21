@@ -1,10 +1,26 @@
 "use client"
 
-import { ChartTooltip, ChartTooltipContent, ChartContainer } from "@/components/ui/chart"
+import { ChartTooltip, ChartContainer } from "@/components/ui/chart"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
 import { chartConfig } from "@/lib/utils"
 import { Task } from "@/lib/types"
 import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+
+// Custom Tooltip Content component to prevent duplication
+const CustomGanttTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload; // All bars in a row share the same payload
+      return (
+        <div className="overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md">
+          <p className="font-bold">{data.name}</p>
+          <p className="text-muted-foreground">
+            {format(new Date(data.rangeForTooltip[0]), "MMM d, yyyy")} - {format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
 
 const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; timeframe: string; onTaskClick: (task: Task) => void; }) => {
   if (!tasks || tasks.length === 0) {
@@ -41,7 +57,7 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     const remainingDuration = totalDuration - progressDuration
 
     return {
-      ...task, // Pass the original task object through
+      ...task,
       name: task.TaskName,
       rangeForTooltip: [startDate, endDate],
       offset: offsetDuration,
@@ -101,22 +117,7 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
           ticks={ticks}
           tickFormatter={tickFormatter}
         />
-        <ChartTooltip
-          cursor={false}
-          content={
-            <ChartTooltipContent
-              hideLabel
-              formatter={(value, name, item) => (
-                <div className="flex flex-col items-start gap-1.5 text-xs">
-                  <span className="font-bold">{item.payload.name}</span>
-                  <span>
-                    {format(item.payload.rangeForTooltip[0], 'MMM d, yyyy')} - {format(item.payload.rangeForTooltip[1], 'MMM d, yyyy')}
-                  </span>
-                </div>
-              )}
-            />
-          }
-        />
+        <ChartTooltip cursor={false} content={<CustomGanttTooltip />} />
         <Bar dataKey="offset" stackId="a" fill="transparent" isAnimationActive={false} />
         <Bar dataKey="completed" stackId="a" fill="var(--color-completed)" className="fill-success cursor-pointer" isAnimationActive={false} radius={[5, 0, 0, 5]}>
             {chartData.map((data, index) => <Cell key={`cell-${index}`} onClick={() => onTaskClick(data)} />)}
