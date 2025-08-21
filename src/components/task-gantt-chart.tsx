@@ -4,7 +4,7 @@ import { ChartTooltip, ChartContainer } from "@/components/ui/chart"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
 import { chartConfig } from "@/lib/utils"
 import { Task } from "@/lib/types"
-import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns"
+import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isPast, isToday, differenceInDays } from "date-fns"
 
 // Custom Tooltip Content component to prevent duplication
 const CustomGanttTooltip = ({ active, payload }: any) => {
@@ -27,7 +27,10 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No tasks to display.</p></div>;
   }
 
-  const allDates = tasks.flatMap(t => [new Date(t.StartDate), new Date(t.EndDate)]);
+  const allDates = tasks.flatMap(t => t.StartDate && t.EndDate ? [new Date(t.StartDate), new Date(t.EndDate)] : []);
+  if (allDates.length === 0) {
+    return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No tasks with valid dates.</p></div>;
+  }
   let minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
   let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
 
@@ -38,32 +41,63 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     minDate = startOfMonth(minDate);
     maxDate = endOfMonth(maxDate);
   }
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Normalize today's date to midnight
 
   const chartData = tasks.map(task => {
     const startDate = new Date(task.StartDate)
     const endDate = new Date(task.EndDate)
     
-    const now = new Date()
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
-
     const offsetDuration = (startDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)
     const totalDuration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) + 1
     
-    const isCompleted = task.Status === 'จบงานแล้ว'
-    const isOverdue = !isCompleted && today > endDate
+    const isCompleted = (task.Progress || 0) === 100;
+    const dueDate = parseISO(task.EndDate);
+    const isOverdue = (isPast(dueDate) && !isToday(dueDate)) && !isCompleted;
 
-    const timeElapsed = (today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-    const progressDuration = isCompleted ? totalDuration : Math.max(0, Math.min(timeElapsed, totalDuration))
-    const remainingDuration = totalDuration - progressDuration
+    // --- LOGIC REVISED ---
+    // The dark part of the bar is ALWAYS based on time elapsed.
+    let timeElapsedDuration;
+    if (isCompleted) {
+        // If it's 100% complete, the whole bar is dark green.
+        timeElapsedDuration = totalDuration;
+    }
+    else if (today < startDate) {
+        timeElapsedDuration = 0; // Task hasn't started, no time elapsed
+    } else {
+        const elapsedDays = differenceInDays(today, startDate) + 1;
+        timeElapsedDuration = Math.min(elapsedDays, totalDuration); // Cap at total duration
+    }
+    // If today is past the end date, the elapsed time is the total duration
+    if (today > endDate && !isCompleted) {
+        timeElapsedDuration = totalDuration;
+    }
+    
+    const remainingDuration = totalDuration - timeElapsedDuration;
+    // --- END REVISION ---
+
+    // Colors are still determined by the task's STATUS (Completed/Overdue)
+    let progressFillColor = "hsl(var(--secondary-foreground))";
+    let remainingFillColor = "hsl(var(--muted))"; 
+
+    if (isCompleted) {
+        progressFillColor = "hsl(var(--success))";
+        remainingFillColor = "hsla(var(--success), 0.4)";
+    } else if (isOverdue) {
+        progressFillColor = "hsl(var(--destructive))";
+        remainingFillColor = "hsla(var(--destructive), 0.4)";
+    }
 
     return {
       ...task,
       name: task.TaskName,
       rangeForTooltip: [startDate, endDate],
       offset: offsetDuration,
-      completed: isOverdue ? 0 : progressDuration,
-      remaining: isOverdue ? 0 : remainingDuration,
-      overdue: isOverdue ? totalDuration : 0,
+      progressDuration: timeElapsedDuration,
+      remainingDuration: remainingDuration,
+      progressFillColor: progressFillColor,
+      remainingFillColor: remainingFillColor,
     }
   });
 
@@ -108,7 +142,7 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
           tickLine={false}
           tickMargin={10}
           axisLine={false}
-          tickFormatter={(value) => value.slice(0, 20)}
+          tickFormatter={(value) => value ? value.slice(0, 20) : ''}
           width={120}
         />
         <XAxis
@@ -119,14 +153,25 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
         />
         <ChartTooltip cursor={false} content={<CustomGanttTooltip />} />
         <Bar dataKey="offset" stackId="a" fill="transparent" isAnimationActive={false} />
-        <Bar dataKey="completed" stackId="a" fill="var(--color-completed)" className="fill-success cursor-pointer" isAnimationActive={false} radius={[5, 0, 0, 5]}>
-            {chartData.map((data, index) => <Cell key={`cell-${index}`} onClick={() => onTaskClick(data)} />)}
+        <Bar dataKey="progressDuration" stackId="a" isAnimationActive={false} radius={[4, 0, 0, 4]}>
+            {chartData.map((data, index) => 
+                <Cell 
+                    key={`cell-progress-${index}`} 
+                    fill={data.progressFillColor}
+                    onClick={() => onTaskClick(data)}
+                    className="cursor-pointer"
+                />
+            )}
         </Bar>
-        <Bar dataKey="remaining" stackId="a" fill="hsla(var(--chart-1), 0.3)" className="fill-primary/30 cursor-pointer" isAnimationActive={false} radius={[0, 5, 5, 0]}>
-            {chartData.map((data, index) => <Cell key={`cell-${index}`} onClick={() => onTaskClick(data)} />)}
-        </Bar>
-        <Bar dataKey="overdue" stackId="a" fill="var(--color-overdue)" className="fill-destructive cursor-pointer" isAnimationActive={false} radius={5}>
-            {chartData.map((data, index) => <Cell key={`cell-${index}`} onClick={() => onTaskClick(data)} />)}
+        <Bar dataKey="remainingDuration" stackId="a" isAnimationActive={false} radius={[0, 4, 4, 0]}>
+            {chartData.map((data, index) => 
+                <Cell 
+                    key={`cell-remaining-${index}`} 
+                    fill={data.remainingFillColor}
+                    onClick={() => onTaskClick(data)}
+                    className="cursor-pointer"
+                />
+            )}
         </Bar>
       </BarChart>
     </ChartContainer>

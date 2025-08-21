@@ -215,7 +215,15 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="Owner">Owner</Label>
-                    <Input id="Owner" name="Owner" defaultValue={task?.Owner || ''} placeholder="e.g. Project Manager" />
+                    <Input 
+                        id="Owner" 
+                        name="Owner" 
+                        defaultValue={task?.Owner || ''} 
+                        placeholder="e.g. Project Manager" 
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') e.preventDefault();
+                        }}
+                    />
                 </div>
             </div>
             <div className="space-y-2">
