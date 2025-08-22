@@ -4,8 +4,6 @@ import dynamic from 'next/dynamic';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { CalendarEvent } from '@/app/calendar/actions';
 
-// This component is the "Client Bridge". It's responsible for dynamically importing
-// the actual calendar page, which contains client-only code.
 const CalendarClientPage = dynamic(
   () => import('@/app/calendar/calendar-client-page'),
   {
@@ -25,6 +23,16 @@ const CalendarClientPage = dynamic(
   }
 );
 
-export function CalendarLoader({ initialEvents }: { initialEvents: CalendarEvent[] }) {
-    return <CalendarClientPage initialEvents={initialEvents} />;
+interface CalendarLoaderProps {
+    initialEvents: CalendarEvent[];
+    members: string[]; // Changed from assignees
+    locations: string[];
+}
+
+export function CalendarLoader({ initialEvents, members, locations }: CalendarLoaderProps) {
+    return <CalendarClientPage 
+        initialEvents={initialEvents} 
+        members={members} // Pass down members
+        locations={locations}
+    />;
 }
