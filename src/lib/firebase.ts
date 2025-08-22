@@ -1,14 +1,15 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
+// Hardcoded Firebase configuration to ensure connection
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  apiKey: "AIzaSyDUKlPIoG2G0j3HNZV7qbTrRYSX9a-vILM",
+  authDomain: "project-management-app-88bdc.firebaseapp.com",
+  projectId: "project-management-app-88bdc",
+  storageBucket: "project-management-app-88bdc.firebasestorage.app",
+  messagingSenderId: "319066320801",
+  appId: "1:319066320801:web:21d9d776a6d2ad351ae5e0",
+  measurementId: "G-9GJJ64KDGD"
 };
 
 // Initialize Firebase using a singleton pattern

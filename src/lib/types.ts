@@ -26,5 +26,7 @@ export interface Project {
     description: string;
     startDate: string;
     endDate: string;
-    status: 'จบงานแล้ว' | 'กำลังดำเนินการ';
+    status: 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'Archived';
+    completedTasks: number;
+    totalTasks: number;
 }

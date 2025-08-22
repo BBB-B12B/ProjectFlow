@@ -2,7 +2,8 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { createProject } from "@/app/projects/actions";
+import { updateProject } from "@/app/projects/actions";
+import type { Project } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -22,36 +23,28 @@ const initialState = {
   message: "",
 };
 
-export function NewProjectDialog({
+export function EditProjectDialog({
   isOpen,
   onOpenChange,
+  project,
 }: {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
+  project: Project | null;
 }) {
-  const [state, formAction] = useActionState(createProject, initialState);
+  const [state, formAction] = useActionState(updateProject, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
 
   useEffect(() => {
-    // Set default dates when the dialog opens for a new project
-    if (isOpen) {
-        const today = new Date().toISOString().split('T')[0];
-        setStartDate(today);
-        setEndDate(today);
+    if (project) {
+      setName(project.name);
+      setDescription(project.description);
     }
-  }, [isOpen]);
-
-  const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newStartDate = e.target.value;
-    setStartDate(newStartDate);
-    if (newStartDate && endDate && newStartDate > endDate) {
-      setEndDate(newStartDate);
-    }
-  };
+  }, [project]);
 
   useEffect(() => {
     if (state.success) {
@@ -60,7 +53,6 @@ export function NewProjectDialog({
         description: state.message,
       });
       onOpenChange(false);
-      formRef.current?.reset();
     } else if (state.message) {
       toast({
         title: "Error",
@@ -70,37 +62,36 @@ export function NewProjectDialog({
     }
   }, [state, toast, onOpenChange]);
 
+  if (!project) return null;
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Create New Project</DialogTitle>
+          <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>
-            Fill in the details for your new project. Click create when you're done.
+            Make changes to your project here. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} action={formAction}>
+          <input type="hidden" name="projectId" value={project.id} />
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Project Name</Label>
-              <Input id="name" name="name" placeholder="e.g. Website Redesign" required />
+              <Input id="name" name="name" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
-              <Textarea id="description" name="description" placeholder="A brief description of the project..." />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="taskName">First Task Name</Label>
-              <Input id="taskName" name="taskName" placeholder="e.g. Project setup" required />
+              <Textarea id="description" name="description" value={description} onChange={(e) => setDescription(e.target.value)} />
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="startDate">Start Date</Label>
-                    <Input id="startDate" name="startDate" type="date" value={startDate} onChange={handleStartDateChange} required />
+                    <Input id="startDate" name="startDate" type="date" value={project.startDate} disabled />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="endDate">End Date</Label>
-                    <Input id="endDate" name="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate} required />
+                    <Input id="endDate" name="endDate" type="date" value={project.endDate} disabled />
                 </div>
             </div>
           </div>
@@ -108,7 +99,7 @@ export function NewProjectDialog({
             <DialogClose asChild>
                 <Button type="button" variant="ghost">Cancel</Button>
             </DialogClose>
-            <Button type="submit">Create Project</Button>
+            <Button type="submit">Save Changes</Button>
           </DialogFooter>
         </form>
       </DialogContent>
