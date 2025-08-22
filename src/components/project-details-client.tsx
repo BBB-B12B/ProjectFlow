@@ -16,7 +16,7 @@ import { LayoutGrid, GanttChart, PlusCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { updateTaskStatus } from '../app/project/[id]/actions';
+import { updateTaskStatus } from '@/app/project/[id]/actions';
 import { useToast } from '@/hooks/use-toast';
 import { EditTaskDialog } from './edit-task-dialog';
 import { Button } from '@/components/ui/button';
@@ -36,7 +36,7 @@ function TaskCard({ task, index, onClick }: { task: Task; index: number; onClick
         Thankless: { className: 'border-transparent bg-muted/50 text-muted-foreground hover:bg-muted/60', tooltip: 'Thankless Task' },
     };
 
-    const isCompleted = task.Progress === 100;
+    const isCompleted = (task.Progress || 0) === 100;
     const dueDate = parseISO(task.EndDate);
     const isOverdue = (isPast(dueDate) && !isToday(dueDate)) && !isCompleted;
 
@@ -191,11 +191,13 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
 
     return (
         <TooltipProvider>
-            <div className="flex h-full flex-col gap-6">
-                <BackButton />
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
-                    <p className="text-muted-foreground">{project.description}</p>
+            <div className="flex h-full flex-col gap-4">
+                <div className="flex items-center gap-4">
+                    <BackButton />
+                    <div>
+                        <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+                        <p className="text-muted-foreground">{project.description}</p>
+                    </div>
                 </div>
                 <Tabs defaultValue="cards">
                     <div className="flex items-center justify-end gap-4">

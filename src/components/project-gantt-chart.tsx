@@ -1,151 +1,136 @@
-
 "use client"
 
-import { useMemo } from "react"
+import { ChartTooltip, ChartContainer } from "@/components/ui/chart"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
+import { chartConfig } from "@/lib/utils"
+import { Project } from "@/lib/types"
+import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getISOWeek } from "date-fns"
 import { useRouter } from "next/navigation"
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
-import type { Project } from "@/lib/types"
-import { addDays, differenceInDays, format, parseISO, startOfWeek, addWeeks } from "date-fns"
 
-interface GanttChartProps {
-  projects: Project[]
-  timeframe: string
-}
-
-export function ProjectGanttChart({ projects, timeframe }: GanttChartProps) {
-  const router = useRouter();
-
-  const handleBarClick = (data: any) => {
-    if (data && data.id) {
-      router.push(`/project/${data.id}`);
+const CustomGanttTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md w-max">
+          <p className="font-bold">{data.name}</p>
+          <p className="text-muted-foreground">
+            {format(new Date(data.rangeForTooltip[0]), "MMM d, yyyy")} - {format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}
+          </p>
+        </div>
+      );
     }
+    return null;
   };
 
-  const { data, yAxisTicks, xAxisDomain, xAxisTicks } = useMemo(() => {
-    if (projects.length === 0) {
-      return { data: [], yAxisTicks: [], xAxisDomain: [0, 0], xAxisTicks: [] };
-    }
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+const ProjectGanttChart = ({ projects, timeframe }: { projects: Project[]; timeframe: string; }) => {
+  const router = useRouter(); // Initialize router
 
-    const chartData = projects.map((project) => {
-      const startDate = parseISO(project.startDate)
-      const endDate = parseISO(project.endDate)
-      const duration = differenceInDays(endDate, startDate) || 1;
-      
-      const completedDuration = differenceInDays(today, startDate)
-      const progress = Math.min(Math.max(completedDuration / duration, 0), 1)
-      const isComplete = today > endDate;
-
-      return {
-        id: project.id,
-        name: project.name,
-        range: [startDate.getTime(), endDate.getTime()],
-        duration,
-        progress: Math.round(progress * 100),
-        status: isComplete ? 'จบงานแล้ว' : project.Status || 'กำลังดำเนินการ'
-      }
-    });
-
-    const allDates = projects.flatMap(p => [parseISO(p.startDate), parseISO(p.endDate)])
-    const minDate = new Date(Math.min(...allDates.map(d => d.getTime())))
-    const maxDate = new Date(Math.max(...allDates.map(d => d.getTime())))
-
-    const yAxisTicks = chartData.map(d => d.name)
-    const xAxisDomain = [minDate.getTime(), maxDate.getTime()]
-    
-    let xAxisTicks: number[] = [];
-    if (timeframe === 'Weekly') {
-        let currentTick = startOfWeek(minDate, { weekStartsOn: 1 });
-        while (currentTick <= maxDate) {
-            xAxisTicks.push(currentTick.getTime());
-            currentTick = addWeeks(currentTick, 1);
-        }
-    }
-
-    return { data: chartData, yAxisTicks, xAxisDomain, xAxisTicks }
-  }, [projects, timeframe])
-
-  if (projects.length === 0) {
-      return (
-        <div className="flex justify-center items-center h-[300px]">
-            <p>No projects found. Try seeding data.</p>
-        </div>
-      )
+  if (!projects || projects.length === 0) {
+    return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No projects to display.</p></div>;
+  }
+  
+  const allDates = projects.flatMap(p => p.startDate && p.endDate ? [new Date(p.startDate), new Date(p.endDate)] : []);
+  if (allDates.length === 0) {
+    return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No projects with valid dates.</p></div>;
   }
 
+  let minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+  let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+
+  if (timeframe === 'weekly') {
+    minDate = startOfWeek(minDate, { weekStartsOn: 1 });
+    maxDate = endOfWeek(maxDate, { weekStartsOn: 1 });
+  } else {
+    minDate = startOfMonth(minDate);
+    maxDate = endOfMonth(maxDate);
+  }
+
+  const chartData = projects.map(project => {
+    const startDate = new Date(project.startDate)
+    const endDate = new Date(project.endDate)
+    
+    const offsetDuration = (startDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)
+    const totalDuration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) + 1
+    
+    return {
+      ...project,
+      rangeForTooltip: [startDate, endDate],
+      offset: offsetDuration,
+      duration: totalDuration,
+      fillColor: project.status === 'จบงานแล้ว' ? "hsl(var(--success))" : "hsl(var(--secondary-foreground))"
+    }
+  });
+
+  const getTicks = () => {
+    const ticks = new Set<number>();
+    let currentDate = new Date(minDate);
+
+    while (currentDate <= maxDate) {
+      const dayOffset = (currentDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+      ticks.add(Math.floor(dayOffset));
+      if (timeframe === 'weekly') {
+        currentDate = addDays(currentDate, 7);
+      } else {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        currentDate.setDate(1);
+      }
+    }
+    return Array.from(ticks);
+  };
+  
+  const ticks = getTicks();
+  const totalChartDuration = (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+
+  const tickFormatter = (dayOffset: number) => {
+    const date = addDays(minDate, dayOffset);
+    if (timeframe === 'weekly') {
+      const isoWeek = getISOWeek(date);
+      return `${format(date, 'MMM d')} (W${isoWeek})`;
+    }
+    if (minDate.getUTCFullYear() !== maxDate.getUTCFullYear()) {
+      return format(date, 'MMM yy');
+    }
+    return format(date, 'MMM');
+  };
+
+  const handleBarClick = (data: any) => {
+    router.push(`/project/${data.id}`);
+  };
+
   return (
-    <ResponsiveContainer width="100%" height={100 + projects.length * 50}>
-      <BarChart
-        data={data}
-        layout="vertical"
-        margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
-        barCategoryGap="35%"
-        onClick={(e) => handleBarClick(e.activePayload?.[0]?.payload)}
-      >
-        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-        <XAxis 
-          type="number" 
-          domain={xAxisDomain}
-          tickFormatter={(time) => format(new Date(time), timeframe === 'Monthly' ? 'MMM yyyy' : 'MMM d')}
-          scale="time"
-          ticks={xAxisTicks.length > 0 ? xAxisTicks : undefined}
-          interval={timeframe === 'Monthly' ? 0 : 'preserveStartEnd'}
-        />
-        <YAxis 
-          type="category" 
-          dataKey="name" 
-          width={100} 
+    <ChartContainer config={chartConfig} className="h-[400px] w-full">
+      <BarChart data={chartData} layout="vertical" stackOffset="none" margin={{ left: -20 }}>
+        <CartesianGrid horizontal={false} />
+        <YAxis
+          dataKey="name"
+          type="category"
           tickLine={false}
+          tickMargin={10}
           axisLine={false}
+          tickFormatter={(value) => value ? value.slice(0, 20) : ''}
+          width={120}
         />
-        <Tooltip
-          content={({ payload }) => {
-            if (payload && payload.length > 0) {
-              const { name, range, progress, status } = payload[0].payload;
-              return (
-                <div className="rounded-lg border bg-background p-2 shadow-sm text-sm w-48">
-                  <p className="font-bold mb-2">{name}</p>
-                  <div className="space-y-1">
-                    <p className="text-muted-foreground flex justify-between">
-                      <span>Start:</span> 
-                      <span className="font-medium text-foreground">{format(new Date(range[0]), 'MMM d, yyyy')}</span>
-                    </p>
-                    <p className="text-muted-foreground flex justify-between">
-                      <span>End:</span>
-                      <span className="font-medium text-foreground">{format(new Date(range[1]), 'MMM d, yyyy')}</span>
-                    </p>
-                    <p className="text-muted-foreground flex justify-between">
-                      <span>Status:</span>
-                      <span className="font-medium text-foreground">{status}</span>
-                    </p>
-                  </div>
-                  <p className="text-muted-foreground mt-2">Progress: {progress}%</p>
-                  <div className="w-full bg-secondary rounded-full h-2.5 mt-1">
-                    <div className="bg-primary h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          }}
+        <XAxis
+          type="number"
+          domain={[0, totalChartDuration]}
+          ticks={ticks}
+          tickFormatter={tickFormatter}
         />
-        <Bar dataKey="range" radius={4} className="cursor-pointer">
-          {data.map((entry, index) => {
-            const range = entry.range as number[];
-            const progressWidth = ((range[1] - range[0]) * entry.progress) / 100
-            const progressEnd = range[0] + progressWidth
-            
-            return (
-              <Bar
-                key={`cell-${entry.id || index}`}
-                fill="hsl(var(--secondary))"
-              >
-              </Bar>
-            )
-          })}
+        <ChartTooltip cursor={false} content={<CustomGanttTooltip />} />
+        <Bar dataKey="offset" stackId="a" fill="transparent" isAnimationActive={false} />
+        <Bar dataKey="duration" stackId="a" isAnimationActive={false} radius={4}>
+            {chartData.map((data, index) => (
+              <Cell 
+                key={`cell-${index}`} 
+                fill={data.fillColor} 
+                className="cursor-pointer" 
+                onClick={() => handleBarClick(data)}
+              />
+            ))}
         </Bar>
       </BarChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   )
 }
+
+export { ProjectGanttChart }

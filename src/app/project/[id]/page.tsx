@@ -2,8 +2,8 @@ import type { Task, Project } from '@/lib/types';
 import { notFound, redirect } from 'next/navigation';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { ProjectDetailsClient } from '@/components/project-details-client';
 import { getUniqueAssignees } from './actions';
+import { ProjectDetailsClient } from '@/components/project-details-client';
 
 async function getProject(id: string): Promise<Project | null> {
     const projectDocRef = doc(db, 'projects', id);
@@ -14,11 +14,12 @@ async function getProject(id: string): Promise<Project | null> {
     const data = projectDoc.data();
     return {
       id: projectDoc.id,
-      name: data.ProjectName,
+      // Backwards compatibility
+      name: data.name || data.ProjectName,
       description: data.description || 'No description available.',
-      startDate: data.StartDate,
-      endDate: data.EndDate,
-      ...data
+      startDate: data.startDate || data.StartDate,
+      endDate: data.endDate || data.EndDate,
+      status: data.status,
     } as Project;
 }
 
@@ -34,13 +35,15 @@ async function getProjectTasks(projectId: string): Promise<Task[]> {
         Status: data.Status || '',
         EndDate: data.EndDate || '',
         StartDate: data.StartDate || '',
-        ProjectType: data.ProjectType || '',
+        ProjectType: data.ProjectType || 'Thankless',
         Assignee: data.Assignee || '',
         Category: data.Category || '',
         Owner: data.Owner || '',
         Want: data.Want || '',
         Progress: data.Progress || 0,
-        ...data,
+        projectId: data.projectId,
+        Effect: data.Effect || 0,
+        Effort: data.Effort || 0,
       } as Task;
     });
     return taskList;

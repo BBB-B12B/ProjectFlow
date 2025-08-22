@@ -4,18 +4,32 @@ import { ChartTooltip, ChartContainer } from "@/components/ui/chart"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
 import { chartConfig } from "@/lib/utils"
 import { Task } from "@/lib/types"
-import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isPast, isToday, differenceInDays } from "date-fns"
+import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isPast, isToday, differenceInDays, getISOWeek } from "date-fns"
 
 // Custom Tooltip Content component to prevent duplication
 const CustomGanttTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload; // All bars in a row share the same payload
       return (
-        <div className="overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md">
-          <p className="font-bold">{data.name}</p>
-          <p className="text-muted-foreground">
-            {format(new Date(data.rangeForTooltip[0]), "MMM d, yyyy")} - {format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}
-          </p>
+        <div className="overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md w-max">
+            <p className="font-bold">{data.name}</p>
+            <p className="text-muted-foreground border-b pb-1 mb-1">
+              Due: {format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}
+            </p>
+            <div className="space-y-1 mt-2">
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-muted-foreground">Assignee:</span>
+                <span className="font-medium">{data.Assignee || 'Unassigned'}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Type:</span>
+                  <span className="font-medium">{data.ProjectType}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Progress:</span>
+                <span className="font-medium">{data.Progress || 0}%</span>
+              </div>
+            </div>
         </div>
       );
     }
@@ -35,8 +49,8 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
   let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
 
   if (timeframe === 'weekly') {
-    minDate = startOfWeek(minDate);
-    maxDate = endOfWeek(maxDate);
+    minDate = startOfWeek(minDate, { weekStartsOn: 1 }); // ISO week starts on Monday
+    maxDate = endOfWeek(maxDate, { weekStartsOn: 1 });
   } else {
     minDate = startOfMonth(minDate);
     maxDate = endOfMonth(maxDate);
@@ -56,28 +70,22 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     const dueDate = parseISO(task.EndDate);
     const isOverdue = (isPast(dueDate) && !isToday(dueDate)) && !isCompleted;
 
-    // --- LOGIC REVISED ---
-    // The dark part of the bar is ALWAYS based on time elapsed.
     let timeElapsedDuration;
     if (isCompleted) {
-        // If it's 100% complete, the whole bar is dark green.
         timeElapsedDuration = totalDuration;
     }
     else if (today < startDate) {
-        timeElapsedDuration = 0; // Task hasn't started, no time elapsed
+        timeElapsedDuration = 0;
     } else {
         const elapsedDays = differenceInDays(today, startDate) + 1;
-        timeElapsedDuration = Math.min(elapsedDays, totalDuration); // Cap at total duration
+        timeElapsedDuration = Math.min(elapsedDays, totalDuration);
     }
-    // If today is past the end date, the elapsed time is the total duration
     if (today > endDate && !isCompleted) {
         timeElapsedDuration = totalDuration;
     }
     
     const remainingDuration = totalDuration - timeElapsedDuration;
-    // --- END REVISION ---
 
-    // Colors are still determined by the task's STATUS (Completed/Overdue)
     let progressFillColor = "hsl(var(--secondary-foreground))";
     let remainingFillColor = "hsl(var(--muted))"; 
 
@@ -124,7 +132,8 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
   const tickFormatter = (dayOffset: number) => {
     const date = addDays(minDate, dayOffset);
     if (timeframe === 'weekly') {
-      return format(date, 'MMM d');
+      const isoWeek = getISOWeek(date);
+      return `${format(date, 'MMM d')} (W${isoWeek})`;
     }
     if (minDate.getUTCFullYear() !== maxDate.getUTCFullYear()) {
       return format(date, 'MMM yy');
