@@ -20,13 +20,23 @@ export interface CalendarEvent {
 type FormState = {
     success: boolean;
     message: string;
+    errors?: {
+        title?: string[];
+        start?: string[];
+        end?: string[];
+        allDay?: string[];
+        description?: string[];
+        members?: string[];
+        location?: string[];
+        id?: string[];
+    };
 };
 
 const EventSchema = z.object({
   title: z.string().min(1, "Title is required."),
-  start: z.string().transform((str) => new Date(str)),
-  end: z.string().transform((str) => new Date(str)),
-  allDay: z.boolean(),
+  start: z.string().min(1, "Start date is required").transform((str) => new Date(str)),
+  end: z.string().min(1, "End date is required").transform((str) => new Date(str)),
+  allDay: z.preprocess((arg) => arg === 'true', z.boolean()),
   description: z.string().optional(),
   members: z.preprocess((arg) => {
     if (typeof arg === 'string' && arg.length > 0) return arg.split(',');
@@ -43,10 +53,16 @@ const UpdateEventSchema = EventSchema.extend({
 
 
 export async function createEvent(prevState: any, formData: FormData): Promise<FormState> {
-    const validatedFields = CreateEventSchema.safeParse(Object.fromEntries(formData.entries()));
+    const data = Object.fromEntries(formData.entries());
+    if (!data.allDay) data.allDay = 'false';
+    const validatedFields = CreateEventSchema.safeParse(data);
 
     if (!validatedFields.success) {
-        return { success: false, message: "Invalid form data." };
+        return {
+            success: false,
+            message: "Please correct the errors below.",
+            errors: validatedFields.error.flatten().fieldErrors,
+        };
     }
 
     try {
@@ -58,15 +74,22 @@ export async function createEvent(prevState: any, formData: FormData): Promise<F
         revalidatePath("/calendar");
         return { success: true, message: "Event created successfully." };
     } catch (error) {
+        console.error("Error creating event:", error);
         return { success: false, message: "Failed to create event." };
     }
 }
 
 export async function updateEvent(prevState: any, formData: FormData): Promise<FormState> {
-    const validatedFields = UpdateEventSchema.safeParse(Object.fromEntries(formData.entries()));
+    const data = Object.fromEntries(formData.entries());
+    if (!data.allDay) data.allDay = 'false';
+    const validatedFields = UpdateEventSchema.safeParse(data);
 
     if (!validatedFields.success) {
-        return { success: false, message: "Invalid form data." };
+        return {
+            success: false,
+            message: "Please correct the errors below.",
+            errors: validatedFields.error.flatten().fieldErrors,
+        };
     }
     
     const { id, ...eventData } = validatedFields.data;
@@ -81,6 +104,7 @@ export async function updateEvent(prevState: any, formData: FormData): Promise<F
         revalidatePath("/calendar");
         return { success: true, message: "Event updated successfully." };
     } catch (error) {
+        console.error("Error updating event:", error);
         return { success: false, message: "Failed to update event." };
     }
 }
@@ -130,6 +154,7 @@ export async function getMembersList(): Promise<string[]> {
 
         const taskAssignees = taskSnapshot.docs
             .map(doc => (doc.data() as Task).Assignee)
+            .flat()
             .filter(Boolean);
             
         const eventMembers = eventSnapshot.docs
