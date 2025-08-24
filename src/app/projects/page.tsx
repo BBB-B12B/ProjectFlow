@@ -31,6 +31,7 @@ async function getProjects(): Promise<Project[]> {
                     startDate: data.startDate || data.StartDate,
                     endDate: data.endDate || data.EndDate,
                     status: data.status || 'กำลังดำเนินการ',
+                    team: data.team,
                     completedTasks,
                     totalTasks,
                 } as Project;

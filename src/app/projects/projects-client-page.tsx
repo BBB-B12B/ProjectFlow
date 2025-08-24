@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { deleteProject, archiveProject } from './actions';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 export function ProjectsClientPage({ projects }: { projects: Project[] }) {
     const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
@@ -153,7 +154,10 @@ export function ProjectsClientPage({ projects }: { projects: Project[] }) {
                                         </Link>
                                     </CardContent>
                                 </div>
-                                <CardFooter className="flex justify-end">
+                                <CardFooter className="flex justify-between items-center">
+                                    {project.team && (
+                                        <Badge variant="outline">{project.team}</Badge>
+                                    )}
                                     <p className="text-xs text-muted-foreground">
                                         Complete {project.completedTasks}/{project.totalTasks}
                                     </p>

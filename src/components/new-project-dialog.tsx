@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { createProject } from "@/app/projects/actions";
+import { createProject, getTeams } from "@/app/projects/actions";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete";
 
 const initialState = {
   success: false,
@@ -32,13 +33,13 @@ export function NewProjectDialog({
   const [state, formAction] = useActionState(createProject, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-
+  const [teams, setTeams] = useState<string[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-
+  
   useEffect(() => {
-    // Set default dates when the dialog opens for a new project
     if (isOpen) {
+        getTeams().then(setTeams);
         const today = new Date().toISOString().split('T')[0];
         setStartDate(today);
         setEndDate(today);
@@ -88,6 +89,14 @@ export function NewProjectDialog({
             <div className="space-y-2">
               <Label htmlFor="description">Description</Label>
               <Textarea id="description" name="description" placeholder="A brief description of the project..." />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="team">Team</Label>
+              <SingleSelectAutocomplete
+                options={teams}
+                placeholder="Select or create a team..."
+                name="team"
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="taskName">First Task Name</Label>

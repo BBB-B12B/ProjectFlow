@@ -5,11 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Command, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { X as RemoveIcon, Check } from "lucide-react";
 
-type Option = {
-    value: string;
-    label: string;
-};
-
 interface MultiSelectAutocompleteProps {
     options: string[];
     initialValue?: string | string[];
@@ -23,7 +18,6 @@ export function MultiSelectAutocomplete({
     placeholder,
     name,
 }: MultiSelectAutocompleteProps) {
-    const commandRef = React.useRef<HTMLDivElement>(null);
     const inputRef = React.useRef<HTMLInputElement>(null);
     const [open, setOpen] = React.useState(false);
     const [selected, setSelected] = React.useState<string[]>([]);
@@ -33,8 +27,10 @@ export function MultiSelectAutocomplete({
         if (initialValue) {
             if (Array.isArray(initialValue)) {
                 setSelected(initialValue);
+            } else if (typeof initialValue === 'string' && initialValue) {
+                setSelected(initialValue.split(','));
             } else {
-                setSelected([initialValue]);
+                setSelected([]);
             }
         }
     }, [initialValue]);
@@ -52,6 +48,7 @@ export function MultiSelectAutocomplete({
                 return [...prev, optionValue];
             }
         });
+        inputRef.current?.focus();
     };
 
     const handleRemove = (optionValue: string) => {
@@ -59,8 +56,9 @@ export function MultiSelectAutocomplete({
     };
 
     const handleCreate = (newValue: string) => {
-        if (newValue && !selected.includes(newValue) && !options.some(opt => opt.value === newValue)) {
-            setSelected(prev => [...prev, newValue]);
+        const trimmedValue = newValue.trim();
+        if (trimmedValue && !selected.includes(trimmedValue) && !options.some(opt => opt.value === trimmedValue)) {
+            setSelected(prev => [...prev, trimmedValue]);
         }
         setInputValue("");
     };
@@ -71,44 +69,28 @@ export function MultiSelectAutocomplete({
     );
 
     const showCreateOption = inputValue && !options.some(opt => opt.value.toLowerCase() === inputValue.toLowerCase());
-
-    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-        if (e.key === 'Enter' && open) {
-            e.preventDefault();
-            const highlightedItem = commandRef.current?.querySelector('[aria-selected="true"]');
-            
-            if (highlightedItem) {
-                (highlightedItem as HTMLElement).click();
-            } else if (showCreateOption) {
-                handleCreate(inputValue);
-            }
-        } else if (e.key === 'Escape') {
-            inputRef.current?.blur();
-        }
-    };
     
-    const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
-        if (commandRef.current && !commandRef.current.contains(e.relatedTarget as Node)) {
-            setOpen(false);
-        }
-    };
-
     return (
-        <Command
-            ref={commandRef}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBlur}
+        <Command 
             className="overflow-visible"
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' && showCreateOption) {
+                    handleCreate(inputValue);
+                } else if (e.key === 'Escape') {
+                    inputRef.current?.blur();
+                } else if (e.key === 'Backspace' && inputValue === '') {
+                    if (selected.length > 0) {
+                        handleRemove(selected[selected.length - 1]);
+                    }
+                }
+            }}
         >
             <input type="hidden" name={name} value={selected.join(',')} />
-            <div
-                className="group w-full rounded-md border border-input p-1.5 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2"
-                onClick={() => {
-                    inputRef.current?.focus();
-                    if (!open) setOpen(true);
-                }}
-            >
-                <div className="flex flex-wrap gap-1.5">
+            <div className="group w-full rounded-md border border-input text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                <div 
+                    className="flex flex-wrap gap-1.5 p-1.5"
+                    onClick={() => inputRef.current?.focus()}
+                >
                     {selected.map((value) => (
                         <Badge
                             key={value}
@@ -120,21 +102,28 @@ export function MultiSelectAutocomplete({
                                 type="button"
                                 aria-label={`Remove ${value}`}
                                 onClick={() => handleRemove(value)}
+                                onMouseDown={(e) => e.preventDefault()}
                                 className="ml-1 rounded-full p-0.5 outline-none ring-offset-background hover:bg-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
                             >
                                 <RemoveIcon className="h-3 w-3" />
                             </button>
                         </Badge>
                     ))}
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        onFocus={() => setOpen(true)}
-                        placeholder={placeholder || "Select or create..."}
-                        className="flex-1 bg-transparent p-0.5 text-sm placeholder:text-muted-foreground focus:outline-none"
-                    />
+                    <div className="flex-1">
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            value={inputValue}
+                            onChange={(e) => {
+                                setInputValue(e.target.value);
+                                setOpen(true);
+                            }}
+                            onFocus={() => setOpen(true)}
+                            onBlur={() => setOpen(false)}
+                            placeholder={selected.length > 0 ? "" : (placeholder || "Select or create...")}
+                            className="w-full bg-transparent p-0.5 text-sm placeholder:text-muted-foreground focus:outline-none"
+                        />
+                    </div>
                 </div>
             </div>
             <div className="relative mt-2">
@@ -146,7 +135,8 @@ export function MultiSelectAutocomplete({
                                     <CommandItem
                                         key={option.value}
                                         value={option.value}
-                                        onSelect={() => handleSelect(option.value)}
+                                        onSelect={handleSelect}
+                                        onMouseDown={(e) => e.preventDefault()}
                                         className="flex items-center justify-between"
                                     >
                                         {option.label}
@@ -156,7 +146,8 @@ export function MultiSelectAutocomplete({
                                 {showCreateOption && (
                                     <CommandItem
                                         value={inputValue}
-                                        onSelect={() => handleCreate(inputValue)}
+                                        onSelect={handleCreate}
+                                        onMouseDown={(e) => e.preventDefault()}
                                     >
                                         Create "{inputValue}"
                                     </CommandItem>

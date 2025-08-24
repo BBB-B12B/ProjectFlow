@@ -29,4 +29,5 @@ export interface Project {
     status: 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'Archived';
     completedTasks: number;
     totalTasks: number;
+    team?: string; // Add optional team field
 }
