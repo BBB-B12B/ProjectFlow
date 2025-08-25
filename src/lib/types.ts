@@ -37,4 +37,5 @@ export interface Presence {
     userId: string;
     userName: string;
     lastSeen: any; // Firestore ServerTimestamp
+    avatarUrl?: string; // Add optional avatarUrl
 }

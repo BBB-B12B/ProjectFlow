@@ -1,6 +1,5 @@
 "use client";
 
-// --- (1) IMPORT firebase/firestore and other hooks ---
 import { useEffect, useState, useMemo, useActionState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import {
@@ -35,6 +34,7 @@ import { MultiSelectAutocomplete } from "./ui/multi-select-autocomplete";
 import { Trash2 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { getAnonymousUser } from "@/lib/anonymous-animals";
 
 interface TaskDialogProps {
   isOpen: boolean;
@@ -56,8 +56,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   const [state, formAction] = useActionState(action, { success: false, message: "" });
   const [isDeletePending, startDeleteTransition] = useTransition();
   
-  // --- (2) MOCK USER DATA (replace with real auth data later) ---
-  const [currentUser] = useState({ id: `user_${Date.now()}`, name: "Kan" });
+  const [currentUser] = useState(getAnonymousUser());
   
   const [effort, setEffort] = useState(10);
   const [effect, setEffect] = useState(10);
@@ -66,21 +65,19 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // --- (3) MANAGE PRESENCE IN FIRESTORE ---
   useEffect(() => {
-    // Only track presence if we are in edit mode and have a task id
     if (isEditMode && task?.id) {
         const presenceRef = doc(db, 'presence', task.id);
 
         if (isOpen) {
-            // User opened the dialog, set their presence
+            // --- (1) ADD avatarUrl TO THE PRESENCE DATA ---
             setDoc(presenceRef, {
                 userId: currentUser.id,
                 userName: currentUser.name,
+                avatarUrl: currentUser.avatarUrl, // <-- ADDED THIS LINE
                 lastSeen: serverTimestamp(),
             }).catch(console.error);
 
-            // Return a cleanup function to be run when the component unmounts or dependencies change
             return () => {
                 deleteDoc(presenceRef).catch(console.error);
             };

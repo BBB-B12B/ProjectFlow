@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-// --- (4) ADD PRESENCE TYPE ---
+// --- (1) IMPORT AvatarImage ---
 import type { Task, TaskStatus, Project, ProjectType, Presence } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'; // <-- IMPORTED HERE
 import { format, parseISO, isPast, isToday } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -26,13 +26,11 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 
-// Dynamically import the TaskGanttChart component
 const DynamicTaskGanttChart = dynamic(
   () => import('@/components/task-gantt-chart').then(mod => mod.TaskGanttChart),
   { ssr: false, loading: () => <Skeleton className="h-[400px] w-full" /> }
 );
 
-// --- (5) UPDATE TaskCard to accept and display presence ---
 function TaskCard({ task, index, onClick, editingUser }: { task: Task; index: number; onClick: () => void; editingUser?: Presence | null }) {
     const priorityConfig: Record<ProjectType, { className: string; tooltip: string }> = {
         Main: { className: 'border-transparent bg-destructive/20 text-destructive hover:bg-destructive/30', tooltip: 'Main Project' },
@@ -46,7 +44,7 @@ function TaskCard({ task, index, onClick, editingUser }: { task: Task; index: nu
     const isOverdue = (isPast(dueDate) && !isToday(dueDate)) && !isCompleted;
 
     const assigneeInitials = task.Assignee?.split(',').map(name => name.trim().charAt(0).toUpperCase()).join('') || '?';
-    const editingUserInitials = editingUser?.userName?.charAt(0).toUpperCase() || '!';
+    const editingUserInitials = editingUser?.userName?.split(' ').pop()?.charAt(0) || '!';
 
     return (
         <Draggable draggableId={task.id} index={index}>
@@ -59,10 +57,10 @@ function TaskCard({ task, index, onClick, editingUser }: { task: Task; index: nu
                     onClick={onClick}
                 >
                     <Card className={cn(
-                        "cursor-pointer hover:shadow-md relative", // Added relative for positioning
+                        "cursor-pointer hover:shadow-md relative",
                         isCompleted ? "bg-success/10 border-success/50" : "",
                         isOverdue ? "bg-destructive/10 border-destructive/50" : "",
-                        editingUser ? "border-blue-500 border-2" : "" // Highlight if someone is editing
+                        editingUser ? "border-blue-500 border-2" : ""
                         )}>
                         <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between gap-4">
@@ -88,7 +86,9 @@ function TaskCard({ task, index, onClick, editingUser }: { task: Task; index: nu
                                     {editingUser && (
                                         <Tooltip delayDuration={0}>
                                             <TooltipTrigger>
+                                                {/* --- (2) USE AvatarImage TO DISPLAY THE ANIMAL AVATAR --- */}
                                                 <Avatar className="h-7 w-7 border-2 border-blue-500">
+                                                    <AvatarImage src={editingUser.avatarUrl} alt={editingUser.userName} />
                                                     <AvatarFallback className="text-xs bg-blue-500 text-white">{editingUserInitials}</AvatarFallback>
                                                 </Avatar>
                                             </TooltipTrigger>
@@ -146,7 +146,6 @@ function TaskColumn({ title, tasks, droppableId, onTaskClick, editingUsers }: { 
 
 export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }: { project: Project, tasks: Task[]; assignees: string[] }) {
     const [tasks, setTasks] = useState(initialTasks);
-    // --- (1) CREATE STATE FOR PRESENCE ---
     const [editingUsers, setEditingUsers] = useState<Record<string, Presence>>({});
     const { toast } = useToast();
     const [timeframe, setTimeframe] = useState('monthly');
@@ -159,7 +158,6 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
 
         if (!project.id) return;
 
-        // --- (2) SETUP TASK LISTENER (existing code) ---
         const tasksQuery = query(collection(db, 'tasks'), where('projectId', '==', project.id));
         const unsubscribeTasks = onSnapshot(tasksQuery, (querySnapshot) => {
             const taskList = querySnapshot.docs.map(doc => {
@@ -184,7 +182,6 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
             setTasks(taskList);
         });
 
-        // --- (3) SETUP PRESENCE LISTENER ---
         const presenceQuery = query(collection(db, 'presence'));
         const unsubscribePresence = onSnapshot(presenceQuery, (snapshot) => {
             const presences: Record<string, Presence> = {};
@@ -195,7 +192,6 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
         });
 
 
-        // Cleanup: Unsubscribe from both listeners when the component unmounts
         return () => {
             unsubscribeTasks();
             unsubscribePresence();

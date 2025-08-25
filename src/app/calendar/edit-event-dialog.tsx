@@ -28,6 +28,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from '@/components/ui/textarea';
 import { MultiSelectAutocomplete } from '@/components/ui/multi-select-autocomplete';
 import { Trash2 } from 'lucide-react';
+import { db } from "@/lib/firebase";
+import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { getAnonymousUser } from '@/lib/anonymous-animals';
 
 const initialState = { success: false, message: "" };
 
@@ -52,6 +55,29 @@ export function EditEventDialog({
   const router = useRouter();
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const [currentUser] = useState(getAnonymousUser());
+  
+  useEffect(() => {
+    if (event?.id) {
+        const presenceRef = doc(db, 'presence', event.id);
+
+        if (isOpen) {
+            // --- (1) ADD avatarUrl TO THE PRESENCE DATA ---
+            setDoc(presenceRef, {
+                userId: currentUser.id,
+                userName: currentUser.name,
+                avatarUrl: currentUser.avatarUrl, // <-- ADDED THIS LINE
+                lastSeen: serverTimestamp(),
+            }).catch(console.error);
+
+            return () => {
+                deleteDoc(presenceRef).catch(console.error);
+            };
+        }
+    }
+  }, [isOpen, event, currentUser]);
+
 
   useEffect(() => {
     if (state.success) {

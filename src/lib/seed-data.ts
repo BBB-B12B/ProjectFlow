@@ -7,21 +7,7 @@ type SeedProject = Omit<Project, 'id'>;
 type SeedTask = Omit<Task, 'id'>;
 
 const projects: SeedProject[] = [
-    {
-        name: 'Website Redesign',
-        description: 'A complete overhaul of the company website.',
-        startDate: '2024-08-01',
-        endDate: '2024-09-30',
-        status: 'กำลังดำเนินการ',
-    },
-    {
-        name: 'Mobile App Launch',
-        description: 'Launch of the new mobile application for iOS and Android.',
-        startDate: '2024-08-10',
-        endDate: '2024-10-15',
-        status: 'กำลังดำเนินการ',
-    }
-];
+]
 
 const tasks: SeedTask[] = [
     {
