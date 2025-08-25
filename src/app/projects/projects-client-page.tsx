@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition } from 'react';
+// --- (1) IMPORT useEffect ---
+import { useState, useTransition, useEffect } from 'react';
 import type { Project } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,14 @@ import { deleteProject, archiveProject } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 
-export function ProjectsClientPage({ projects }: { projects: Project[] }) {
+// --- (2) IMPORT firebase/firestore ---
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+
+export function ProjectsClientPage({ projects: initialProjects }: { projects: Project[] }) {
+    // --- (3) SETUP STATE FOR REAL-TIME UPDATES ---
+    const [projects, setProjects] = useState(initialProjects);
+    
     const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isArchivedDialogOpen, setIsArchivedDialogOpen] = useState(false);
@@ -45,6 +53,41 @@ export function ProjectsClientPage({ projects }: { projects: Project[] }) {
     const [isArchiveAlertOpen, setIsArchiveAlertOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
+
+    // --- (4) SETUP REAL-TIME LISTENER ---
+    useEffect(() => {
+        // Query for projects that are not archived
+        const q = query(collection(db, 'projects'), where('status', '!=', 'Archived'));
+
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const projectsFromFirestore = querySnapshot.docs.map(doc => {
+                const data = doc.data();
+                const projectId = doc.id;
+
+                // IMPORTANT: Real-time updates for task counts is complex and costly on the client.
+                // We will merge the live data with the initial data to preserve the task counts
+                // calculated on the server. A full refresh (or navigating) will get fresh counts.
+                const initialProjectData = initialProjects.find(p => p.id === projectId);
+                
+                return {
+                    id: projectId,
+                    name: data.name || data.ProjectName,
+                    description: data.description,
+                    startDate: data.startDate || data.StartDate,
+                    endDate: data.endDate || data.EndDate,
+                    status: data.status || 'กำลังดำเนินการ',
+                    team: data.team,
+                    // Use initial task counts, default to 0 if it's a brand new project not in the initial list
+                    completedTasks: initialProjectData?.completedTasks || 0,
+                    totalTasks: initialProjectData?.totalTasks || 0,
+                } as Project;
+            });
+            setProjects(projectsFromFirestore);
+        });
+
+        // Cleanup function to unsubscribe when the component unmounts
+        return () => unsubscribe();
+    }, [initialProjects]); // Dependency array includes initialProjects to help with merging data
 
     const handleActionClick = (project: Project, action: 'edit' | 'delete' | 'archive') => {
         setSelectedProject(project);
@@ -115,6 +158,7 @@ export function ProjectsClientPage({ projects }: { projects: Project[] }) {
                 </div>
                 <TabsContent value="cards" className="mt-4">
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {/* --- (5) RENDER THE STATE-managed `projects` LIST --- */}
                         {projects.map((project) => (
                             <Card key={project.id} className="flex h-48 flex-col justify-between">
                                 <div>

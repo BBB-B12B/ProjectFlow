@@ -1,6 +1,8 @@
 "use client";
 
+// --- (1) IMPORT useFormStatus and a loading icon ---
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { useToast } from "@/hooks/use-toast";
 import { createProject, getTeams } from "@/app/projects/actions";
 import {
@@ -17,11 +19,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete";
+import { Loader2 } from "lucide-react";
 
 const initialState = {
   success: false,
   message: "",
 };
+
+// --- (2) CREATE A DEDICATED SUBMIT BUTTON COMPONENT ---
+// This component uses the useFormStatus hook to get the form's pending state.
+function SubmitButton() {
+    const { pending } = useFormStatus();
+  
+    return (
+      <Button type="submit" disabled={pending}>
+        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        {pending ? "Creating..." : "Create Project"}
+      </Button>
+    );
+}
+
 
 export function NewProjectDialog({
   isOpen,
@@ -117,7 +134,8 @@ export function NewProjectDialog({
             <DialogClose asChild>
                 <Button type="button" variant="ghost">Cancel</Button>
             </DialogClose>
-            <Button type="submit">Create Project</Button>
+            {/* --- (3) REPLACE THE OLD BUTTON WITH THE NEW COMPONENT --- */}
+            <SubmitButton />
           </DialogFooter>
         </form>
       </DialogContent>

@@ -31,3 +31,10 @@ export interface Project {
     totalTasks: number;
     team?: string; // Add optional team field
 }
+
+// Interface for the presence feature
+export interface Presence {
+    userId: string;
+    userName: string;
+    lastSeen: any; // Firestore ServerTimestamp
+}

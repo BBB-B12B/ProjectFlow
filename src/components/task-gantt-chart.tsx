@@ -10,11 +10,17 @@ import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, pars
 const CustomGanttTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload; // All bars in a row share the same payload
+      
+      // Safety check for data payload
+      if (!data) {
+        return null;
+      }
+
       return (
         <div className="overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md w-max">
             <p className="font-bold">{data.name}</p>
             <p className="text-muted-foreground border-b pb-1 mb-1">
-              Due: {format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}
+              {data.rangeForTooltip ? `Due: ${format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}` : 'Date not set'}
             </p>
             <div className="space-y-1 mt-2">
               <div className="flex justify-between items-center gap-4">
@@ -36,20 +42,48 @@ const CustomGanttTooltip = ({ active, payload }: any) => {
     return null;
   };
 
+// Custom Y-Axis Tick component for text wrapping
+const CustomYAxisTick = (props: any) => {
+    const { x, y, payload, width } = props;
+    const text = payload.value;
+    
+    // Using foreignObject allows us to use standard HTML/CSS for text wrapping inside an SVG
+    return (
+        <foreignObject x={x - width - 10} y={y - 15} width={width} height={60}>
+            <div
+                style={{
+                    fontSize: '12px',
+                    textAlign: 'right',
+                    color: 'hsl(var(--muted-foreground))',
+                    wordWrap: 'break-word',
+                    wordBreak: 'break-word', // --- (1) ADDED THIS LINE FOR THAI LANGUAGE SUPPORT ---
+                    whiteSpace: 'normal',
+                    lineHeight: '1.2em',
+                }}
+            >
+                {text}
+            </div>
+        </foreignObject>
+    );
+};
+
 const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; timeframe: string; onTaskClick: (task: Task) => void; }) => {
   if (!tasks || tasks.length === 0) {
     return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No tasks to display.</p></div>;
   }
+  
+  const validTasks = tasks.filter(t => t.StartDate && t.EndDate);
 
-  const allDates = tasks.flatMap(t => t.StartDate && t.EndDate ? [new Date(t.StartDate), new Date(t.EndDate)] : []);
-  if (allDates.length === 0) {
+  if (validTasks.length === 0) {
     return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No tasks with valid dates.</p></div>;
   }
+
+  const allDates = validTasks.flatMap(t => [new Date(t.StartDate), new Date(t.EndDate)]);
   let minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
   let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
 
   if (timeframe === 'weekly') {
-    minDate = startOfWeek(minDate, { weekStartsOn: 1 }); // ISO week starts on Monday
+    minDate = startOfWeek(minDate, { weekStartsOn: 1 });
     maxDate = endOfWeek(maxDate, { weekStartsOn: 1 });
   } else {
     minDate = startOfMonth(minDate);
@@ -57,9 +91,9 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
   }
   
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Normalize today's date to midnight
+  today.setHours(0, 0, 0, 0);
 
-  const chartData = tasks.map(task => {
+  const chartData = validTasks.map(task => {
     const startDate = new Date(task.StartDate)
     const endDate = new Date(task.EndDate)
     
@@ -143,16 +177,16 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
 
   return (
     <ChartContainer config={chartConfig} className="h-[400px] w-full">
-      <BarChart data={chartData} layout="vertical" stackOffset="none" margin={{ left: -20 }}>
+      <BarChart data={chartData} layout="vertical" stackOffset="none" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
         <CartesianGrid horizontal={false} />
         <YAxis
           dataKey="name"
           type="category"
           tickLine={false}
-          tickMargin={10}
           axisLine={false}
-          tickFormatter={(value) => value ? value.slice(0, 20) : ''}
-          width={120}
+          width={180}
+          tick={<CustomYAxisTick width={170} />}
+          interval={0}
         />
         <XAxis
           type="number"
