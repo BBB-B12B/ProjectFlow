@@ -1,7 +1,6 @@
 export type TaskStatus = 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'หยุดงาน' | 'ยังไม่ได้เริ่ม' | '';
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
 
-// A more streamlined Task interface based on actual usage in the app
 export interface Task {
     id: string;
     TaskName: string;
@@ -16,10 +15,9 @@ export interface Task {
     Want: string;
     Category: string;
     ProjectType: ProjectType;
-    Progress?: number; // Optional as older tasks might not have it
+    Progress?: number;
 }
 
-// A streamlined Project interface
 export interface Project {
     id: string;
     name: string;
@@ -29,13 +27,19 @@ export interface Project {
     status: 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'Archived';
     completedTasks: number;
     totalTasks: number;
-    team?: string; // Add optional team field
+    team?: string;
 }
 
-// Interface for the presence feature
-export interface Presence {
+// --- (1) UPDATE THE PRESENCE TYPE ---
+// This now represents a single editor.
+export interface Editor {
     userId: string;
     userName: string;
-    lastSeen: any; // Firestore ServerTimestamp
-    avatarUrl?: string; // Add optional avatarUrl
+    lastSeen: any;
+    avatarUrl?: string;
+}
+
+// A Presence document now contains a map of editors.
+export interface Presence {
+    editors: { [userId: string]: Editor };
 }

@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
-import type { Presence } from '@/lib/types'; // Import Presence type
+// --- (1) IMPORT THE CORRECT TYPES ---
+import type { Presence, Editor } from '@/lib/types';
 
 const locales = {
   'en-US': enUS,
@@ -26,13 +27,17 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// Custom Event Component
-const CustomEvent = ({ event, editingUser }: { event: CalendarEvent, editingUser?: Presence | null }) => {
+// --- (2) UPDATE CustomEvent to handle multiple editors ---
+const CustomEvent = ({ event, editors }: { event: CalendarEvent, editors?: { [userId: string]: Editor } | null }) => {
+    const activeEditors = editors ? Object.values(editors) : [];
+    const isBeingEdited = activeEditors.length > 0;
+    const firstEditor = isBeingEdited ? activeEditors[0] : null;
+
     const style = {
-      borderLeft: editingUser ? '4px solid #3b82f6' : '4px solid transparent', // Blue border if editing
+      borderLeft: isBeingEdited ? '4px solid #3b82f6' : '4px solid transparent',
       padding: '2px 5px',
       borderRadius: '4px',
-      backgroundColor: editingUser ? 'rgba(59, 130, 246, 0.1)' : 'hsl(var(--primary))',
+      backgroundColor: isBeingEdited ? 'rgba(59, 130, 246, 0.1)' : 'hsl(var(--primary))',
       color: 'hsl(var(--primary-foreground))',
       opacity: 0.9,
       transition: 'all 0.2s ease-in-out',
@@ -41,7 +46,12 @@ const CustomEvent = ({ event, editingUser }: { event: CalendarEvent, editingUser
     return (
       <div style={style}>
         <strong>{event.title}</strong>
-        {editingUser && <em className="text-xs block"> ({editingUser.userName} is editing...)</em>}
+        {isBeingEdited && firstEditor && (
+            <em className="text-xs block">
+                ({firstEditor.userName}
+                {activeEditors.length > 1 ? ` and ${activeEditors.length - 1} others` : ''} editing...)
+            </em>
+        )}
       </div>
     );
 };
@@ -54,7 +64,8 @@ interface CalendarClientPageProps {
 
 export default function CalendarClientPage({ initialEvents, members, locations }: CalendarClientPageProps) {
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
-  const [editingUsers, setEditingUsers] = useState<Record<string, Presence>>({});
+  // The state now holds Presence objects which contain an 'editors' map
+  const [presenceData, setPresenceData] = useState<Record<string, Presence>>({});
   
   const [isNewEventDialogOpen, setIsNewEventDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -85,12 +96,14 @@ export default function CalendarClientPage({ initialEvents, members, locations }
     const unsubscribePresence = onSnapshot(presenceQuery, (snapshot) => {
         const presences: Record<string, Presence> = {};
         snapshot.forEach((doc) => {
-            presences[doc.id] = doc.data() as Presence;
+            const data = doc.data() as Presence;
+            if (data.editors && Object.keys(data.editors).length > 0) {
+                presences[doc.id] = data;
+            }
         });
-        setEditingUsers(presences);
+        setPresenceData(presences);
     });
 
-    // Cleanup function to unsubscribe
     return () => {
         unsubscribeEvents();
         unsubscribePresence();
@@ -113,14 +126,15 @@ export default function CalendarClientPage({ initialEvents, members, locations }
     setIsNewEventDialogOpen(true);
   }
 
+  // --- (3) UPDATE components memo to pass the correct data structure ---
   const components = useMemo(() => ({
     event: (props: any) => (
       <CustomEvent
         event={props.event}
-        editingUser={editingUsers[props.event.id]}
+        editors={presenceData[props.event.id]?.editors}
       />
     ),
-  }), [editingUsers]);
+  }), [presenceData]);
 
   return (
     <div className="h-[calc(100vh-100px)]">
@@ -159,7 +173,7 @@ export default function CalendarClientPage({ initialEvents, members, locations }
 
       <EditEventDialog
         isOpen={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen} 
+        onOpenChange={setIsEditDialogOpen}
         event={selectedEvent}
         members={members}
         locations={locations}

@@ -33,7 +33,8 @@ import { useToast } from "@/hooks/use-toast";
 import { MultiSelectAutocomplete } from "./ui/multi-select-autocomplete";
 import { Trash2 } from "lucide-react";
 import { db } from "@/lib/firebase";
-import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+// --- (1) IMPORT new functions from firestore ---
+import { doc, setDoc, updateDoc, serverTimestamp, FieldValue, deleteField } from "firebase/firestore";
 import { getAnonymousUser } from "@/lib/anonymous-animals";
 
 interface TaskDialogProps {
@@ -70,16 +71,23 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
         const presenceRef = doc(db, 'presence', task.id);
 
         if (isOpen) {
-            // --- (1) ADD avatarUrl TO THE PRESENCE DATA ---
-            setDoc(presenceRef, {
-                userId: currentUser.id,
+            // --- (2) UPDATE the data structure to support multiple editors ---
+            // We use a nested map 'editors' where each key is a user's ID.
+            const editorData = {
                 userName: currentUser.name,
-                avatarUrl: currentUser.avatarUrl, // <-- ADDED THIS LINE
+                avatarUrl: currentUser.avatarUrl,
                 lastSeen: serverTimestamp(),
-            }).catch(console.error);
+            };
+            // Use setDoc with merge to create/update the document without overwriting other editors
+            setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
+                .catch(console.error);
 
+            // Return a cleanup function
             return () => {
-                deleteDoc(presenceRef).catch(console.error);
+                // To remove an editor, we update the document and delete the user's field from the map.
+                updateDoc(presenceRef, {
+                    [`editors.${currentUser.id}`]: deleteField()
+                }).catch(console.error);
             };
         }
     }

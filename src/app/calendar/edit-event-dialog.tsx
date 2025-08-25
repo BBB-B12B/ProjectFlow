@@ -29,7 +29,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { MultiSelectAutocomplete } from '@/components/ui/multi-select-autocomplete';
 import { Trash2 } from 'lucide-react';
 import { db } from "@/lib/firebase";
-import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { getAnonymousUser } from '@/lib/anonymous-animals';
 
 const initialState = { success: false, message: "" };
@@ -63,16 +63,18 @@ export function EditEventDialog({
         const presenceRef = doc(db, 'presence', event.id);
 
         if (isOpen) {
-            // --- (1) ADD avatarUrl TO THE PRESENCE DATA ---
-            setDoc(presenceRef, {
-                userId: currentUser.id,
+            const editorData = {
                 userName: currentUser.name,
-                avatarUrl: currentUser.avatarUrl, // <-- ADDED THIS LINE
+                avatarUrl: currentUser.avatarUrl,
                 lastSeen: serverTimestamp(),
-            }).catch(console.error);
+            };
+            setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
+                .catch(console.error);
 
             return () => {
-                deleteDoc(presenceRef).catch(console.error);
+                updateDoc(presenceRef, {
+                    [`editors.${currentUser.id}`]: deleteField()
+                }).catch(console.error);
             };
         }
     }
