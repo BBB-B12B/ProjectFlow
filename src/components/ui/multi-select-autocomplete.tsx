@@ -22,6 +22,7 @@ export function MultiSelectAutocomplete({
     const [open, setOpen] = React.useState(false);
     const [selected, setSelected] = React.useState<string[]>([]);
     const [inputValue, setInputValue] = React.useState("");
+    const [highlightedValue, setHighlightedValue] = React.useState("");
 
     React.useEffect(() => {
         if (initialValue) {
@@ -48,7 +49,7 @@ export function MultiSelectAutocomplete({
                 return [...prev, optionValue];
             }
         });
-        inputRef.current?.focus();
+        setTimeout(() => inputRef.current?.focus(), 0);
     };
 
     const handleRemove = (optionValue: string) => {
@@ -61,6 +62,7 @@ export function MultiSelectAutocomplete({
             setSelected(prev => [...prev, trimmedValue]);
         }
         setInputValue("");
+        setTimeout(() => inputRef.current?.focus(), 0);
     };
     
     const filteredOptions = options.filter(option =>
@@ -70,15 +72,24 @@ export function MultiSelectAutocomplete({
 
     const showCreateOption = inputValue && !options.some(opt => opt.value.toLowerCase() === inputValue.toLowerCase());
     
+    React.useEffect(() => {
+        if (filteredOptions.length > 0) {
+            setHighlightedValue(filteredOptions[0].value);
+        } else if (showCreateOption) {
+            setHighlightedValue(inputValue);
+        } else {
+            setHighlightedValue("");
+        }
+    }, [inputValue]);
+
     return (
         <Command 
             className="overflow-visible"
+            value={highlightedValue}
+            onValueChange={setHighlightedValue}
+            loop
             onKeyDown={(e) => {
-                if (e.key === 'Enter' && showCreateOption) {
-                    handleCreate(inputValue);
-                } else if (e.key === 'Escape') {
-                    inputRef.current?.blur();
-                } else if (e.key === 'Backspace' && inputValue === '') {
+                if (e.key === 'Backspace' && inputValue === '') {
                     if (selected.length > 0) {
                         handleRemove(selected[selected.length - 1]);
                     }
@@ -101,7 +112,7 @@ export function MultiSelectAutocomplete({
                             <button
                                 type="button"
                                 aria-label={`Remove ${value}`}
-                                onClick={() => handleRemove(value)}
+                                onClick={(e) => { e.stopPropagation(); handleRemove(value); }}
                                 onMouseDown={(e) => e.preventDefault()}
                                 className="ml-1 rounded-full p-0.5 outline-none ring-offset-background hover:bg-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
                             >
@@ -109,17 +120,14 @@ export function MultiSelectAutocomplete({
                             </button>
                         </Badge>
                     ))}
-                    <div className="flex-1">
+                    <div className="flex-1" style={{minWidth: '100px'}}>
                         <input
                             ref={inputRef}
                             type="text"
                             value={inputValue}
-                            onChange={(e) => {
-                                setInputValue(e.target.value);
-                                setOpen(true);
-                            }}
+                            onChange={(e) => setInputValue(e.target.value)}
                             onFocus={() => setOpen(true)}
-                            onBlur={() => setOpen(false)}
+                            onBlur={() => setTimeout(() => setOpen(false), 150)}
                             placeholder={selected.length > 0 ? "" : (placeholder || "Select or create...")}
                             className="w-full bg-transparent p-0.5 text-sm placeholder:text-muted-foreground focus:outline-none"
                         />

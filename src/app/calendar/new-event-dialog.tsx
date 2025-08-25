@@ -46,7 +46,7 @@ export function NewEventDialog({
   members,
   locations,
 }: NewEventDialogProps) {
-  const [state, formAction] = useActionState(createEvent, initialState);
+  const [state, formAction, isPending] = useActionState(createEvent, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -58,8 +58,6 @@ export function NewEventDialog({
       toast({ title: "Success", description: state.message });
       router.refresh();
       onOpenChange(false);
-      formRef.current?.reset();
-      setIsDirty(false);
     } else if (state.message && !state.errors) {
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }
@@ -69,7 +67,6 @@ export function NewEventDialog({
     if (!isOpen) {
         formRef.current?.reset();
         setIsDirty(false);
-        // Reset action state if needed, depends on useActionState implementation details
     }
   }, [isOpen]);
 
@@ -100,14 +97,20 @@ export function NewEventDialog({
       }
   }
 
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    formAction(formData);
+  };
+
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create New Event</DialogTitle>
           </DialogHeader>
-          <form ref={formRef} action={formAction} onChange={handleFormChange} className="space-y-4">
+          <form ref={formRef} onSubmit={handleSubmit} onChange={handleFormChange} className="space-y-4">
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Event Title</Label>
@@ -153,7 +156,7 @@ export function NewEventDialog({
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
-              <Button type="submit">Create Event</Button>
+              <Button type="submit" disabled={isPending}>{isPending ? "Creating..." : "Create Event"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

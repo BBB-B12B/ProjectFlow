@@ -53,7 +53,7 @@ function TaskCard({ task, index, onClick }: { task: Task; index: number; onClick
                     onClick={onClick}
                 >
                     <Card className={cn(
-                        "cursor-pointer transition-all hover:shadow-md active:scale-[0.98]",
+                        "cursor-pointer hover:shadow-md",
                         isCompleted ? "bg-success/10 border-success/50" : "",
                         isOverdue ? "bg-destructive/10 border-destructive/50" : "",
                         )}>
@@ -105,27 +105,23 @@ function TaskColumn({ title, tasks, droppableId, onTaskClick }: { title: string;
     const statusMap: Record<string, TaskStatus> = { 'To Do': 'ยังไม่ได้เริ่ม', 'In Progress': 'กำลังดำเนินการ', 'Done': 'จบงานแล้ว' };
 
     return (
-        <Droppable droppableId={droppableId}>
-            {(provided, snapshot) => (
-                <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={cn(
-                        "flex h-full flex-col gap-4 rounded-lg bg-card p-4 border-t-4",
-                        statusConfig[statusMap[title]] || 'border-t-muted',
-                        snapshot.isDraggingOver ? 'bg-accent/10' : ''
-                    )}
-                >
-                    <h3 className="font-semibold text-lg text-foreground">{title} <span className='text-sm font-normal text-muted-foreground'>({tasks.length})</span></h3>
-                    <div className="flex flex-1 flex-col">
+        <div className={cn("flex h-full flex-col rounded-lg bg-card p-4 border-t-4", statusConfig[statusMap[title]] || 'border-t-muted')}>
+            <h3 className="font-semibold text-lg text-foreground mb-4">{title} <span className='text-sm font-normal text-muted-foreground'>({tasks.length})</span></h3>
+            <Droppable droppableId={droppableId}>
+                {(provided, snapshot) => (
+                    <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={cn("flex flex-1 flex-col", snapshot.isDraggingOver ? 'bg-accent/10' : '')}
+                    >
                         {tasks.length > 0 ? tasks.map((task, index) => (
                             <TaskCard key={task.id} task={task} index={index} onClick={() => onTaskClick(task)} />
                         )) : <p className="text-sm text-muted-foreground text-center py-4">No tasks yet.</p>}
                         {provided.placeholder}
                     </div>
-                </div>
-            )}
-        </Droppable>
+                )}
+            </Droppable>
+        </div>
     );
 }
 
@@ -212,10 +208,16 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                     </div>
                     <TabsContent value="cards" className="mt-4">
                         <DragDropContext onDragEnd={onDragEnd}>
-                            <div className="grid flex-1 grid-cols-1 items-start gap-6 md:grid-cols-3">
-                                <TaskColumn title="To Do" tasks={tasksByColumn['to-do']} droppableId="to-do" onTaskClick={handleEditTask}/>
-                                <TaskColumn title="In Progress" tasks={tasksByColumn['in-progress']} droppableId="in-progress" onTaskClick={handleEditTask}/>
-                                <TaskColumn title="Done" tasks={tasksByColumn['done']} droppableId="done" onTaskClick={handleEditTask}/>
+                            <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
+                                <div className="md:w-1/3 w-full">
+                                    <TaskColumn title="To Do" tasks={tasksByColumn['to-do']} droppableId="to-do" onTaskClick={handleEditTask}/>
+                                </div>
+                                <div className="md:w-1/3 w-full">
+                                    <TaskColumn title="In Progress" tasks={tasksByColumn['in-progress']} droppableId="in-progress" onTaskClick={handleEditTask}/>
+                                </div>
+                                <div className="md:w-1/3 w-full">
+                                    <TaskColumn title="Done" tasks={tasksByColumn['done']} droppableId="done" onTaskClick={handleEditTask}/>
+                                </div>
                             </div>
                         </DragDropContext>
                     </TabsContent>
