@@ -10,6 +10,7 @@ interface MultiSelectAutocompleteProps {
     initialValue?: string | string[];
     placeholder?: string;
     name?: string;
+    onValueChange?: (value: string) => void;
 }
 
 export function MultiSelectAutocomplete({
@@ -17,6 +18,7 @@ export function MultiSelectAutocomplete({
     initialValue,
     placeholder,
     name,
+    onValueChange,
 }: MultiSelectAutocompleteProps) {
     const inputRef = React.useRef<HTMLInputElement>(null);
     const [open, setOpen] = React.useState(false);
@@ -24,15 +26,20 @@ export function MultiSelectAutocomplete({
     const [inputValue, setInputValue] = React.useState("");
     const [highlightedValue, setHighlightedValue] = React.useState("");
 
+    // Effect to synchronize the internal state with the initialValue prop
     React.useEffect(() => {
+        let valueToSet: string[] = [];
         if (initialValue) {
             if (Array.isArray(initialValue)) {
-                setSelected(initialValue);
+                valueToSet = initialValue;
             } else if (typeof initialValue === 'string' && initialValue) {
-                setSelected(initialValue.split(','));
-            } else {
-                setSelected([]);
+                // Filter out empty strings that can result from splitting an empty string
+                valueToSet = initialValue.split(',').filter(item => item.trim() !== '');
             }
+        }
+        // Only update if the arrays are actually different to prevent unnecessary re-renders
+        if (JSON.stringify(valueToSet) !== JSON.stringify(selected)) {
+            setSelected(valueToSet);
         }
     }, [initialValue]);
     
@@ -40,26 +47,32 @@ export function MultiSelectAutocomplete({
         initialOptions.map(option => ({ value: option, label: option })),
     [initialOptions]);
 
+    const updateSelected = (newSelected: string[]) => {
+        setSelected(newSelected);
+        if (onValueChange) {
+            onValueChange(newSelected.join(','));
+        }
+    };
+
     const handleSelect = (optionValue: string) => {
         setInputValue("");
-        setSelected(prev => {
-            if (prev.includes(optionValue)) {
-                return prev.filter(item => item !== optionValue);
-            } else {
-                return [...prev, optionValue];
-            }
-        });
+        const newSelected = selected.includes(optionValue)
+            ? selected.filter(item => item !== optionValue)
+            : [...selected, optionValue];
+        updateSelected(newSelected);
         setTimeout(() => inputRef.current?.focus(), 0);
     };
 
     const handleRemove = (optionValue: string) => {
-        setSelected(prev => prev.filter(item => item !== optionValue));
+        const newSelected = selected.filter(item => item !== optionValue);
+        updateSelected(newSelected);
     };
 
     const handleCreate = (newValue: string) => {
         const trimmedValue = newValue.trim();
         if (trimmedValue && !selected.includes(trimmedValue) && !options.some(opt => opt.value === trimmedValue)) {
-            setSelected(prev => [...prev, trimmedValue]);
+            const newSelected = [...selected, trimmedValue];
+            updateSelected(newSelected);
         }
         setInputValue("");
         setTimeout(() => inputRef.current?.focus(), 0);
@@ -80,7 +93,7 @@ export function MultiSelectAutocomplete({
         } else {
             setHighlightedValue("");
         }
-    }, [inputValue]);
+    }, [inputValue, filteredOptions, showCreateOption]);
 
     return (
         <Command 

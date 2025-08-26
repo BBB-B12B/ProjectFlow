@@ -1,8 +1,5 @@
 {
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/projects/page": "app/projects/page.js",
-  "/party/spyfall/page": "app/party/spyfall/page.js",
-  "/party/page": "app/party/page.js",
-  "/party/spyfall/[gameId]/page": "app/party/spyfall/[gameId]/page.js",
-  "/calendar/page": "app/calendar/page.js",
   "/project/[id]/page": "app/project/[id]/page.js"
 }
