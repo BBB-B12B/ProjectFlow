@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, GanttChartSquare, Calendar, Menu, Mountain } from 'lucide-react';
+import { BarChart3, GanttChartSquare, Calendar, Menu, Mountain, Gamepad2 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
     Sheet,
@@ -42,6 +42,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 )}
             >
                 Calendar
+            </Link>
+            <Link
+                href="/party"
+                className={cn(
+                    "transition-colors hover:text-foreground",
+                    pathname.includes('/party') ? "text-foreground" : "text-muted-foreground"
+                )}
+            >
+                Party
             </Link>
         </>
     );
