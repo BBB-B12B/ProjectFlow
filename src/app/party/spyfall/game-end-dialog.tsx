@@ -11,25 +11,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { PartyPopper, UserX, Trophy } from "lucide-react";
-import { useRouter } from "next/navigation";
 
 interface GameEndDialogProps {
   open: boolean;
+  // Removed gameId from props, as parent will manage it now
   result: {
     winner: 'spy' | 'players';
     votedPlayerName?: string;
     spyName: string;
     location: string;
+    spyGuessedLocation?: string; // Add this if result from spy guessing is passed
+    spyGuessedCorrectly?: boolean; // Add this if result from spy guessing is passed
   };
+  onEndGame: () => void; // Modified callback prop, no longer receives gameId
 }
 
-export default function GameEndDialog({ open, result }: GameEndDialogProps) {
-    const router = useRouter();
-
-    const handlePlayAgain = () => {
-        // For simplicity, we'll just go back to the party page.
-        // A more complex setup might reset the lobby.
-        router.push('/party');
+export default function GameEndDialog({ open, result, onEndGame }: GameEndDialogProps) {
+    const handleClickPlayAnotherGame = () => {
+        console.log("GameEndDialog: 'Play Another Game' clicked. Calling onEndGame callback.");
+        onEndGame(); // Call the callback from parent
     };
 
   return (
@@ -49,6 +49,9 @@ export default function GameEndDialog({ open, result }: GameEndDialogProps) {
                 ? `${result.votedPlayerName} was the Spy!`
                 : `The players incorrectly voted for ${result.votedPlayerName || 'nobody'}.`
              }
+             {result.spyGuessedLocation !== undefined && (
+               <p className="mt-2">Spy's guess: <span className="font-bold">{result.spyGuessedLocation}</span> {result.spyGuessedCorrectly ? '(Correct!)' : '(Incorrect.)'}</p>
+             )}
           </AlertDialogDescription>
         </AlertDialogHeader>
 
@@ -60,7 +63,7 @@ export default function GameEndDialog({ open, result }: GameEndDialogProps) {
         </div>
 
         <AlertDialogFooter>
-            <Button onClick={handlePlayAgain} className="w-full">Play Another Game</Button>
+            <Button onClick={handleClickPlayAnotherGame} className="w-full">Play Another Game</Button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>

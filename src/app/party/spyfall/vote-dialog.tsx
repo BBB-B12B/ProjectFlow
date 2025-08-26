@@ -19,7 +19,7 @@ interface Player {
 
 interface VoteState {
   status: string;
-  timerEndsAt: any; // Firestore Timestamp
+  timerEndsAt?: any; // Marked as optional
   votes: { [voterId: string]: string };
 }
 

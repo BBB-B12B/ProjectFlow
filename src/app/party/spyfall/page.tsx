@@ -21,6 +21,7 @@ import { db } from "@/lib/firebase";
 import { doc, setDoc, updateDoc, onSnapshot, arrayUnion, arrayRemove, getDoc } from "firebase/firestore";
 
 const MAX_PLAYERS = 8;
+const MIN_PLAYERS = 3; // Added minimum players constant
 const LOBBY_ID = "global_lobby";
 
 interface Player {
@@ -44,15 +45,18 @@ export default function SpyfallLobby() {
   const [countdown, setCountdown] = useState(3);
   const [countdownInterval, setCountdownInterval] = useState<NodeJS.Timeout | null>(null);
   
+  // Effect to load user from localStorage on initial mount
   useEffect(() => {
     const savedUser = localStorage.getItem('spyfallUser');
     if (savedUser) {
         const parsedUser: Player = JSON.parse(savedUser);
         setUser(parsedUser);
         setNickname(parsedUser.name);
+        console.log("Lobby: User loaded from localStorage on mount:", parsedUser);
     }
   }, []);
 
+  // Effect to listen for lobby changes and redirect to game
   useEffect(() => {
     const lobbyRef = doc(db, "spyfall_lobbies", LOBBY_ID);
     const unsubscribe = onSnapshot(lobbyRef, (docSnap) => {
@@ -63,23 +67,41 @@ export default function SpyfallLobby() {
         setPlayers(lobbyPlayers);
         setObservers(lobbyObservers);
         
-        if(user) {
-            if(lobbyPlayers.some((p: Player) => p.id === user.id)) setUserRole("player");
-            else if(lobbyObservers.some((p: Player) => p.id === user.id)) setUserRole("observer");
-            else setUserRole(null);
+        // The user state might not be immediately available here on the first render
+        // after a redirect or refresh, leading to incorrect userRole detection.
+        // We should derive userRole directly from the lobby data and user ID from localStorage/state.
+        const currentUserFromStorage = localStorage.getItem('spyfallUser');
+        let currentUserId: string | null = null;
+        if (currentUserFromStorage) {
+            currentUserId = JSON.parse(currentUserFromStorage).id;
         }
 
-        if(data.status && data.status.startsWith('game_')) {
-            const gameId = data.status.split('_')[1];
-            if(user) localStorage.setItem('spyfallUser', JSON.stringify(user));
-            router.push(`/party/spyfall/${gameId}`);
+        if(currentUserId) {
+            if(lobbyPlayers.some((p: Player) => p.id === currentUserId)) setUserRole("player");
+            else if(lobbyObservers.some((p: Player) => p.id === currentUserId)) setUserRole("observer");
+            else setUserRole(null);
+        } else {
+            setUserRole(null);
+        }
+
+        // Safely check data.status before calling startsWith
+        if(typeof data.status === 'string' && data.status.startsWith('game_')) {
+            const fullGameIdFromLobby = data.status; // Use the full status string for redirection
+            console.log("Lobby: Detected game start, redirecting to game ID:", fullGameIdFromLobby, "with current user state:", user);
+            router.push(`/party/spyfall/${fullGameIdFromLobby}`); // Push the full game ID
+        } else {
+            console.log("Lobby: Lobby status is not game_X, current status:", data.status);
         }
       } else {
         setDoc(lobbyRef, { players: [], observers: [], status: 'waiting' });
+        console.log("Lobby: Initializing new lobby.");
       }
     });
-    return () => unsubscribe();
-  }, [router, user]);
+    return () => {
+        console.log("Lobby: Cleaning up onSnapshot.");
+        unsubscribe();
+    };
+  }, [router]); // Removed 'user' from dependencies
 
   const handleJoin = async (role: "player" | "observer") => {
     if (!nickname.trim()) {
@@ -90,6 +112,7 @@ export default function SpyfallLobby() {
     setUser(newUser);
     setUserRole(role);
     localStorage.setItem('spyfallUser', JSON.stringify(newUser));
+    console.log("Lobby: User saved to localStorage in handleJoin:", newUser);
 
     const lobbyRef = doc(db, "spyfall_lobbies", LOBBY_ID);
     try {
@@ -99,11 +122,13 @@ export default function SpyfallLobby() {
                 return;
             }
             await updateDoc(lobbyRef, { players: arrayUnion(newUser), observers: arrayRemove(newUser) });
+            console.log("Lobby: User joined as player in Firebase:", newUser.name);
         } else {
             await updateDoc(lobbyRef, { observers: arrayUnion(newUser), players: arrayRemove(newUser) });
+            console.log("Lobby: User joined as observer in Firebase:", newUser.name);
         }
     } catch (e) {
-        console.error("Error joining lobby: ", e);
+        console.error("Lobby: Error joining lobby: ", e);
         toast({ title: "Could not join lobby.", variant: "destructive" });
     }
   };
@@ -119,14 +144,18 @@ export default function SpyfallLobby() {
         setUser(null);
         setUserRole(null);
         localStorage.removeItem('spyfallUser');
+        console.log("Lobby: User left lobby and localStorage cleared.");
     } catch (e) {
-        console.error("Error leaving lobby: ", e);
+        console.error("Lobby: Error leaving lobby: ", e);
         toast({ title: "Could not leave lobby.", variant: "destructive" });
     }
   };
 
   const handleStartGame = async () => {
-    if (players.length < 3) return;
+    if (players.length < MIN_PLAYERS) { // Changed minimum players condition
+      toast({ title: `Requires at least ${MIN_PLAYERS} players to start.`, variant: "destructive" });
+      return;
+    }
     setIsStarting(true);
     let timer = 3;
     setCountdown(timer);
@@ -140,25 +169,67 @@ export default function SpyfallLobby() {
       }
     }, 1000);
     setCountdownInterval(interval);
+    console.log("Lobby: Game start countdown initiated.");
   };
   
   const initiateGameCreation = async () => {
     setIsLoading(true);
+    console.log("Lobby: Initiating game creation...");
     try {
         const lobbyRef = doc(db, "spyfall_lobbies", LOBBY_ID);
         const currentLobby = await getDoc(lobbyRef);
-        if (currentLobby.exists() && currentLobby.data().status !== 'waiting') {
-            setIsLoading(false);
-            return;
+
+        if (currentLobby.exists()) {
+            const lobbyData = currentLobby.data();
+            const currentStatus = lobbyData.status;
+            console.log("Lobby: Current lobby data from initiateGameCreation:", lobbyData);
+
+            // Safely check currentStatus before calling startsWith
+            if (typeof currentStatus === 'string') {
+                if (currentStatus !== 'waiting' && !currentStatus.startsWith('game_')) {
+                    console.warn("Lobby: Detected invalid or stale lobby status (", currentStatus, "), resetting to 'waiting'.");
+                    await updateDoc(lobbyRef, { status: 'waiting' });
+                    toast({ title: "Lobby reset", description: "The lobby status was invalid and has been reset. Please try starting again.", variant: "default" });
+                    setIsLoading(false);
+                    setIsStarting(false);
+                    return;
+                } else if (currentStatus.startsWith('game_')) {
+                    console.warn("Lobby: Game already started by another client. Current status: ", currentStatus);
+                    setIsLoading(false);
+                    setIsStarting(false);
+                    return;
+                }
+            } else { // currentStatus is not a string (e.g., undefined)
+                console.warn("Lobby: Detected non-string lobby status (", currentStatus, "), resetting to 'waiting'.");
+                await updateDoc(lobbyRef, { status: 'waiting' });
+                toast({ title: "Lobby reset", description: "The lobby status was invalid and has been reset. Please try starting again.", variant: "default" });
+                setIsLoading(false);
+                setIsStarting(false);
+                return;
+            }
+            // If currentStatus is 'waiting', proceed to create game
+        } else {
+            // If lobby document doesn't exist, create it with 'waiting' status
+            console.log("Lobby: Lobby document does not exist, creating with status 'waiting'.");
+            await setDoc(lobbyRef, { players: [], observers: [], status: 'waiting' });
         }
 
+        console.log("Lobby: Calling createSpyfallGame with players:", players);
         const result = await createSpyfallGame(players);
+        console.log("Lobby: createSpyfallGame result:", result);
         if (result.success && result.gameId) {
             toast({ title: "Game created!", description: "Redirecting all players..." });
+            console.log("Lobby: Updating lobby status to game_", result.gameId);
             await updateDoc(lobbyRef, { status: `game_${result.gameId}` });
+            console.log("Lobby: Lobby status updated successfully.");
+        } else if (result.message) {
+            // Use toast to display the error message from the server action
+            toast({ title: "Error creating game", description: result.message, variant: "destructive" });
+        } else {
+            toast({ title: "Error", description: "An unknown error occurred during game creation.", variant: "destructive" });
         }
     } catch (error) {
-        console.error("Failed to create game:", error);
+        console.error("Lobby: Failed to create game:", error);
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred.";
         toast({ title: "Error", description: errorMessage, variant: "destructive" });
         setIsLoading(false);
@@ -170,6 +241,7 @@ export default function SpyfallLobby() {
     if (countdownInterval) clearInterval(countdownInterval);
     setIsStarting(false);
     setCountdown(3);
+    console.log("Lobby: Game start cancelled.");
   };
   
   return (
@@ -228,10 +300,10 @@ export default function SpyfallLobby() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col items-center justify-center pt-4">
-            <Button onClick={handleStartGame} disabled={players.length < 3 || userRole !== 'player' || isLoading} size="lg" className="w-full max-w-xs">
+            <Button onClick={handleStartGame} disabled={players.length < MIN_PLAYERS || userRole !== 'player' || isLoading} size="lg" className="w-full max-w-xs">
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Start Game
             </Button>
-             {userRole === 'player' && players.length < 3 && <p className="text-xs text-muted-foreground mt-2">Requires at least 3 players to start.</p>}
+             {userRole === 'player' && players.length < MIN_PLAYERS && <p className="text-xs text-muted-foreground mt-2">Requires at least {MIN_PLAYERS} players to start.</p>}
             {userRole !== 'player' && <p className="text-xs text-muted-foreground mt-2">Only players can start the game.</p>}
         </CardFooter>
       </Card>
@@ -240,8 +312,8 @@ export default function SpyfallLobby() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-center">Game is Starting!</AlertDialogTitle>
             <AlertDialogDescription className="min-h-[120px] flex items-center justify-center">
-              {isLoading ? (<div className="flex flex-col items-center justify-center p-4 text-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /><p className="mt-4 text-muted-foreground">Creating game, please wait...</p></div>) 
-              : (<div className="text-center">The game will begin in...<div className="text-7xl font-bold p-4">{countdown}</div></div>)}
+              {isLoading ? (<span className="flex flex-col items-center justify-center p-4 text-center"><Loader2 className="h-12 w-12 animate-spin text-primary" /><span className="mt-4 text-muted-foreground">Creating game, please wait...</span></span>) 
+              : (<span className="text-center">The game will begin in...<span className="text-7xl font-bold p-4">{countdown}</span></span>)}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {!isLoading && <AlertDialogFooter><AlertDialogCancel onClick={handleCancelStart}>Cancel</AlertDialogCancel></AlertDialogFooter>}
