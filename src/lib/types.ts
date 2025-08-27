@@ -4,11 +4,11 @@ export interface Project {
   description: string;
   startDate: string;
   endDate: string;
-  status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน';
+  status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน' | 'Archived'; // เพิ่ม 'Archived' ที่นี่
   team?: string;
   completedTasks: number;
   totalTasks: number;
-  isDarkModeOnly?: boolean; // Added this field
+  isDarkModeOnly?: boolean;
 }
 
 export interface Task {

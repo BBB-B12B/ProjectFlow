@@ -1,5 +1,16 @@
 {
   "node": {
+    "000871b129b78c86c097d423573c0ddd6820231213": {
+      "workers": {
+        "app/page": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fseed%2Factions.ts%22%2C%5B%7B%22id%22%3A%22000871b129b78c86c097d423573c0ddd6820231213%22%2C%22exportedName%22%3A%22seedData%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/page": "rsc"
+      }
+    },
     "00afe6d991c73d4b5c25458f4773c26a819f37e268": {
       "workers": {
         "app/projects/page": {
