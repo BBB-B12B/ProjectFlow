@@ -9,6 +9,7 @@ interface SingleSelectAutocompleteProps {
     initialValue?: string;
     placeholder?: string;
     name?: string;
+    onValueChange?: () => void;
 }
 
 export function SingleSelectAutocomplete({
@@ -16,6 +17,7 @@ export function SingleSelectAutocomplete({
     initialValue,
     placeholder,
     name,
+    onValueChange,
 }: SingleSelectAutocompleteProps) {
     const [open, setOpen] = React.useState(false);
     const [inputValue, setInputValue] = React.useState(initialValue || "");
@@ -32,6 +34,7 @@ export function SingleSelectAutocomplete({
         setSelectedValue(optionValue);
         setOpen(false);
         setHighlightedValue("");
+        onValueChange?.();
     };
 
     const handleCreate = (newValue: string) => {
@@ -39,6 +42,7 @@ export function SingleSelectAutocomplete({
         setSelectedValue(newValue);
         setOpen(false);
         setHighlightedValue("");
+        onValueChange?.();
     };
 
     const handleInputChange = (newInputValue: string) => {

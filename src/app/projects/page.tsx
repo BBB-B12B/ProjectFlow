@@ -34,6 +34,8 @@ async function getProjects(): Promise<Project[]> {
                     team: data.team,
                     completedTasks,
                     totalTasks,
+                    // Ensure isDarkModeOnly always has a boolean value
+                    isDarkModeOnly: data.isDarkModeOnly || false, 
                 } as Project;
             })
             .filter(project => project.status !== 'Archived');
@@ -48,6 +50,7 @@ async function getProjects(): Promise<Project[]> {
 
 export default async function ProjectsPage() {
     const projects = await getProjects();
+    const osTeamPassword = process.env.OS_TEAM_PASSWORD;
     
     if (projects.length === 0) {
         try {
@@ -60,5 +63,6 @@ export default async function ProjectsPage() {
         }
     }
 
+    // osTeamPassword is not needed anymore with the new logic
     return <ProjectsClientPage projects={projects} />;
 }

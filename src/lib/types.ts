@@ -1,45 +1,36 @@
-export type TaskStatus = 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'หยุดงาน' | 'ยังไม่ได้เริ่ม' | '';
-export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน';
+  team?: string;
+  completedTasks: number;
+  totalTasks: number;
+  isDarkModeOnly?: boolean; // Added this field
+}
 
 export interface Task {
-    id: string;
-    TaskName: string;
-    StartDate: string;
-    EndDate: string;
-    Status: TaskStatus;
-    Assignee: string;
-    Owner: string;
-    Effect: number;
-    Effort: number;
-    projectId: string;
-    Want: string;
-    Category: string;
-    ProjectType: ProjectType;
-    Progress?: number;
-}
-
-export interface Project {
-    id: string;
+  id: string;
+  projectId: string;
+  name: string;
+  description?: string;
+  assignee?: {
     name: string;
-    description: string;
-    startDate: string;
-    endDate: string;
-    status: 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'Archived';
-    completedTasks: number;
-    totalTasks: number;
-    team?: string;
+    avatar?: string;
+  };
+  startDate: string;
+  endDate: string;
+  Status: 'ยังไม่เริ่ม' | 'กำลังดำเนินการ' | 'ติดปัญหา' | 'จบงานแล้ว';
+  effort?: number;
 }
 
-// --- (1) UPDATE THE PRESENCE TYPE ---
-// This now represents a single editor.
-export interface Editor {
-    userId: string;
-    userName: string;
-    lastSeen: any;
-    avatarUrl?: string;
-}
-
-// A Presence document now contains a map of editors.
-export interface Presence {
-    editors: { [userId: string]: Editor };
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  color?: string;
 }

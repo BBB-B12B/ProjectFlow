@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, GanttChartSquare, Calendar, Menu, Mountain, Gamepad2 } from 'lucide-react';
+import { Menu, Mountain } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import {
     Sheet,
@@ -10,6 +10,7 @@ import {
     SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from './theme-toggle'; // Re-import ThemeToggle
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
@@ -58,7 +59,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     return (
         <div className="flex min-h-screen w-full flex-col">
             <header className="sticky top-0 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6 z-50">
-                {/* Desktop Navigation */}
                 <nav className="hidden flex-col gap-6 text-lg font-medium md:flex md:flex-row md:items-center md:gap-5 md:text-sm lg:gap-6">
                     <Link href="/projects" className="flex items-center gap-2 text-lg font-semibold md:text-base">
                         <Mountain className="h-6 w-6" />
@@ -66,8 +66,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     </Link>
                     {navLinks}
                 </nav>
-
-                {/* Mobile Navigation */}
                 <Sheet>
                     <SheetTrigger asChild>
                         <Button
@@ -90,7 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     </SheetContent>
                 </Sheet>
                  <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
-                    {/* Placeholder for user menu or other right-aligned items */}
+                    <ThemeToggle /> {/* Add the toggle back */}
                  </div>
             </header>
             <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">

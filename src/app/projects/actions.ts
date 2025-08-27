@@ -43,6 +43,9 @@ export async function createProject(prevState: any, formData: FormData) {
   try {
     const batch = writeBatch(db);
     
+    // Determine if the project should be dark mode only
+    const isDarkModeOnly = team?.trim().toUpperCase() === 'OS';
+
     const projectRef = doc(collection(db, "projects"));
     batch.set(projectRef, {
       name,
@@ -51,6 +54,7 @@ export async function createProject(prevState: any, formData: FormData) {
       endDate,
       status: 'กำลังดำเนินการ',
       team: team || "",
+      isDarkModeOnly: isDarkModeOnly, // Add the new field here
     });
 
     const taskRef = doc(collection(db, "tasks"));
@@ -92,11 +96,13 @@ export async function updateProject(prevState: any, formData: FormData) {
     const { projectId, name, description, team } = validatedFields.data;
 
     try {
+        const isDarkModeOnly = team?.trim().toUpperCase() === 'OS';
         const projectRef = doc(db, "projects", projectId);
         await updateDoc(projectRef, {
             name,
             description: description || "",
             team: team || "",
+            isDarkModeOnly: isDarkModeOnly, // Also update on edit
         });
 
         revalidatePath("/projects");

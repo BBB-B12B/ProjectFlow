@@ -1,11 +1,11 @@
 "use client";
 
-// --- (1) IMPORT useEffect ---
+// --- (1) IMPORT useEffect and useTheme ---
 import { useState, useTransition, useEffect } from 'react';
 import type { Project } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, MoreHorizontal, Archive } from 'lucide-react';
+import { PlusCircle, MoreHorizontal, Archive, Loader2 } from 'lucide-react'; // Import Loader2
 import { ProjectGanttChart } from '@/components/project-gantt-chart';
 import { NewProjectDialog } from '@/components/new-project-dialog';
 import { EditProjectDialog } from '@/components/edit-project-dialog';
@@ -34,6 +34,7 @@ import {
 import { deleteProject, archiveProject } from './actions';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { useTheme } from "next-themes"; // Import useTheme
 
 // --- (2) IMPORT firebase/firestore ---
 import { db } from '@/lib/firebase';
@@ -42,6 +43,8 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 export function ProjectsClientPage({ projects: initialProjects }: { projects: Project[] }) {
     // --- (3) SETUP STATE FOR REAL-TIME UPDATES ---
     const [projects, setProjects] = useState(initialProjects);
+    const { theme } = useTheme(); // Get current theme
+    const [isLoading, setIsLoading] = useState(true); // Add isLoading state
     
     const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -56,6 +59,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
 
     // --- (4) SETUP REAL-TIME LISTENER ---
     useEffect(() => {
+        setIsLoading(true); // Set loading to true when starting to fetch/filter
         // Query for projects that are not archived
         const q = query(collection(db, 'projects'), where('status', '!=', 'Archived'));
 
@@ -80,14 +84,22 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                     // Use initial task counts, default to 0 if it's a brand new project not in the initial list
                     completedTasks: initialProjectData?.completedTasks || 0,
                     totalTasks: initialProjectData?.totalTasks || 0,
+                    isDarkModeOnly: data.isDarkModeOnly || false, // Ensure this field is included
                 } as Project;
-            });
+            }).filter(project => { // Modified filter logic
+                if (theme === "dark") {
+                    return project.isDarkModeOnly; // In dark mode, show only if isDarkModeOnly is true
+                } else {
+                    return !project.isDarkModeOnly; // In light mode, hide if isDarkModeOnly is true
+                }
+            }); 
             setProjects(projectsFromFirestore);
+            setIsLoading(false); // Set loading to false after projects are set
         });
 
         // Cleanup function to unsubscribe when the component unmounts
         return () => unsubscribe();
-    }, [initialProjects]); // Dependency array includes initialProjects to help with merging data
+    }, [initialProjects, theme]); // Add theme to dependency array
 
     const handleActionClick = (project: Project, action: 'edit' | 'delete' | 'archive') => {
         setSelectedProject(project);
@@ -157,57 +169,64 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                     </TabsList>
                 </div>
                 <TabsContent value="cards" className="mt-4">
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {/* --- (5) RENDER THE STATE-managed `projects` LIST --- */}
-                        {projects.map((project) => (
-                            <Card key={project.id} className="flex h-48 flex-col justify-between">
-                                <div>
-                                    <CardHeader>
-                                        <div className="flex items-start justify-between">
-                                            <Link href={`/project/${project.id}`} className="flex-grow overflow-hidden pr-2">
-                                                <CardTitle className="cursor-pointer hover:underline truncate">{project.name}</CardTitle>
+                    <div className="relative">
+                        {isLoading && (
+                            <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        )}
+                        <div className={`grid gap-6 md:grid-cols-2 lg:grid-cols-3 ${isLoading ? "opacity-50" : "opacity-100"}`}> {/* Apply opacity based on loading state */}
+                            {/* --- (5) RENDER THE STATE-managed `projects` LIST --- */}
+                            {projects.map((project) => (
+                                <Card key={project.id} className="flex h-48 flex-col justify-between">
+                                    <div>
+                                        <CardHeader>
+                                            <div className="flex items-start justify-between">
+                                                <Link href={`/project/${project.id}`} className="flex-grow overflow-hidden pr-2">
+                                                    <CardTitle className="cursor-pointer hover:underline truncate">{project.name}</CardTitle>
+                                                </Link>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="flex-shrink-0">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent>
+                                                        <DropdownMenuItem onSelect={() => handleActionClick(project, 'edit')}>
+                                                            Edit
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onSelect={() => handleActionClick(project, 'archive')}>
+                                                            Archive
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem 
+                                                            className="text-red-500"
+                                                            onSelect={() => handleActionClick(project, 'delete')}
+                                                        >
+                                                            Delete
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
+                                            </div>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <Link href={`/project/${project.id}`}>
+                                                <p className="text-sm text-muted-foreground cursor-pointer line-clamp-2">
+                                                    {project.description}
+                                                </p>
                                             </Link>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="flex-shrink-0">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent>
-                                                    <DropdownMenuItem onSelect={() => handleActionClick(project, 'edit')}>
-                                                        Edit
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onSelect={() => handleActionClick(project, 'archive')}>
-                                                        Archive
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem 
-                                                        className="text-red-500"
-                                                        onSelect={() => handleActionClick(project, 'delete')}
-                                                    >
-                                                        Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <Link href={`/project/${project.id}`}>
-                                            <p className="text-sm text-muted-foreground cursor-pointer line-clamp-2">
-                                                {project.description}
-                                            </p>
-                                        </Link>
-                                    </CardContent>
-                                </div>
-                                <CardFooter className="flex justify-between items-center">
-                                    {project.team && (
-                                        <Badge variant="outline">{project.team}</Badge>
-                                    )}
-                                    <p className="text-xs text-muted-foreground">
-                                        Complete {project.completedTasks}/{project.totalTasks}
-                                    </p>
-                                </CardFooter>
-                            </Card>
-                        ))}
+                                        </CardContent>
+                                    </div>
+                                    <CardFooter className="flex justify-between items-center">
+                                        {project.team && (
+                                            <Badge variant="outline">{project.team}</Badge>
+                                        )}
+                                        <p className="text-xs text-muted-foreground">
+                                            Complete {project.completedTasks}/{project.totalTasks}
+                                        </p>
+                                    </CardFooter>
+                                </Card>
+                            ))}
+                        </div>
                     </div>
                 </TabsContent>
                 <TabsContent value="gantt" className="mt-4">
@@ -240,8 +259,8 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure you want to delete?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the project and all its tasks.
+                        <AlertDialogDescription>\
+                            This action cannot be undone. This will permanently delete the project and all its tasks.\
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
