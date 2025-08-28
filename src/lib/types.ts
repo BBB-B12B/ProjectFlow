@@ -4,7 +4,7 @@ export interface Project {
   description: string;
   startDate: string;
   endDate: string;
-  status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน' | 'Archived'; // เพิ่ม 'Archived' ที่นี่
+  status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน' | 'Archived';
   team?: string;
   completedTasks: number;
   totalTasks: number;
@@ -14,16 +14,22 @@ export interface Project {
 export interface Task {
   id: string;
   projectId: string;
-  name: string;
-  description?: string;
-  assignee?: {
+  TaskName?: string;
+  Description?: string; // Added Description field matching Task.description
+  Assignee?: {
     name: string;
     avatar?: string;
   };
-  startDate: string;
-  endDate: string;
+  StartDate: string;
+  EndDate: string;
   Status: 'ยังไม่เริ่ม' | 'กำลังดำเนินการ' | 'ติดปัญหา' | 'จบงานแล้ว';
-  effort?: number;
+  Effort?: number;
+  Effect?: number;
+  Progress?: number;
+  ProjectType?: 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
+  Category?: string;
+  Owner?: string;
+  Want?: string;
 }
 
 export interface CalendarEvent {
@@ -34,3 +40,5 @@ export interface CalendarEvent {
   allDay: boolean;
   color?: string;
 }
+
+export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';

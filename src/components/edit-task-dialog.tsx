@@ -50,8 +50,8 @@ const initialFormData = {
     StartDate: new Date().toISOString().split('T')[0],
     EndDate: new Date().toISOString().split('T')[0],
     Progress: 0,
-    Effect: 10,
-    Effort: 10,
+    Effect: 5,
+    Effort: 5,
     Status: 'ยังไม่ได้เริ่ม',
     ProjectType: 'Main' as ProjectType,
     Assignee: '',
@@ -98,40 +98,45 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   }, [isOpen, task, isEditMode, currentUser]);
 
   const suggestedType = useMemo(() => {
-    const isHighEffect = formData.Effect > 10;
-    const isHighEffort = formData.Effort > 10;
+    const isHighEffect = formData.Effect > 5;
+    const isHighEffort = formData.Effort > 5;
     if (isHighEffect && isHighEffort) return 'Main';
     if (isHighEffect && !isHighEffort) return 'QuickWin';
     if (!isHighEffect && isHighEffort) return 'Thankless';
     return 'Fillin';
   }, [formData.Effort, formData.Effect]);
   
+  // Effect hook for initializing formData when the dialog opens or task changes
   useEffect(() => {
     if (isOpen) {
+        setIsDirty(false); // Reset dirty state when opening
         if (task) {
           setFormData({
-            TaskName: task.TaskName || '',
-            Category: task.Category || '',
-            StartDate: task.StartDate || '',
-            EndDate: task.EndDate || '',
-            Progress: task.Progress || 0,
-            Effect: task.Effect || 10,
-            Effort: task.Effort || 10,
-            Status: task.Status || 'ยังไม่ได้เริ่ม',
-            ProjectType: task.ProjectType || 'Main',
-            Assignee: task.Assignee || '',
-            Owner: task.Owner || '',
-            Want: task.Want || '',
+            TaskName: task.TaskName ?? '',
+            Category: task.Category ?? '',
+            StartDate: task.StartDate ?? '',
+            EndDate: task.EndDate ?? '',
+            Progress: task.Progress ?? 0,
+            Effect: task.Effect ?? 5,
+            Effort: task.Effort ?? 5,
+            Status: task.Status ?? 'ยังไม่ได้เริ่ม',
+            ProjectType: task.ProjectType ?? 'Main',
+            Assignee: task.Assignee?.name ?? '',
+            Owner: task.Owner ?? '',
+            Want: task.Want ?? '',
           });
         } else {
-          setFormData({
-            ...initialFormData,
-            ProjectType: suggestedType,
-          });
+          setFormData(initialFormData); // Initial state for new tasks
         }
-        setIsDirty(false);
     }
-  }, [task, isOpen, suggestedType]);
+  }, [task, isOpen]);
+
+  // Effect hook for automatically setting ProjectType based on suggestedType for both new and existing tasks
+  useEffect(() => {
+    if (isOpen) {
+        setFormData(prev => ({...prev, ProjectType: suggestedType}));
+    }
+  }, [suggestedType, isOpen]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -165,12 +170,6 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   };
 
   useEffect(() => {
-    if (!isEditMode && isOpen) {
-        setFormData(prev => ({...prev, ProjectType: suggestedType}));
-    }
-  }, [suggestedType, isOpen, isEditMode]);
-
-  useEffect(() => {
     if (state.success) {
       toast({ title: "Success!", description: `Task has been ${isEditMode ? 'updated' : 'created'}.` });
       setIsDirty(false);
@@ -194,15 +193,19 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   };
 
   const handleCloseAttempt = (open: boolean) => {
-    if (!open && isDirty) {
-        setIsConfirmCloseOpen(true);
-    } else {
-        onOpenChange(false);
+    if (!open) { // Dialog is attempting to close
+      if (isDirty) {
+          setIsConfirmCloseOpen(true);
+      } else {
+          setFormData(initialFormData); // Reset form data when closing without unsaved changes
+          onOpenChange(false);
+      }
     }
   };
 
   const confirmClose = () => {
     setIsDirty(false);
+    setFormData(initialFormData); // Reset form data when changes are discarded
     onOpenChange(false);
     setIsConfirmCloseOpen(false);
   };
@@ -249,16 +252,16 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label htmlFor="Effect">Effect Score</Label>
-                  <span className="text-sm text-muted-foreground">{formData.Effect} / 20</span>
+                  <span className="text-sm text-muted-foreground">{formData.Effect} / 10</span>
                 </div>
-                <Slider id="Effect" name="Effect" value={[formData.Effect]} max={20} step={1} onValueChange={handleSliderChange('Effect')}/>
+                <Slider id="Effect" name="Effect" value={[formData.Effect]} max={10} step={1} onValueChange={handleSliderChange('Effect')}/>
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label htmlFor="Effort">Effort Score</Label>
-                  <span className="text-sm text-muted-foreground">{formData.Effort} / 20</span>
+                  <span className="text-sm text-muted-foreground">{formData.Effort} / 10</span>
                 </div>
-                <Slider id="Effort" name="Effort" value={[formData.Effort]} max={20} step={1} onValueChange={handleSliderChange('Effort')}/>
+                <Slider id="Effort" name="Effort" value={[formData.Effort]} max={10} step={1} onValueChange={handleSliderChange('Effort')}/>
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -274,7 +277,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                       </Select>
                   </div>
                   <div className="space-y-2">
-                      <Label htmlFor="ProjectType">Project Type <span className="text-xs text-muted-foreground">(Suggested: {suggestedType})</span></Label>
+                      <Label htmlFor="ProjectType">Project Type</Label>
                       <Select name="ProjectType" value={formData.ProjectType} onValueChange={handleSelectChange('ProjectType')}>
                           <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
                           <SelectContent>

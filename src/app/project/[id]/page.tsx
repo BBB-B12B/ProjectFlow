@@ -14,12 +14,12 @@ async function getProject(id: string): Promise<Project | null> {
     const data = projectDoc.data();
     return {
       id: projectDoc.id,
-      // Backwards compatibility
+      // Backwards compatibility, prefer camelCase if exists
       name: data.name || data.ProjectName,
       description: data.description || 'No description available.',
       startDate: data.startDate || data.StartDate,
       endDate: data.endDate || data.EndDate,
-      status: data.status,
+      status: data.status, // This is already camelCase in Project interface and likely in DB
     } as Project;
 }
 
