@@ -77,23 +77,34 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
 
   useEffect(() => {
-    if (isEditMode && task?.id) {
-        const presenceRef = doc(db, 'presence', task.id);
-        if (isOpen) {
-            const editorData = {
-                userName: currentUser.name,
-                avatarUrl: currentUser.avatarUrl,
-                lastSeen: serverTimestamp(),
-            };
-            setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
-                .catch(console.error);
+    if (!isEditMode || !task?.id) return;
 
-            return () => {
-                updateDoc(presenceRef, {
-                    [`editors.${currentUser.id}`]: deleteField()
-                }).catch(console.error);
-            };
-        }
+    const presenceRef = doc(db, 'presence', task.id);
+
+    const cleanupPresence = () => {
+        console.log(`[Presence Cleanup] Removing user ${currentUser.id} from task ${task.id}`);
+        updateDoc(presenceRef, {
+            [`editors.${currentUser.id}`]: deleteField()
+        }).catch(console.error);
+    };
+
+    if (isOpen) {
+        console.log(`[Presence] Setting user ${currentUser.id} as editor for task ${task.id}`);
+        const editorData = {
+            userName: currentUser.name,
+            avatarUrl: currentUser.avatarUrl,
+            lastSeen: serverTimestamp(),
+        };
+        setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
+            .catch(console.error);
+        
+        // Add beforeunload listener to handle tab closing
+        window.addEventListener('beforeunload', cleanupPresence);
+
+        return () => {
+            cleanupPresence(); // Standard cleanup
+            window.removeEventListener('beforeunload', cleanupPresence); // Remove listener
+        };
     }
   }, [isOpen, task, isEditMode, currentUser]);
 

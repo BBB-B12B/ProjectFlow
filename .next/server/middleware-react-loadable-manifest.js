@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{\"app/calendar/calendar-loader.tsx -> @/app/calendar/calendar-client-page\":{\"id\":\"app/calendar/calendar-loader.tsx -> @/app/calendar/calendar-client-page\",\"files\":[\"static/css/_app-pages-browser_src_app_calendar_calendar-client-page_tsx.css\",\"static/chunks/_app-pages-browser_src_app_calendar_calendar-client-page_tsx.js\"]}}"
+self.__REACT_LOADABLE_MANIFEST="{}"

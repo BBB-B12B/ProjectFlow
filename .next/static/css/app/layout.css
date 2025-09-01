@@ -609,9 +609,6 @@ video {
 .pointer-events-auto {
   pointer-events: auto;
 }
-.visible {
-  visibility: visible;
-}
 .invisible {
   visibility: hidden;
 }
@@ -780,6 +777,9 @@ video {
 .mt-0\.5 {
   margin-top: 0.125rem;
 }
+.mt-1 {
+  margin-top: 0.25rem;
+}
 .mt-2 {
   margin-top: 0.5rem;
 }
@@ -788,9 +788,6 @@ video {
 }
 .mt-6 {
   margin-top: 1.5rem;
-}
-.mt-1 {
-  margin-top: 0.25rem;
 }
 .line-clamp-2 {
   overflow: hidden;

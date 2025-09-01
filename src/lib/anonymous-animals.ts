@@ -26,35 +26,43 @@ const animals = [
   'Zebra'
 ];
 
-// Function to get a random animal name
-function getRandomAnimal(): string {
-  return animals[Math.floor(Math.random() * animals.length)];
+interface AnonymousUser {
+  id: string;
+  name: string;
+  avatarUrl: string;
 }
 
-// --- (1) UPDATED THE RETURN TYPE ---
-export function getAnonymousUser(): { id: string; name: string; avatarUrl: string } {
-  const sessionKey = 'anonymousUser';
-  
-  if (typeof window === 'undefined') {
-    return { id: 'server-user', name: 'Anonymous User', avatarUrl: '' };
+export function getAnonymousUser(): AnonymousUser {
+  // Try to get user data from localStorage
+  if (typeof window !== 'undefined') { // Ensure localStorage is available (client-side only)
+    let userId = localStorage.getItem('anonymousUserId');
+    let userName = localStorage.getItem('anonymousUserName');
+    let userAvatar = localStorage.getItem('anonymousUserAvatar');
+
+    if (userId && userName && userAvatar) {
+      console.log("getAnonymousUser: Loading existing user from localStorage. ID:", userId);
+      return { id: userId, name: userName, avatarUrl: userAvatar };
+    }
+
+    // If not found, generate new user data
+    userId = crypto.randomUUID(); // Generate a unique ID
+    userName = animals[Math.floor(Math.random() * animals.length)]; // Pick a random animal name
+    userAvatar = `/api/avatars/${userName.toLowerCase().replace(/\s/g, '')}.png`; // Simple avatar URL (placeholder)
+
+    // Store new user data in localStorage
+    localStorage.setItem('anonymousUserId', userId);
+    localStorage.setItem('anonymousUserName', userName);
+    localStorage.setItem('anonymousUserAvatar', userAvatar);
+
+    console.log("getAnonymousUser: Generated new user and stored in localStorage. ID:", userId);
+    return { id: userId, name: userName, avatarUrl: userAvatar };
   }
 
-  const storedUser = sessionStorage.getItem(sessionKey);
-  if (storedUser) {
-    return JSON.parse(storedUser);
-  }
-  
-  const animalName = `Anonymous ${getRandomAnimal()}`;
-  // --- (2) GENERATE A CONSISTENT AVATAR URL USING THE NAME AS A SEED ---
-  const avatarUrl = `https://api.dicebear.com/8.x/bottts/svg?seed=${encodeURIComponent(animalName)}`;
-
-  const newUser = {
-    id: `user_${Date.now()}_${Math.random()}`,
-    name: animalName,
-    avatarUrl: avatarUrl
+  // Fallback for server-side rendering or environments without window
+  console.log("getAnonymousUser: Running on server, returning server-user ID.");
+  return {
+    id: 'server-user',
+    name: 'ServerBot',
+    avatarUrl: '/api/avatars/serverbot.png',
   };
-
-  sessionStorage.setItem(sessionKey, JSON.stringify(newUser));
-
-  return newUser;
 }
