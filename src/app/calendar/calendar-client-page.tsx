@@ -12,8 +12,13 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, onSnapshot, query } from 'firebase/firestore';
-// --- (1) IMPORT THE CORRECT TYPES ---
 import type { Presence, Editor } from '@/lib/types';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const locales = {
   'en-US': enUS,
@@ -27,32 +32,48 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-// --- (2) UPDATE CustomEvent to handle multiple editors ---
 const CustomEvent = ({ event, editors }: { event: CalendarEvent, editors?: { [userId: string]: Editor } | null }) => {
     const activeEditors = editors ? Object.values(editors) : [];
     const isBeingEdited = activeEditors.length > 0;
     const firstEditor = isBeingEdited ? activeEditors[0] : null;
 
-    const style = {
+    const style: React.CSSProperties = {
       borderLeft: isBeingEdited ? '4px solid #3b82f6' : '4px solid transparent',
       padding: '2px 5px',
       borderRadius: '4px',
-      backgroundColor: isBeingEdited ? 'rgba(59, 130, 246, 0.1)' : 'hsl(var(--primary))',
-      color: 'hsl(var(--primary-foreground))',
+      backgroundColor: event.isDarkModeOnly ? 'hsl(var(--secondary))' : 'hsl(var(--primary))',
+      color: event.isDarkModeOnly ? 'hsl(var(--secondary-foreground))' : 'hsl(var(--primary-foreground))',
       opacity: 0.9,
       transition: 'all 0.2s ease-in-out',
     };
   
     return (
-      <div style={style}>
-        <strong>{event.title}</strong>
-        {isBeingEdited && firstEditor && (
-            <em className="text-xs block">
-                ({firstEditor.userName}
-                {activeEditors.length > 1 ? ` and ${activeEditors.length - 1} others` : ''} editing...)
-            </em>
-        )}
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div style={style}>
+              <strong>{event.title}</strong>
+              {event.relatedTask && (
+                <em className="text-xs block text-opacity-80">Task: {event.relatedTask.name}</em>
+              )}
+              {isBeingEdited && firstEditor && (
+                  <em className="text-xs block">
+                      ({firstEditor.userName}
+                      {activeEditors.length > 1 ? ` and ${activeEditors.length - 1} others` : ''} editing...)
+                  </em>
+              )}
+            </div>
+          </TooltipTrigger>
+          {event.relatedTask && (
+            <TooltipContent>
+              <p>Related Task: {event.relatedTask.name}</p>
+              {event.isDarkModeOnly && (
+                <p className="text-sm text-muted-foreground"> (Dark Mode Only Project)</p>
+              )}
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
     );
 };
 
@@ -64,7 +85,6 @@ interface CalendarClientPageProps {
 
 export default function CalendarClientPage({ initialEvents, members, locations }: CalendarClientPageProps) {
   const [events, setEvents] = useState<CalendarEvent[]>(initialEvents);
-  // The state now holds Presence objects which contain an 'editors' map
   const [presenceData, setPresenceData] = useState<Record<string, Presence>>({});
   
   const [isNewEventDialogOpen, setIsNewEventDialogOpen] = useState(false);
@@ -73,7 +93,6 @@ export default function CalendarClientPage({ initialEvents, members, locations }
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
 
   useEffect(() => {
-    // Listener for events
     const unsubscribeEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
       const updatedEvents = snapshot.docs.map(doc => {
         const data = doc.data();
@@ -86,12 +105,13 @@ export default function CalendarClientPage({ initialEvents, members, locations }
           members: data.members,
           location: data.location,
           description: data.description,
+          relatedTask: data.relatedTask || undefined, // Include new field
+          isDarkModeOnly: data.isDarkModeOnly || false, // Include new field
         } as CalendarEvent;
       });
       setEvents(updatedEvents);
     });
 
-    // Listener for presence
     const presenceQuery = query(collection(db, 'presence'));
     const unsubscribePresence = onSnapshot(presenceQuery, (snapshot) => {
         const presences: Record<string, Presence> = {};
@@ -126,7 +146,6 @@ export default function CalendarClientPage({ initialEvents, members, locations }
     setIsNewEventDialogOpen(true);
   }
 
-  // --- (3) UPDATE components memo to pass the correct data structure ---
   const components = useMemo(() => ({
     event: (props: any) => (
       <CustomEvent

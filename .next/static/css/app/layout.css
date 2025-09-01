@@ -609,6 +609,9 @@ video {
 .pointer-events-auto {
   pointer-events: auto;
 }
+.visible {
+  visibility: visible;
+}
 .invisible {
   visibility: hidden;
 }
@@ -785,6 +788,9 @@ video {
 }
 .mt-6 {
   margin-top: 1.5rem;
+}
+.mt-1 {
+  margin-top: 0.25rem;
 }
 .line-clamp-2 {
   overflow: hidden;
@@ -1855,6 +1861,9 @@ video {
 .text-yellow-800 {
   --tw-text-opacity: 1;
   color: rgb(133 77 14 / var(--tw-text-opacity, 1));
+}
+.text-opacity-80 {
+  --tw-text-opacity: 0.8;
 }
 .underline-offset-4 {
   text-underline-offset: 4px;

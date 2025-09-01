@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { updateEvent, deleteEvent, CalendarEvent } from './actions';
+import { updateEvent, deleteEvent, CalendarEvent, getAllTasksWithProjectDetails, TaskWithProjectDetails } from './actions';
 import {
   Dialog,
   DialogContent,
@@ -27,8 +27,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from '@/components/ui/textarea';
 import { MultiSelectAutocomplete } from '@/components/ui/multi-select-autocomplete';
+import { SingleSelectAutocomplete } from '@/components/ui/single-select-autocomplete';
 import { Trash2 } from 'lucide-react';
-import { db } from "@/lib/firebase";
+import { db } from '@/lib/firebase';
 import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { getAnonymousUser } from '@/lib/anonymous-animals';
 
@@ -55,6 +56,9 @@ export function EditEventDialog({
   const router = useRouter();
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const [tasks, setTasks] = useState<TaskWithProjectDetails[]>([]);
+  const [selectedTask, setSelectedTask] = useState<TaskWithProjectDetails | null>(null);
 
   const [currentUser] = useState(getAnonymousUser());
   
@@ -91,6 +95,22 @@ export function EditEventDialog({
     }
   }, [state, toast, onOpenChange, router]);
   
+  useEffect(() => {
+    if (isOpen) {
+      const fetchTasks = async () => {
+        const fetchedTasks = await getAllTasksWithProjectDetails();
+        setTasks(fetchedTasks);
+
+        // Set initial selected task if event has one
+        if (event?.relatedTask) {
+          const initialTask = fetchedTasks.find(t => t.id === event.relatedTask?.id);
+          setSelectedTask(initialTask || null);
+        }
+      };
+      fetchTasks();
+    }
+  }, [isOpen, event]);
+
   const handleDeleteConfirm = () => {
       if(event) {
           startTransition(async () => {
@@ -116,14 +136,34 @@ export function EditEventDialog({
 
   if (!event) return null;
 
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    
+    if (selectedTask) {
+      formData.set("relatedTaskId", selectedTask.id);
+      formData.set("relatedTaskName", selectedTask.TaskName || "");
+      formData.set("relatedTaskProjectId", selectedTask.projectId);
+      formData.set("isDarkModeOnly", String(selectedTask.projectIsDarkModeOnly));
+    } else {
+      // Explicitly clear these fields if no task is selected
+      formData.delete("relatedTaskId");
+      formData.delete("relatedTaskName");
+      formData.delete("relatedTaskProjectId");
+      formData.delete("isDarkModeOnly");
+    }
+
+    formAction(formData);
+  };
+
   return (
-    <>
+    <> 
       <Dialog open={isOpen} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
           </DialogHeader>
-          <form ref={formRef} action={formAction}>
+          <form ref={formRef} onSubmit={handleSubmit}>
             <input type="hidden" name="id" value={event.id} />
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -133,6 +173,41 @@ export function EditEventDialog({
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea id="description" name="description" defaultValue={event.description} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="relatedTask">Related Task (Optional)</Label>
+                <SingleSelectAutocomplete
+                  options={tasks.map(task => ({
+                    value: task.id,
+                    label: `${task.TaskName} (Project: ${task.projectName})` // Show both in dropdown
+                  }))}
+                  placeholder="Select a related task..."
+                  name="relatedTaskId_display" 
+                  onValueChange={(taskId) => {
+                    const task = tasks.find(t => t.id === taskId) || null;
+                    setSelectedTask(task);
+                  }}
+                  value={selectedTask?.id || ""}
+                  displayFormatter={(option) => {
+                    const task = tasks.find(t => t.id === option.value);
+                    return task?.TaskName || option.label; // Only show task name in input
+                  }}
+                />
+                {/* Show project name in a new line after a task is selected */}
+                {selectedTask && selectedTask.projectName && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Project: {selectedTask.projectName}
+                  </div>
+                )}
+                {/* Hidden inputs to pass the full task details to the server action */}
+                {selectedTask && (
+                  <> 
+                    <input type="hidden" name="relatedTaskId" value={selectedTask.id} />
+                    <input type="hidden" name="relatedTaskName" value={selectedTask.TaskName || ""} />
+                    <input type="hidden" name="relatedTaskProjectId" value={selectedTask.projectId} />
+                    <input type="hidden" name="isDarkModeOnly" value={String(selectedTask.projectIsDarkModeOnly)} />
+                  </>
+                )}
               </div>
                <div className="space-y-2">
                   <Label htmlFor="members">Members</Label>
@@ -145,10 +220,14 @@ export function EditEventDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
-                <Input id="location" name="location" list="location-options" defaultValue={event.location} />
-                <datalist id="location-options">
-                  {locations.map((loc, i) => <option key={i} value={loc} />)}
-                </datalist>
+                <SingleSelectAutocomplete
+                    options={locations.map(loc => ({ value: loc, label: loc }))}
+                    placeholder="Select or create a location..."
+                    name="location"
+                    initialValue={event.location}
+                    onValueChange={() => {}} 
+                    value={event.location}
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">

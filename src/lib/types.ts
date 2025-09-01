@@ -39,6 +39,25 @@ export interface CalendarEvent {
   end: string;
   allDay: boolean;
   color?: string;
+  relatedTask?: {
+    id: string;
+    name: string;
+    projectId: string;
+  };
+  isDarkModeOnly?: boolean;
 }
 
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
+
+// New interfaces for real-time presence
+export interface Editor {
+  userName: string;
+  avatarUrl?: string;
+  lastSeen: any; // Firebase Timestamp
+}
+
+export interface Presence {
+  editors: {
+    [userId: string]: Editor;
+  };
+}

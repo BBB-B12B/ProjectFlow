@@ -4,7 +4,7 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, Timestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import type { Task } from "@/lib/types";
+import type { Task, Project } from "@/lib/types";
 
 export interface CalendarEvent {
     id: string;
@@ -15,6 +15,18 @@ export interface CalendarEvent {
     description?: string;
     members?: string[];
     location?: string;
+    relatedTask?: {
+      id: string;
+      name: string;
+      projectId: string;
+    };
+    isDarkModeOnly?: boolean;
+}
+
+// New interface for tasks with project details
+export interface TaskWithProjectDetails extends Task {
+  projectName: string;
+  projectIsDarkModeOnly: boolean;
 }
 
 type FormState = {
@@ -29,6 +41,8 @@ type FormState = {
         members?: string[];
         location?: string[];
         id?: string[];
+        relatedTask?: string[];
+        isDarkModeOnly?: string[];
     };
 };
 
@@ -44,6 +58,11 @@ const EventSchema = z.object({
     return [];
    }, z.array(z.string()).optional()),
   location: z.string().optional(),
+  // New fields
+  relatedTaskId: z.string().optional(), // Will be used to find relatedTask details
+  relatedTaskName: z.string().optional(),
+  relatedTaskProjectId: z.string().optional(),
+  isDarkModeOnly: z.preprocess((arg) => arg === 'true', z.boolean()).optional(),
 });
 
 const CreateEventSchema = EventSchema;
@@ -65,12 +84,25 @@ export async function createEvent(prevState: any, formData: FormData): Promise<F
         };
     }
 
+    const { relatedTaskId, relatedTaskName, relatedTaskProjectId, isDarkModeOnly, ...rest } = validatedFields.data;
+
+    const eventToSave: any = {
+      ...rest,
+      start: Timestamp.fromDate(rest.start),
+      end: Timestamp.fromDate(rest.end),
+    };
+
+    if (relatedTaskId && relatedTaskName && relatedTaskProjectId) {
+      eventToSave.relatedTask = {
+        id: relatedTaskId,
+        name: relatedTaskName,
+        projectId: relatedTaskProjectId,
+      };
+      eventToSave.isDarkModeOnly = isDarkModeOnly;
+    }
+
     try {
-        await addDoc(collection(db, "events"), {
-            ...validatedFields.data,
-            start: Timestamp.fromDate(validatedFields.data.start),
-            end: Timestamp.fromDate(validatedFields.data.end),
-        });
+        await addDoc(collection(db, "events"), eventToSave);
         revalidatePath("/calendar");
         return { success: true, message: "Event created successfully." };
     } catch (error) {
@@ -92,15 +124,30 @@ export async function updateEvent(prevState: any, formData: FormData): Promise<F
         };
     }
     
-    const { id, ...eventData } = validatedFields.data;
+    const { id, relatedTaskId, relatedTaskName, relatedTaskProjectId, isDarkModeOnly, ...rest } = validatedFields.data;
+
+    const eventToUpdate: any = {
+      ...rest,
+      start: Timestamp.fromDate(rest.start),
+      end: Timestamp.fromDate(rest.end),
+    };
+
+    if (relatedTaskId && relatedTaskName && relatedTaskProjectId) {
+      eventToUpdate.relatedTask = {
+        id: relatedTaskId,
+        name: relatedTaskName,
+        projectId: relatedTaskProjectId,
+      };
+      eventToUpdate.isDarkModeOnly = isDarkModeOnly;
+    } else {
+      // If no task is selected, ensure these fields are removed or set to undefined
+      eventToUpdate.relatedTask = null;
+      eventToUpdate.isDarkModeOnly = false;
+    }
 
     try {
         const eventRef = doc(db, "events", id);
-        await updateDoc(eventRef, {
-            ...eventData,
-            start: Timestamp.fromDate(eventData.start),
-            end: Timestamp.fromDate(eventData.end),
-        });
+        await updateDoc(eventRef, eventToUpdate);
         revalidatePath("/calendar");
         return { success: true, message: "Event updated successfully." };
     } catch (error) {
@@ -137,6 +184,8 @@ export async function getEvents(): Promise<CalendarEvent[]> {
                 description: data.description,
                 members: data.members,
                 location: data.location,
+                relatedTask: data.relatedTask || undefined, // Include new field
+                isDarkModeOnly: data.isDarkModeOnly || false, // Include new field
             };
         });
     } catch (error) {
@@ -153,14 +202,13 @@ export async function getMembersList(): Promise<string[]> {
         ]);
 
         const taskAssignees = taskSnapshot.docs
-            .map(doc => (doc.data() as Task).Assignee)
-            .flat()
-            .filter(Boolean);
+            .map(doc => (doc.data() as Task).Assignee?.name)
+            .filter((name): name is string => typeof name === 'string' && name.length > 0); // More explicit filter
             
         const eventMembers = eventSnapshot.docs
             .map(doc => (doc.data() as { members?: string[] }).members || [])
             .flat()
-            .filter(Boolean);
+            .filter((member): member is string => typeof member === 'string' && member.length > 0); // More explicit filter
 
         const allMembers = new Set([...taskAssignees, ...eventMembers]);
         
@@ -181,4 +229,34 @@ export async function getLocations(): Promise<string[]> {
         console.error("Error fetching locations:", error);
         return [];
     }
+}
+
+export async function getAllTasksWithProjectDetails(): Promise<TaskWithProjectDetails[]> {
+  try {
+    const tasksSnapshot = await getDocs(collection(db, "tasks"));
+    const projectsSnapshot = await getDocs(collection(db, "projects"));
+
+    const projectsMap = new Map<string, Project>();
+    projectsSnapshot.docs.forEach(doc => {
+      projectsMap.set(doc.id, doc.data() as Project);
+    });
+
+    const tasksWithDetails: TaskWithProjectDetails[] = [];
+    tasksSnapshot.docs.forEach(taskDoc => {
+      const task = { id: taskDoc.id, ...taskDoc.data() } as Task;
+      const project = projectsMap.get(task.projectId);
+
+      if (project) {
+        tasksWithDetails.push({
+          ...task,
+          projectName: project.name,
+          projectIsDarkModeOnly: project.isDarkModeOnly || false,
+        });
+      }
+    });
+    return tasksWithDetails;
+  } catch (error) {
+    console.error("Error fetching tasks with project details:", error);
+    return [];
+  }
 }

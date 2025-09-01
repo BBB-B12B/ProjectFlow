@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { createEvent } from './actions';
+import { createEvent, getAllTasksWithProjectDetails, TaskWithProjectDetails } from './actions';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +52,9 @@ export function NewEventDialog({
   const router = useRouter();
   const [isDirty, setIsDirty] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [tasks, setTasks] = useState<TaskWithProjectDetails[]>([]);
+  const [selectedTask, setSelectedTask] = useState<TaskWithProjectDetails | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<string>(""); // State for location
 
   useEffect(() => {
     if (state.success) {
@@ -67,6 +70,18 @@ export function NewEventDialog({
     if (!isOpen) {
         formRef.current?.reset();
         setIsDirty(false);
+        setSelectedTask(null); // Reset selected task when dialog closes
+        setSelectedLocation(""); // Reset selected location
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const fetchTasks = async () => {
+        const fetchedTasks = await getAllTasksWithProjectDetails();
+        setTasks(fetchedTasks);
+      };
+      fetchTasks();
     }
   }, [isOpen]);
 
@@ -100,6 +115,20 @@ export function NewEventDialog({
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+
+    if (selectedTask) {
+      formData.set("relatedTaskId", selectedTask.id);
+      formData.set("relatedTaskName", selectedTask.TaskName || "");
+      formData.set("relatedTaskProjectId", selectedTask.projectId);
+      formData.set("isDarkModeOnly", String(selectedTask.projectIsDarkModeOnly));
+    } else {
+      // Ensure these are explicitly cleared if no task is selected
+      formData.delete("relatedTaskId");
+      formData.delete("relatedTaskName");
+      formData.delete("relatedTaskProjectId");
+      formData.delete("isDarkModeOnly");
+    }
+    
     formAction(formData);
   };
 
@@ -121,6 +150,41 @@ export function NewEventDialog({
                 <Label htmlFor="description">Description</Label>
                 <Textarea id="description" name="description" />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="relatedTask">Related Task (Optional)</Label>
+                <SingleSelectAutocomplete
+                  options={tasks.map(task => ({
+                    value: task.id,
+                    label: `${task.TaskName} (Project: ${task.projectName})` // Show both in dropdown
+                  }))}
+                  placeholder="Select a related task..."
+                  name="relatedTaskId_display" 
+                  onValueChange={(taskId) => {
+                    const task = tasks.find(t => t.id === taskId) || null;
+                    setSelectedTask(task);
+                    setIsDirty(true);
+                  }}
+                  value={selectedTask?.id || ""}
+                  displayFormatter={(option) => {
+                    const task = tasks.find(t => t.id === option.value);
+                    return task?.TaskName || option.label; // Only show task name in input
+                  }}
+                />
+                {/* Show project name in a new line after a task is selected */}
+                {selectedTask && selectedTask.projectName && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    Project: {selectedTask.projectName}
+                  </div>
+                )}
+                {selectedTask && (
+                  <>
+                    <input type="hidden" name="relatedTaskId" value={selectedTask.id} />
+                    <input type="hidden" name="relatedTaskName" value={selectedTask.TaskName || ""} />
+                    <input type="hidden" name="relatedTaskProjectId" value={selectedTask.projectId} />
+                    <input type="hidden" name="isDarkModeOnly" value={String(selectedTask.projectIsDarkModeOnly)} />
+                  </>
+                )}
+              </div>
                <div className="space-y-2">
                   <Label htmlFor="members">Members</Label>
                   <MultiSelectAutocomplete
@@ -132,9 +196,14 @@ export function NewEventDialog({
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
                 <SingleSelectAutocomplete
-                    options={locations}
+                    options={locations.map(loc => ({ value: loc, label: loc }))}
                     placeholder="Select or create a location..."
-                    name="location"
+                    name="location" 
+                    onValueChange={(value) => {
+                        setSelectedLocation(value);
+                        setIsDirty(true);
+                    }}
+                    value={selectedLocation}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">

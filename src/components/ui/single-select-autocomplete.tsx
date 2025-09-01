@@ -5,11 +5,14 @@ import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@
 import { X as RemoveIcon } from "lucide-react";
 
 interface SingleSelectAutocompleteProps {
-    options: string[];
+    options: { value: string; label: string; }[];
     initialValue?: string;
     placeholder?: string;
     name?: string;
-    onValueChange?: () => void;
+    value?: string; // Controlled prop for the selected value (ID)
+    onValueChange?: (value: string) => void; // Callback for when the value (ID) changes
+    // New prop: A formatter function for how the selected option's label is displayed in the input
+    displayFormatter?: (option: { value: string; label: string }) => string;
 }
 
 export function SingleSelectAutocomplete({
@@ -17,45 +20,84 @@ export function SingleSelectAutocomplete({
     initialValue,
     placeholder,
     name,
+    value,
     onValueChange,
+    displayFormatter, // Destructure the new prop
 }: SingleSelectAutocompleteProps) {
     const [open, setOpen] = React.useState(false);
-    const [inputValue, setInputValue] = React.useState(initialValue || "");
-    const [selectedValue, setSelectedValue] = React.useState(initialValue || "");
+    const [internalValue, setInternalValue] = React.useState(value || initialValue || "");
+    const [inputValue, setInputValue] = React.useState(() => {
+        const initialOption = options.find(opt => opt.value === (value || initialValue));
+        // Use displayFormatter if available, otherwise default to label
+        return initialOption ? (displayFormatter ? displayFormatter(initialOption) : initialOption.label) : (value || initialValue || "");
+    });
     const [highlightedValue, setHighlightedValue] = React.useState("");
 
     React.useEffect(() => {
-        setInputValue(initialValue || "");
-        setSelectedValue(initialValue || "");
-    }, [initialValue]);
+        const currentSelectedId = value !== undefined ? value : internalValue;
+        const option = options.find(opt => opt.value === currentSelectedId);
+        
+        if (option) {
+            // Use displayFormatter for inputValue if provided
+            setInputValue(displayFormatter ? displayFormatter(option) : option.label);
+        } else if (value === "" || value === null || value === undefined) {
+            setInputValue("");
+        } else if (value !== undefined) {
+            setInputValue(value);
+        }
+        setInternalValue(currentSelectedId);
+    }, [value, options, displayFormatter]); // Add displayFormatter to dependencies
 
-    const handleSelect = (optionValue: string) => {
-        setInputValue(optionValue);
-        setSelectedValue(optionValue);
+    const filteredOptions = React.useMemo(() => {
+        if (!inputValue) {
+            return options;
+        }
+        const lowercasedInput = inputValue.toLowerCase();
+        return options.filter(option =>
+            option.label.toLowerCase().includes(lowercasedInput)
+        );
+    }, [options, inputValue]);
+
+    const handleSelect = (selectedLabel: string) => {
+        const selectedOption = options.find(opt => opt.label === selectedLabel);
+        if (selectedOption) {
+            setInternalValue(selectedOption.value);
+            // Use displayFormatter for inputValue here too
+            setInputValue(displayFormatter ? displayFormatter(selectedOption) : selectedOption.label);
+            onValueChange?.(selectedOption.value);
+        } else {
+            setInternalValue(selectedLabel);
+            setInputValue(selectedLabel);
+            onValueChange?.(selectedLabel);
+        }
         setOpen(false);
         setHighlightedValue("");
-        onValueChange?.();
     };
 
     const handleCreate = (newValue: string) => {
+        setInternalValue(newValue);
         setInputValue(newValue);
-        setSelectedValue(newValue);
+        onValueChange?.(newValue);
         setOpen(false);
         setHighlightedValue("");
-        onValueChange?.();
     };
 
     const handleInputChange = (newInputValue: string) => {
         setInputValue(newInputValue);
-        if (selectedValue && newInputValue !== selectedValue) {
-            setSelectedValue("");
+        const matchedOption = options.find(opt => opt.label === newInputValue);
+        if (!matchedOption && internalValue) {
+            setInternalValue("");
+            onValueChange?.("");
         }
+        setOpen(true);
         setHighlightedValue(""); 
     };
 
     const handleRemove = () => {
+        setInternalValue("");
         setInputValue("");
-        setSelectedValue("");
+        onValueChange?.("");
+        setOpen(false);
     }
 
     return (
@@ -65,7 +107,7 @@ export function SingleSelectAutocomplete({
             loop
             className="overflow-visible"
         >
-            <input type="hidden" name={name} value={selectedValue} />
+            <input type="hidden" name={name} value={internalValue} />
             <div className="group w-full rounded-md border border-input text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
                 <div className="flex items-center gap-1.5 px-3 py-2">
                     <CommandInput
@@ -76,10 +118,10 @@ export function SingleSelectAutocomplete({
                         placeholder={placeholder || "Select or create..."}
                         className="flex-1 bg-transparent p-0 text-sm placeholder:text-muted-foreground focus:outline-none border-none focus:ring-0"
                     />
-                    {selectedValue && (
+                    {internalValue && (
                         <button
                             type="button"
-                            aria-label={`Remove ${selectedValue}`}
+                            aria-label={`Remove ${inputValue}`}
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={handleRemove}
                             className="ml-1 rounded-full p-0.5 outline-none ring-offset-background hover:bg-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -94,16 +136,16 @@ export function SingleSelectAutocomplete({
                     <div className="absolute top-0 z-50 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
                         <CommandList>
                             <CommandGroup className="max-h-64 overflow-auto">
-                               {options.map(option => (
+                               {filteredOptions.map(option => (
                                    <CommandItem
-                                       key={option}
-                                       value={option}
+                                       key={option.value}
+                                       value={option.label}
                                        onSelect={handleSelect}
                                    >
-                                       {option}
+                                       {option.label}
                                    </CommandItem>
                                ))}
-                               {inputValue && !options.some(o => o.toLowerCase() === inputValue.toLowerCase()) && (
+                               {inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
                                    <CommandItem
                                        value={inputValue}
                                        onSelect={handleCreate}
@@ -111,8 +153,11 @@ export function SingleSelectAutocomplete({
                                        Create "{inputValue}"
                                    </CommandItem>
                                )}
-                               {options.length === 0 && !inputValue && (
+                               {filteredOptions.length === 0 && !inputValue && (
                                     <CommandItem disabled>No options available.</CommandItem>
+                               )}
+                               {filteredOptions.length === 0 && inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
+                                   <CommandItem disabled>No results for "{inputValue}"</CommandItem>
                                )}
                             </CommandGroup>
                         </CommandList>
