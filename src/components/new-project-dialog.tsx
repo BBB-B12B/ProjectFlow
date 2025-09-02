@@ -55,7 +55,7 @@ export function NewProjectDialog({
   const [state, formAction] = useActionState(createProject, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const [teams, setTeams] = useState<string[]>([]);
+  const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isFormDirty, setIsFormDirty] = useState(false);
@@ -105,6 +105,8 @@ export function NewProjectDialog({
     }
   };
 
+  console.log("Teams data being passed to SingleSelectAutocomplete:", teams);
+
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => {
@@ -114,7 +116,7 @@ export function NewProjectDialog({
           onOpenChange(true);
         }
       }}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Project</DialogTitle>
             <DialogDescription>

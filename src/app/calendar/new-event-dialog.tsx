@@ -85,11 +85,23 @@ export function NewEventDialog({
     }
   }, [isOpen]);
 
-  const formatDate = (date: Date | null) => {
+  // Formats date to 'YYYY-MM-DD' for date input type in local time
+  const formatDateToYYYYMMDD = (date: Date | null) => {
     if (!date) return '';
     const d = new Date(date);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Formats time to 'HH:mm' for time input type in local time
+  const formatTimeToHHMM = (date: Date | null) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -116,6 +128,24 @@ export function NewEventDialog({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
+    const startDate = formData.get('startDate') as string;
+    const startTime = formData.get('startTime') as string;
+    const endDate = formData.get('endDate') as string;
+    const endTime = formData.get('endTime') as string;
+
+    // Combine date and time, treating them as local inputs
+    // Then convert to UTC for consistent storage.
+    if (startDate && startTime) {
+      const startDateTimeLocalString = `${startDate}T${startTime}`;
+      const startDateTimeLocal = new Date(startDateTimeLocalString); // Interpreted in local timezone
+      formData.set('start', startDateTimeLocal.toISOString()); // Convert to UTC ISO string
+    }
+    if (endDate && endTime) {
+      const endDateTimeLocalString = `${endDate}T${endTime}`;
+      const endDateTimeLocal = new Date(endDateTimeLocalString); // Interpreted in local timezone
+      formData.set('end', endDateTimeLocal.toISOString()); // Convert to UTC ISO string
+    }
+
     if (selectedTask) {
       formData.set("relatedTaskId", selectedTask.id);
       formData.set("relatedTaskName", selectedTask.TaskName || "");
@@ -135,7 +165,7 @@ export function NewEventDialog({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Event</DialogTitle>
           </DialogHeader>
@@ -208,14 +238,24 @@ export function NewEventDialog({
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="start">Start Date</Label>
-                    <Input id="start" name="start" type="datetime-local" defaultValue={formatDate(defaultDate)} required />
+                    <Label htmlFor="startDate">Start Date</Label>
+                    <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
                     {state.errors?.start && <p className="text-red-500 text-sm">{state.errors.start[0]}</p>}
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="end">End Date</Label>
-                    <Input id="end" name="end" type="datetime-local" defaultValue={formatDate(defaultDate)} required />
+                    <Label htmlFor="startTime">Start Time</Label>
+                    <Input id="startTime" name="startTime" type="time" defaultValue={formatTimeToHHMM(defaultDate)} required />
+                  </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">End Date</Label>
+                    <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
                     {state.errors?.end && <p className="text-red-500 text-sm">{state.errors.end[0]}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime">End Time</Label>
+                    <Input id="endTime" name="endTime" type="time" defaultValue={formatTimeToHHMM(defaultDate)} required />
                   </div>
               </div>
               <div className="flex items-center space-x-2">

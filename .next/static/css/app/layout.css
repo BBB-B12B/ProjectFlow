@@ -535,18 +535,18 @@ video {
     --sidebar-ring: 195 78% 61%;
   }
   .dark {
-    --background: 215 28% 12%;
-    --foreground: 210 20% 98%;
-    --card: 215 28% 17%;
-    --card-foreground: 210 20% 98%;
-    --popover: 215 28% 17%;
-    --popover-foreground: 210 20% 98%;
-    --primary: 210 20% 98%;
-    --primary-foreground: 215 25% 27%;
-    --secondary: 215 28% 22%;
-    --secondary-foreground: 210 20% 98%;
-    --muted: 215 28% 22%;
-    --muted-foreground: 210 20% 70%;
+    --background: 220 10% 10%; /* Dark Gray */
+    --foreground: 210 20% 96%; /* Soft White */
+    --card: 220 10% 15%; /* Lighter Gray */
+    --card-foreground: 210 20% 96%;
+    --popover: 220 10% 15%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 210 20% 96%;
+    --primary-foreground: 220 10% 10%;
+    --secondary: 220 10% 25%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 220 10% 25%;
+    --muted-foreground: 210 15% 60%;
     --accent: 195 78% 61%;
     --accent-foreground: 215 25% 27%;
     --destructive: 0 72% 51%;
@@ -555,21 +555,21 @@ video {
     --warning-dark: 38 92% 50%;
     --success: 142 71% 45%;
     --success-dark: 142 80% 35%;
-    --border: 215 28% 22%;
-    --input: 215 28% 22%;
+    --border: 220 10% 25%;
+    --input: 220 10% 25%;
     --ring: 195 78% 61%;
     --chart-1: 195 78% 61%;
     --chart-2: 210 20% 98%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
-    --sidebar-background: 215 28% 12%;
-    --sidebar-foreground: 210 20% 98%;
+    --sidebar-background: 220 10% 10%;
+    --sidebar-foreground: 210 20% 96%;
     --sidebar-primary: 195 78% 61%;
     --sidebar-primary-foreground: 215 25% 27%;
-    --sidebar-accent: 215 28% 17%;
-    --sidebar-accent-foreground: 210 20% 98%;
-    --sidebar-border: 215 28% 17%;
+    --sidebar-accent: 220 10% 15%;
+    --sidebar-accent-foreground: 210 20% 96%;
+    --sidebar-border: 220 10% 15%;
     --sidebar-ring: 195 78% 61%;
   }
   * {
@@ -591,6 +591,49 @@ video {
   .container {
     max-width: 1400px;
   }
+}
+/* Custom styles for react-big-calendar in dark mode */
+.dark .rbc-calendar {
+  background-color: transparent;
+}
+.dark .rbc-toolbar {
+  color: hsl(var(--foreground));
+}
+.dark .rbc-toolbar button {
+  color: hsl(var(--foreground));
+}
+.dark .rbc-toolbar button:hover,
+  .dark .rbc-toolbar button:active,
+  .dark .rbc-toolbar button.rbc-active {
+  background-color: hsl(var(--secondary));
+  color: hsl(var(--secondary-foreground));
+}
+.dark .rbc-header {
+  border-bottom-width: 1px;
+  border-color: hsl(var(--border));
+  background-color: hsl(var(--card));
+}
+.dark .rbc-day-bg {
+  border-left-width: 1px;
+  border-color: hsl(var(--border));
+}
+.dark .rbc-day-bg:first-child {
+  border-left-width: 0px;
+}
+/* Style for dates outside the current month */
+.dark .rbc-off-range-bg {
+  background-color: hsl(var(--background)); /* Darker gray background */
+}
+.dark .rbc-off-range a {
+  color: hsl(var(--muted-foreground)); /* Muted text color */
+}
+/* Style for dates within the current month */
+.dark .rbc-day-bg:not(.rbc-off-range-bg) {
+  background-color: hsl(var(--card)); /* Lighter gray background */
+}
+.dark .rbc-today {
+  background-color: rgb(243 244 246 / 0.1);
+  color: hsl(var(--foreground)); /* Significantly lighter highlight for today */
 }
 .sr-only {
   position: absolute;
@@ -915,6 +958,9 @@ video {
 }
 .max-h-\[70vh\] {
   max-height: 70vh;
+}
+.max-h-\[90vh\] {
+  max-height: 90vh;
 }
 .max-h-screen {
   max-height: 100vh;
@@ -1379,6 +1425,9 @@ video {
   --tw-border-opacity: 1;
   border-color: rgb(59 130 246 / var(--tw-border-opacity, 1));
 }
+.border-border {
+  border-color: hsl(var(--border));
+}
 .border-border\/50 {
   border-color: hsl(var(--border) / 0.5);
 }
@@ -1471,6 +1520,9 @@ video {
 }
 .bg-destructive\/20 {
   background-color: hsl(var(--destructive) / 0.2);
+}
+.bg-gray-100\/10 {
+  background-color: rgb(243 244 246 / 0.1);
 }
 .bg-gray-50 {
   --tw-bg-opacity: 1;
@@ -3414,3 +3466,4 @@ body {
 [data-side=right] .\[\[data-side\=right\]_\&\]\:cursor-e-resize {
   cursor: e-resize;
 }
+

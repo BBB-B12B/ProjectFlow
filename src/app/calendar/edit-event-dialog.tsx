@@ -61,7 +61,11 @@ export function EditEventDialog({
   const [selectedTask, setSelectedTask] = useState<TaskWithProjectDetails | null>(null);
 
   const [currentUser] = useState(getAnonymousUser());
-  
+
+  // State for unsaved changes warning
+  const [isDirty, setIsDirty] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
   useEffect(() => {
     if (event?.id) {
         const presenceRef = doc(db, 'presence', event.id);
@@ -90,6 +94,7 @@ export function EditEventDialog({
       toast({ title: "Success", description: state.message });
       router.refresh();
       onOpenChange(false);
+      setIsDirty(false); // Reset dirty state on successful save
     } else if (state.message) {
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }
@@ -111,6 +116,13 @@ export function EditEventDialog({
     }
   }, [isOpen, event]);
 
+  // Reset dirty state when dialog opens or event changes
+  useEffect(() => {
+    if (isOpen && event) {
+      setIsDirty(false);
+    }
+  }, [isOpen, event]);
+
   const handleDeleteConfirm = () => {
       if(event) {
           startTransition(async () => {
@@ -119,6 +131,7 @@ export function EditEventDialog({
                   toast({ title: "Success", description: result.message });
                   router.refresh();
                   onOpenChange(false);
+                  setIsDirty(false); // Reset dirty state on successful delete
               } else {
                   toast({ title: "Error", description: result.message, variant: "destructive" });
               }
@@ -127,19 +140,69 @@ export function EditEventDialog({
       }
   }
 
-  const formatDate = (date: Date | null) => {
+  // Formats date to 'YYYY-MM-DD' for date input type in local time
+  const formatDateToYYYYMMDD = (date: Date | null) => {
     if (!date) return '';
     const d = new Date(date);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
+    const year = d.getFullYear();
+    const month = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // Formats time to 'HH:mm' for time input type in local time
+  const formatTimeToHHMM = (date: Date | null) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   };
 
   if (!event) return null;
+
+  const handleOpenChangeInternal = (open: boolean) => {
+    if (!open && isDirty) {
+      setIsConfirmOpen(true);
+    } else {
+      onOpenChange(open);
+    }
+  };
+
+  const handleFormChange = () => {
+    setIsDirty(true);
+  };
+
+  const handleCancel = () => {
+    if (isDirty) {
+      setIsConfirmOpen(true);
+    } else {
+      onOpenChange(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     
+    const startDate = formData.get('startDate') as string;
+    const startTime = formData.get('startTime') as string;
+    const endDate = formData.get('endDate') as string;
+    const endTime = formData.get('endTime') as string;
+
+    // Combine date and time, treating them as local inputs
+    // Then convert to UTC for consistent storage.
+    if (startDate && startTime) {
+      const startDateTimeLocalString = `${startDate}T${startTime}`;
+      const startDateTimeLocal = new Date(startDateTimeLocalString);
+      formData.set('start', startDateTimeLocal.toISOString());
+    }
+    if (endDate && endTime) {
+      const endDateTimeLocalString = `${endDate}T${endTime}`;
+      const endDateTimeLocal = new Date(endDateTimeLocalString);
+      formData.set('end', endDateTimeLocal.toISOString());
+    }
+
     if (selectedTask) {
       formData.set("relatedTaskId", selectedTask.id);
       formData.set("relatedTaskName", selectedTask.TaskName || "");
@@ -158,12 +221,12 @@ export function EditEventDialog({
 
   return (
     <> 
-      <Dialog open={isOpen} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
+      <Dialog open={isOpen} onOpenChange={handleOpenChangeInternal}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
           </DialogHeader>
-          <form ref={formRef} onSubmit={handleSubmit}>
+          <form ref={formRef} onSubmit={handleSubmit} onChange={handleFormChange}>
             <input type="hidden" name="id" value={event.id} />
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -179,27 +242,26 @@ export function EditEventDialog({
                 <SingleSelectAutocomplete
                   options={tasks.map(task => ({
                     value: task.id,
-                    label: `${task.TaskName} (Project: ${task.projectName})` // Show both in dropdown
+                    label: `${task.TaskName} (Project: ${task.projectName})`
                   }))}
                   placeholder="Select a related task..."
                   name="relatedTaskId_display" 
                   onValueChange={(taskId) => {
                     const task = tasks.find(t => t.id === taskId) || null;
                     setSelectedTask(task);
+                    setIsDirty(true); // Mark as dirty on task change
                   }}
                   value={selectedTask?.id || ""}
                   displayFormatter={(option) => {
                     const task = tasks.find(t => t.id === option.value);
-                    return task?.TaskName || option.label; // Only show task name in input
+                    return task?.TaskName || option.label;
                   }}
                 />
-                {/* Show project name in a new line after a task is selected */}
                 {selectedTask && selectedTask.projectName && (
                   <div className="text-sm text-muted-foreground mt-1">
                     Project: {selectedTask.projectName}
                   </div>
                 )}
-                {/* Hidden inputs to pass the full task details to the server action */}
                 {selectedTask && (
                   <> 
                     <input type="hidden" name="relatedTaskId" value={selectedTask.id} />
@@ -216,6 +278,7 @@ export function EditEventDialog({
                       placeholder="Select members..."
                       name="members"
                       initialValue={event.members}
+                      onValueChange={() => setIsDirty(true)} // Mark as dirty on members change
                   />
               </div>
               <div className="space-y-2">
@@ -225,22 +288,32 @@ export function EditEventDialog({
                     placeholder="Select or create a location..."
                     name="location"
                     initialValue={event.location}
-                    onValueChange={() => {}} 
+                    onValueChange={() => setIsDirty(true)} // Mark as dirty on location change
                     value={event.location}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="start">Start Date</Label>
-                    <Input id="start" name="start" type="datetime-local" defaultValue={formatDate(event.start)} required />
+                    <Label htmlFor="startDate">Start Date</Label>
+                    <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(event.start)} required />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="end">End Date</Label>
-                    <Input id="end" name="end" type="datetime-local" defaultValue={formatDate(event.end)} required />
+                    <Label htmlFor="startTime">Start Time</Label>
+                    <Input id="startTime" name="startTime" type="time" defaultValue={formatTimeToHHMM(event.start)} required />
+                  </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="endDate">End Date</Label>
+                    <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(event.end)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="endTime">End Time</Label>
+                    <Input id="endTime" name="endTime" type="time" defaultValue={formatTimeToHHMM(event.end)} required />
                   </div>
               </div>
               <div className="flex items-center space-x-2">
-                <Checkbox id="allDay" name="allDay" value="true" defaultChecked={event.allDay} />
+                <Checkbox id="allDay" name="allDay" value="true" defaultChecked={event.allDay} onChange={() => setIsDirty(true)} />
                 <Label htmlFor="allDay">All day event</Label>
               </div>
             </div>
@@ -250,13 +323,14 @@ export function EditEventDialog({
                   <span className="sr-only">Delete Event</span>
               </Button>
               <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+                  <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
                   <Button type="submit">Save Changes</Button>
               </div>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
+      {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
           <AlertDialogContent>
               <AlertDialogHeader>
@@ -269,6 +343,28 @@ export function EditEventDialog({
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleDeleteConfirm} disabled={isPending}>
                       {isPending ? "Deleting..." : "Delete"}
+                  </AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Unsaved Changes Warning Dialog */}
+      <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      You have unsaved changes. Are you sure you want to discard them?
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => {
+                      onOpenChange(false); // Close the main dialog
+                      setIsConfirmOpen(false); // Close this confirmation dialog
+                      setIsDirty(false); // Reset dirty state
+                  }}>
+                      Discard
                   </AlertDialogAction>
               </AlertDialogFooter>
           </AlertDialogContent>

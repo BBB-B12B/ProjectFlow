@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import { useTheme } from 'next-themes';
 import { Calendar as BigCalendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { enUS } from 'date-fns/locale';
@@ -91,6 +92,7 @@ export default function CalendarClientPage({ initialEvents, members, locations }
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const unsubscribeEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
@@ -129,6 +131,13 @@ export default function CalendarClientPage({ initialEvents, members, locations }
         unsubscribePresence();
     };
   }, []);
+
+  const filteredEvents = useMemo(() => {
+    if (theme === 'dark') {
+      return events.filter(event => event.isDarkModeOnly);
+    }
+    return events.filter(event => !event.isDarkModeOnly);
+  }, [events, theme]);
 
 
   const handleSelectSlot = ({ start }: { start: Date }) => {
@@ -172,7 +181,7 @@ export default function CalendarClientPage({ initialEvents, members, locations }
 
       <BigCalendar
         localizer={localizer}
-        events={events}
+        events={filteredEvents}
         startAccessor="start"
         endAccessor="end"
         style={{ height: '100%' }}

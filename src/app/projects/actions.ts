@@ -6,8 +6,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Project, Task } from "@/lib/types";
 
-// ... (keep createProject, deleteProject, updateProject, etc. as they are)
-
 const CreateProjectSchema = z.object({
   name: z.string().min(1, "Project name is required."),
   description: z.string().optional(),
@@ -43,7 +41,6 @@ export async function createProject(prevState: any, formData: FormData) {
   try {
     const batch = writeBatch(db);
     
-    // Determine if the project should be dark mode only
     const isDarkModeOnly = team?.trim().toUpperCase() === 'OS';
 
     const projectRef = doc(collection(db, "projects"));
@@ -54,7 +51,7 @@ export async function createProject(prevState: any, formData: FormData) {
       endDate,
       status: 'กำลังดำเนินการ',
       team: team || "",
-      isDarkModeOnly: isDarkModeOnly, // Add the new field here
+      isDarkModeOnly: isDarkModeOnly,
     });
 
     const taskRef = doc(collection(db, "tasks"));
@@ -102,7 +99,7 @@ export async function updateProject(prevState: any, formData: FormData) {
             name,
             description: description || "",
             team: team || "",
-            isDarkModeOnly: isDarkModeOnly, // Also update on edit
+            isDarkModeOnly: isDarkModeOnly,
         });
 
         revalidatePath("/projects");
@@ -114,19 +111,22 @@ export async function updateProject(prevState: any, formData: FormData) {
     }
 }
 
-export async function getTeams(): Promise<string[]> {
+export async function getTeams(): Promise<{ value: string; label: string; }[]> {
     try {
         const snapshot = await getDocs(collection(db, "projects"));
         const projects = snapshot.docs.map(doc => doc.data() as Project);
         const teams = new Set(projects.map(project => project.team).filter(Boolean) as string[]);
-        return Array.from(teams);
+        
+        return Array.from(teams).map(teamName => ({
+            value: teamName,
+            label: teamName
+        }));
     } catch (error) {
         console.error("Error fetching teams:", error);
         return [];
     }
 }
 
-// Keep deleteProject, archiveProject, unarchiveProject functions as they are
 export async function deleteProject(projectId: string) {
     if (!projectId) {
         return { success: false, message: "Project ID is required." };

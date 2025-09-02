@@ -6,7 +6,6 @@ import { redirect } from 'next/navigation';
 
 async function getProjects(): Promise<Project[]> {
     try {
-        // Fetch all projects and all tasks in parallel for efficiency
         const [projectSnapshot, taskSnapshot] = await Promise.all([
             getDocs(collection(db, 'projects')),
             getDocs(collection(db, 'tasks'))
@@ -18,8 +17,6 @@ async function getProjects(): Promise<Project[]> {
             .map(doc => {
                 const data = doc.data();
                 const projectId = doc.id;
-
-                // Filter tasks for the current project
                 const tasksForProject = allTasks.filter(task => task.projectId === projectId);
                 const completedTasks = tasksForProject.filter(task => task.Status === 'จบงานแล้ว').length;
                 const totalTasks = tasksForProject.length;
@@ -34,7 +31,6 @@ async function getProjects(): Promise<Project[]> {
                     team: data.team,
                     completedTasks,
                     totalTasks,
-                    // Ensure isDarkModeOnly always has a boolean value
                     isDarkModeOnly: data.isDarkModeOnly || false, 
                 } as Project;
             })
@@ -50,7 +46,7 @@ async function getProjects(): Promise<Project[]> {
 
 export default async function ProjectsPage() {
     const projects = await getProjects();
-    const osTeamPassword = process.env.OS_TEAM_PASSWORD;
+    const osTeamPassword = process.env.OS_TEAM_PASSWORD; // This line might be vestigial if not used later
     
     if (projects.length === 0) {
         try {
@@ -63,6 +59,5 @@ export default async function ProjectsPage() {
         }
     }
 
-    // osTeamPassword is not needed anymore with the new logic
     return <ProjectsClientPage projects={projects} />;
 }

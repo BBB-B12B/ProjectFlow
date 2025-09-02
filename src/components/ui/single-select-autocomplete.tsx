@@ -136,9 +136,9 @@ export function SingleSelectAutocomplete({
                     <div className="absolute top-0 z-50 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
                         <CommandList>
                             <CommandGroup className="max-h-64 overflow-auto">
-                               {filteredOptions.map(option => (
+                               {filteredOptions.map((option, index) => (
                                    <CommandItem
-                                       key={option.value}
+                                       key={`${option.value}-${index}`}
                                        value={option.label}
                                        onSelect={handleSelect}
                                    >
@@ -147,6 +147,7 @@ export function SingleSelectAutocomplete({
                                ))}
                                {inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
                                    <CommandItem
+                                       key="create-new-option"
                                        value={inputValue}
                                        onSelect={handleCreate}
                                    >
@@ -154,10 +155,10 @@ export function SingleSelectAutocomplete({
                                    </CommandItem>
                                )}
                                {filteredOptions.length === 0 && !inputValue && (
-                                    <CommandItem disabled>No options available.</CommandItem>
+                                    <CommandItem key="no-options-available" disabled>No options available.</CommandItem>
                                )}
                                {filteredOptions.length === 0 && inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
-                                   <CommandItem disabled>No results for "{inputValue}"</CommandItem>
+                                   <CommandItem key="no-results-found" disabled>No results for "{inputValue}"</CommandItem>
                                )}
                             </CommandGroup>
                         </CommandList>
