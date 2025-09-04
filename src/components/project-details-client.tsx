@@ -254,11 +254,11 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                         <p className="text-muted-foreground">{project.description}</p>
                     </div>
                 </div>
-                <Tabs defaultValue="cards">
+                <Tabs defaultValue="gantt">
                     <div className="flex items-center justify-end gap-4">
                         <TabsList>
-                            <TabsTrigger value="cards"><LayoutGrid className="w-4 h-4 mr-2" />Cards</TabsTrigger>
                             <TabsTrigger value="gantt"><GanttChart className="w-4 h-4 mr-2" />Gantt Chart</TabsTrigger>
+                            <TabsTrigger value="cards"><LayoutGrid className="w-4 h-4 mr-2" />Cards</TabsTrigger>
                         </TabsList>
                         <Button onClick={handleNewTask}>
                             <PlusCircle className="mr-2 h-4 w-4" />

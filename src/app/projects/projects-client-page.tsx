@@ -155,19 +155,21 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 </div>
             </div>
 
-            <Tabs defaultValue="cards">
+            <Tabs defaultValue="gantt">
                 <div className="flex justify-end">
                     <TabsList>
+                         <TabsTrigger value="gantt">
+                            <GanttChartIcon className="mr-2 h-4 w-4" />
+                            Gantt Chart
+                        </TabsTrigger>
+
                         <TabsTrigger value="cards">
                             <LayoutGrid className="mr-2 h-4 w-4" />
                             Cards
                         </TabsTrigger>
-                        <TabsTrigger value="gantt">
-                            <GanttChartIcon className="mr-2 h-4 w-4" />
-                            Gantt Chart
-                        </TabsTrigger>
                     </TabsList>
                 </div>
+                
                 <TabsContent value="cards" className="mt-4">
                     <div className="relative">
                         {isLoading && (

@@ -1,7 +1,7 @@
 "use client"
 
 import { ChartTooltip, ChartContainer } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, ReferenceLine } from "recharts"
 import { chartConfig } from "@/lib/utils"
 import { Task } from "@/lib/types"
 import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, isPast, isToday, differenceInDays, getISOWeek } from "date-fns"
@@ -175,6 +175,23 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     return format(date, 'MMM');
   };
 
+  let todayOffset = (today.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+
+  // Ensure todayOffset is within the chart's domain
+  const minDomain = 0;
+  const maxDomain = totalChartDuration;
+
+  // Clamp todayOffset to ensure it's within the calculated domain
+  const clampedTodayOffset = Math.max(minDomain, Math.min(todayOffset, maxDomain));
+
+  // Debugging logs
+  console.log("Gantt Chart Debug - minDate:", minDate);
+  console.log("Gantt Chart Debug - maxDate:", maxDate);
+  console.log("Gantt Chart Debug - today:", today);
+  console.log("Gantt Chart Debug - totalChartDuration:", totalChartDuration);
+  console.log("Gantt Chart Debug - todayOffset (raw):", todayOffset);
+  console.log("Gantt Chart Debug - clampedTodayOffset:", clampedTodayOffset);
+
   return (
     <ChartContainer config={chartConfig} className="h-[400px] w-full">
       <BarChart data={chartData} layout="vertical" stackOffset="none" margin={{ left: 10, right: 30, top: 5, bottom: 5 }}>
@@ -190,11 +207,21 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
         />
         <XAxis
           type="number"
-          domain={[0, totalChartDuration]}
+          domain={[minDomain, maxDomain]} // Use adjusted domain
           ticks={ticks}
           tickFormatter={tickFormatter}
         />
         <ChartTooltip cursor={false} content={<CustomGanttTooltip />} />
+        
+        {/* Today's Reference Line */}
+        <ReferenceLine 
+          x={clampedTodayOffset} 
+          stroke="hsl(var(--primary))" 
+          strokeDasharray="3 3" 
+          label={{ value: "Today", position: "top", offset: 10, fill: "hsl(var(--foreground))" }} 
+          strokeWidth={2} 
+        />
+
         <Bar dataKey="offset" stackId="a" fill="transparent" isAnimationActive={false} />
         <Bar dataKey="progressDuration" stackId="a" isAnimationActive={false} radius={[4, 0, 0, 4]}>
             {chartData.map((data, index) => 

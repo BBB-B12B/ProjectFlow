@@ -32,7 +32,7 @@ export function TaskEffortChart({ data }: { data: Task[] }) {
   }));
 
   return (
-    <ChartContainer config={chartConfig} className="h-[450px] w-full">
+    <ChartContainer config={chartConfig} className="h-[225px] w-full"> {/* Changed height to 50% */}
       <ScatterChart
         accessibilityLayer
         margin={{

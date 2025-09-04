@@ -1,63 +1,33 @@
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  startDate: string;
-  endDate: string;
-  status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน' | 'Archived';
-  team?: string;
-  completedTasks: number;
-  totalTasks: number;
-  isDarkModeOnly?: boolean;
-}
-
-export interface Task {
-  id: string;
-  projectId: string;
-  TaskName?: string;
-  Description?: string; // Added Description field matching Task.description
-  Assignee?: {
-    name: string;
-    avatar?: string;
-  };
-  StartDate: string;
-  EndDate: string;
-  Status: 'ยังไม่เริ่ม' | 'กำลังดำเนินการ' | 'ติดปัญหา' | 'จบงานแล้ว';
-  Effort?: number;
-  Effect?: number;
-  Progress?: number;
-  ProjectType?: 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
-  Category?: string;
-  Owner?: string;
-  Want?: string;
-}
-
-export interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string;
-  end: string;
-  allDay: boolean;
-  color?: string;
-  relatedTask?: {
-    id: string;
-    name: string;
-    projectId: string;
-  };
-  isDarkModeOnly?: boolean;
-}
-
+export type TaskStatus = 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'หยุดงาน' | 'ยังไม่ได้เริ่ม' | '';
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
 
-// New interfaces for real-time presence
-export interface Editor {
-  userName: string;
-  avatarUrl?: string;
-  lastSeen: any; // Firebase Timestamp
+// A more streamlined Task interface based on actual usage in the app
+export interface Task {
+    id: string;
+    TaskName: string;
+    StartDate: string;
+    EndDate: string;
+    Status: TaskStatus;
+    Assignee: string;
+    Owner: string;
+    Effect: number;
+    Effort: number;
+    projectId: string;
+    Want: string;
+    Category: string;
+    ProjectType: ProjectType;
+    Progress?: number; // Optional as older tasks might not have it
 }
 
-export interface Presence {
-  editors: {
-    [userId: string]: Editor;
-  };
+// A streamlined Project interface
+export interface Project {
+    id: string;
+    name: string;
+    description: string;
+    startDate: string;
+    endDate: string;
+    status: 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'Archived';
+    completedTasks: number;
+    totalTasks: number;
+    team?: string; // Add optional team field
 }

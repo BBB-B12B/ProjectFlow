@@ -1,7 +1,19 @@
 "use client"
 
 import * as React from "react"
-import * as RechartsPrimitive from "recharts"
+import { 
+  Bar as RechartsBar, 
+  BarChart as RechartsBarChart, 
+  Pie as RechartsPie, 
+  PieChart as RechartsPieChart, 
+  CartesianGrid, 
+  XAxis, 
+  YAxis, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer, 
+  Legend as RechartsLegend,
+  Cell 
+} from "recharts"
 
 import { cn } from "@/lib/utils"
 
@@ -39,7 +51,7 @@ const ChartContainer = React.forwardRef<
   React.ComponentProps<"div"> & {
     config: ChartConfig
     children: React.ComponentProps<
-      typeof RechartsPrimitive.ResponsiveContainer
+      typeof ResponsiveContainer
     >["children"]
   }
 >(({ id, className, children, config, ...props }, ref) => {
@@ -58,9 +70,9 @@ const ChartContainer = React.forwardRef<
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
+        <ResponsiveContainer>
           {children}
-        </RechartsPrimitive.ResponsiveContainer>
+        </ResponsiveContainer>
       </div>
     </ChartContext.Provider>
   )
@@ -100,11 +112,11 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+const ChartTooltip = RechartsTooltip
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
+  React.ComponentProps<typeof RechartsTooltip> &
     React.ComponentProps<"div"> & {
       hideLabel?: boolean
       hideIndicator?: boolean
@@ -256,18 +268,19 @@ const ChartTooltipContent = React.forwardRef<
 )
 ChartTooltipContent.displayName = "ChartTooltip"
 
-const ChartLegend = RechartsPrimitive.Legend
+const ChartLegend = RechartsLegend
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
+    Pick<RechartsLegend['props'], "payload" | "verticalAlign"> & {
       hideIcon?: boolean
       nameKey?: string
     }
 >(
   (
-    { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
+    {
+      className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
     ref
   ) => {
     const { config } = useChart()
@@ -355,6 +368,104 @@ function getPayloadConfigFromPayload(
     : config[key as keyof typeof config]
 }
 
+interface PieChartProps {
+  data: { name: string; value: number }[];
+  category: string;
+  index: string;
+  name?: string;
+  className?: string;
+  children?: React.ReactNode; // Keep children prop for flexibility
+  onCellClick?: (data: any) => void;
+}
+
+const PieChart = React.forwardRef<
+  HTMLDivElement,
+  PieChartProps
+>(
+  ({ data, category, index, name, className, children, onCellClick, ...props }, ref) => (
+    <div ref={ref} className={cn("h-40 w-full", className)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RechartsPieChart {...props}>
+          <RechartsPie
+            data={data}
+            dataKey={category}
+            nameKey={index}
+            cx="50%"
+            cy="50%"
+            outerRadius={60}
+            fill="#8884d8"
+            label
+          >
+            {data.map((entry, idx) => (
+              <Cell 
+                key={`cell-${idx}`} 
+                fill={['#8884d8', '#82ca9d', '#ffc658'][idx % 3]} 
+                onClick={() => onCellClick?.(entry)}
+              />
+            ))}
+          </RechartsPie>
+          <RechartsTooltip content={<ChartTooltipContent />} />
+          <RechartsLegend content={<ChartLegendContent />} />
+          {children}
+        </RechartsPieChart>
+      </ResponsiveContainer>
+    </div>
+  )
+);
+PieChart.displayName = "PieChart";
+
+interface BarChartProps {
+  data: { [key: string]: string | number }[];
+  index: string;
+  categories: string[];
+  yAxisWidth?: number;
+  className?: string;
+  children?: React.ReactNode; // Keep children prop for flexibility
+  onBarClick?: (data: any) => void;
+}
+
+const BarChart = React.forwardRef<
+  HTMLDivElement,
+  BarChartProps
+>(
+  ({ data, index, categories, yAxisWidth, className, children, onBarClick, ...props }, ref) => (
+    <div ref={ref} className={cn("h-60 w-full", className)}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RechartsBarChart data={data} {...props}>
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey={index}
+            tickLine={false}
+            axisLine={false}
+            angle={-45}
+            textAnchor="end"
+            height={yAxisWidth}
+            tickFormatter={(value) => value ? String(value).slice(0, 15) : ''} // Limit to 15 chars
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            orientation="left"
+            tickFormatter={(value) => value.toLocaleString()} // Format numbers nicely
+          />
+          <RechartsTooltip content={<ChartTooltipContent />} />
+          <RechartsLegend content={<ChartLegendContent />} />
+          {categories.map((category) => (
+            <RechartsBar 
+              key={category} 
+              dataKey={category} 
+              fill="#8884d8" 
+              onClick={(data) => onBarClick?.(data)}
+            />
+          ))}
+          {children}
+        </RechartsBarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+);
+BarChart.displayName = "BarChart";
+
 export {
   ChartContainer,
   ChartTooltip,
@@ -362,4 +473,6 @@ export {
   ChartLegend,
   ChartLegendContent,
   ChartStyle,
+  PieChart,
+  BarChart,
 }

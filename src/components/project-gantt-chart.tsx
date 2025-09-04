@@ -1,7 +1,7 @@
 "use client"
 
 import { ChartTooltip, ChartContainer } from "@/components/ui/chart"
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell, ReferenceLine } from "recharts"
 import { chartConfig } from "@/lib/utils"
 import { Project } from "@/lib/types"
 import { addDays, format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, getISOWeek } from "date-fns"
@@ -16,6 +16,8 @@ const CustomGanttTooltip = ({ active, payload }: any) => {
           <p className="text-muted-foreground">
             {format(new Date(data.rangeForTooltip[0]), "MMM d, yyyy")} - {format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}
           </p>
+          {data.team && <p className="text-muted-foreground">Team: {data.team}</p>}
+          <p className="text-muted-foreground">Complete tasks: {data.completedTasks}/{data.totalTasks}</p>
         </div>
       );
     }
@@ -97,6 +99,9 @@ const ProjectGanttChart = ({ projects, timeframe }: { projects: Project[]; timef
     router.push(`/project/${data.id}`);
   };
 
+  const today = new Date();
+  const todayOffset = (today.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+
   return (
     <ChartContainer config={chartConfig} className="h-[400px] w-full">
       <BarChart data={chartData} layout="vertical" stackOffset="none" margin={{ left: -20 }}>
@@ -117,6 +122,7 @@ const ProjectGanttChart = ({ projects, timeframe }: { projects: Project[]; timef
           tickFormatter={tickFormatter}
         />
         <ChartTooltip cursor={false} content={<CustomGanttTooltip />} />
+        <ReferenceLine x={todayOffset} stroke="red" strokeDasharray="3 3" />
         <Bar dataKey="offset" stackId="a" fill="transparent" isAnimationActive={false} />
         <Bar dataKey="duration" stackId="a" isAnimationActive={false} radius={4}>
             {chartData.map((data, index) => (
