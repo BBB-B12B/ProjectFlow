@@ -1,6 +1,17 @@
 export type TaskStatus = 'จบงานแล้ว' | 'กำลังดำเนินการ' | 'หยุดงาน' | 'ยังไม่ได้เริ่ม' | '';
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
 
+export interface Editor {
+    userId: string;
+    userName: string;
+    avatarUrl?: string;
+}
+
+export interface Presence {
+    taskId: string;
+    editors: { [userId: string]: Editor };
+}
+
 // A more streamlined Task interface based on actual usage in the app
 export interface Task {
     id: string;
@@ -13,6 +24,7 @@ export interface Task {
     Effect: number;
     Effort: number;
     projectId: string;
+    Project: string; // Added Project property
     Want: string;
     Category: string;
     ProjectType: ProjectType;

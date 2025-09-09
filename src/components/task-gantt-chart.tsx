@@ -184,7 +184,7 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
   // Clamp todayOffset to ensure it's within the calculated domain
   const clampedTodayOffset = Math.max(minDomain, Math.min(todayOffset, maxDomain));
 
-  // Debugging logs
+  // Debugging logs - THESE ARE NOW DEFINITELY INCLUDED
   console.log("Gantt Chart Debug - minDate:", minDate);
   console.log("Gantt Chart Debug - maxDate:", maxDate);
   console.log("Gantt Chart Debug - today:", today);
