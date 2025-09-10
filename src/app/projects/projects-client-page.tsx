@@ -40,9 +40,14 @@ import { useTheme } from "next-themes"; // Import useTheme
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
-export function ProjectsClientPage({ projects: initialProjects }: { projects: Project[] }) {
+// Import the ProjectProgressChart to pass the map to it
+import { ProjectProgressChart } from '@/components/charts'; 
+
+export function ProjectsClientPage({ projects: initialProjects, projectNamesMap: initialProjectNamesMap }: { projects: Project[], projectNamesMap: Record<string, string> }) {
+    console.log("ProjectsClientPage - initialProjectNamesMap received:", initialProjectNamesMap); // ADDED: Log at component start
     // --- (3) SETUP STATE FOR REAL-TIME UPDATES ---
     const [projects, setProjects] = useState(initialProjects);
+    const [projectNamesMap, setProjectNamesMap] = useState(initialProjectNamesMap); // State for project names map
     const { theme } = useTheme(); // Get current theme
     const [isLoading, setIsLoading] = useState(true); // Add isLoading state
     
@@ -64,9 +69,12 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
         const q = query(collection(db, 'projects'), where('status', '!=', 'Archived'));
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const newProjectNamesMap: Record<string, string> = {};
             const projectsFromFirestore = querySnapshot.docs.map(doc => {
                 const data = doc.data();
                 const projectId = doc.id;
+                const projectName = data.name || data.ProjectName;
+                newProjectNamesMap[projectId] = projectName;
 
                 // IMPORTANT: Real-time updates for task counts is complex and costly on the client.
                 // We will merge the live data with the initial data to preserve the task counts
@@ -75,7 +83,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 
                 return {
                     id: projectId,
-                    name: data.name || data.ProjectName,
+                    name: projectName,
                     description: data.description,
                     startDate: data.startDate || data.StartDate,
                     endDate: data.endDate || data.EndDate,
@@ -94,6 +102,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 }
             }); 
             setProjects(projectsFromFirestore);
+            setProjectNamesMap(newProjectNamesMap); // Update project names map
             setIsLoading(false); // Set loading to false after projects are set
         });
 
@@ -134,6 +143,27 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
         }
     };
 
+    // Dummy tasks data to pass to ProjectProgressChart for now
+    // In a real app, you would fetch tasks related to these projects.
+    const dummyTasks = projects.flatMap(project => 
+        Array.from({ length: project.totalTasks }).map((_, i) => ({
+            id: `${project.id}-task-${i}`,
+            TaskName: `Task ${i + 1} for ${project.name}`,
+            Status: i < project.completedTasks ? 'จบงานแล้ว' : 'กำลังดำเนินการ',
+            Progress: i < project.completedTasks ? 100 : Math.floor(Math.random() * 99),
+            Assignee: 'Unassigned',
+            ProjectType: 'Main',
+            projectId: project.id,
+            StartDate: '2023-01-01',
+            EndDate: '2023-12-31',
+            Effort: Math.floor(Math.random() * 10) + 1,
+            Effect: Math.floor(Math.random() * 10) + 1,
+            Project: project.name, // Ensure 'Project' field is populated with name
+        }))
+    );
+
+    console.log("ProjectsClientPage - projectNamesMap before rendering chart:", projectNamesMap); 
+
     return (
         <div className="flex h-full flex-col gap-4">
             <div className="flex items-center justify-between">
@@ -153,6 +183,13 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                         New Project
                     </Button>
                 </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <div className="md:col-span-2 lg:col-span-4">
+                    <ProjectProgressChart tasks={dummyTasks} projectNamesMap={projectNamesMap} /> 
+                </div>
+                
             </div>
 
             <Tabs defaultValue="gantt">
@@ -261,8 +298,8 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you sure you want to delete?</AlertDialogTitle>
-                        <AlertDialogDescription>\
-                            This action cannot be undone. This will permanently delete the project and all its tasks.\
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete the project and all its tasks.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

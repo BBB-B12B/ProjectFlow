@@ -36,13 +36,44 @@ function splitAssignees(assigneeString: string): string[] {
 
 // Component สำหรับ Task Status Donut Chart
 export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
-  console.log('TaskStatusChart received tasks:', tasks.length, tasks.slice(0, 2)); // Debug log
+  console.log('TaskStatusChart received tasks:', tasks.length);
 
-  // Create better status mapping based on Thai status values
+  // Debug: แสดงข้อมูล Task ทั้งหมดทุก field
+  console.log('=== ALL TASKS DATA ===');
+  tasks.forEach((task, index) => {
+    console.log(`Task ${index + 1}:`, {
+      id: task.id,
+      TaskName: task.TaskName,
+      Status: task.Status,
+      Progress: task.Progress,
+      Assignee: task.Assignee,
+      ProjectType: task.ProjectType,
+      projectId: task.projectId,
+      StartDate: task.StartDate,
+      EndDate: task.EndDate,
+      Effort: task.Effort,
+      Effect: task.Effect,
+      title: task.title,
+      effort: task.effort,
+      effect: task.effect,
+      priority: task.priority
+    });
+  });
+
+  // Debug: แสดงสถานะทั้งหมดที่มีในข้อมูล
+  const allStatuses = tasks.map(t => t.Status).filter(status => status);
+  const uniqueStatuses = [...new Set(allStatuses)];
+  console.log('All unique statuses found:', uniqueStatuses);
+  console.log('Status count breakdown:', allStatuses.reduce((acc: Record<string, number>, status) => {
+    acc[status] = (acc[status] || 0) + 1;
+    return acc;
+  }, {}));
+
+  // Create better status mapping based on actual Thai status values found in data
   const tasksByStatus = {
     'To Do': tasks.filter((t) => {
       const status = t.Status?.toLowerCase();
-      return status === 'ยังไม่เริ่ม' || status === 'รอดำเนินการ' || status === 'todo' || status === 'to do';
+      return status === 'ยังไม่ได้เริ่ม' || status === 'ยังไม่เริ่ม' || status === 'รอดำเนินการ' || status === 'todo' || status === 'to do';
     }).length,
     'In Progress': tasks.filter((t) => {
       const status = t.Status?.toLowerCase();
@@ -53,6 +84,27 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
       return status === 'จบงานแล้ว' || status === 'เสร็จแล้ว' || status === 'done' || status === 'completed';
     }).length,
   };
+
+  // Debug: แสดงผลการจัดกลุ่ม
+  console.log('Tasks by status after filtering:', tasksByStatus);
+  console.log('Total matched tasks:', Object.values(tasksByStatus).reduce((a, b) => a + b, 0));
+
+  // หาสถานะที่ไม่ได้จัดกลุ่ม
+  const unmatchedTasks = tasks.filter((t) => {
+    const status = t.Status?.toLowerCase();
+    return !(
+      status === 'ยังไม่เริ่ม' || status === 'รอดำเนินการ' || status === 'todo' || status === 'to do' ||
+      status === 'กำลังดำเนินการ' || status === 'in progress' || status === 'doing' || status === 'progress' ||
+      status === 'จบงานแล้ว' || status === 'เสร็จแล้ว' || status === 'done' || status === 'completed'
+    );
+  });
+
+  console.log('Unmatched tasks count:', unmatchedTasks.length);
+  console.log('Unmatched tasks details:', unmatchedTasks.map(t => ({ 
+    TaskName: t.TaskName, 
+    Status: t.Status,
+    StatusLowerCase: t.Status?.toLowerCase()
+  })));
 
   const total = tasks.length || 1;
   const chartData = [
@@ -118,6 +170,24 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
             </div>
           ))}
         </div>
+
+        {/* Debug info แสดงในหน้าจอ */}
+        {/* <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600 max-h-40 overflow-y-auto">
+          <div><strong>Debug Info:</strong></div>
+          <div>Total tasks: {tasks.length}</div>
+          <div>Matched tasks: {Object.values(tasksByStatus).reduce((a, b) => a + b, 0)}</div>
+          <div>Unmatched tasks: {unmatchedTasks.length}</div>
+          <div><strong>Unique statuses:</strong> {uniqueStatuses.join(', ')}</div>
+          {unmatchedTasks.length > 0 && (
+            <div>
+              <strong>Unmatched tasks:</strong>
+              {unmatchedTasks.slice(0, 5).map((t, i) => (
+                <div key={i} className="ml-2">• {t.TaskName}: "{t.Status}"</div>
+              ))}
+              {unmatchedTasks.length > 5 && <div className="ml-2">... และอีก {unmatchedTasks.length - 5} tasks</div>}
+            </div>
+          )}
+        </div> */}
       </CardContent>
     </Card>
   );

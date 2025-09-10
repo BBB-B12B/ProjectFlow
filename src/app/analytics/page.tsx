@@ -9,9 +9,9 @@ import {
   BurndownChart,
   FilteredTasksTable
 } from '@/components/charts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Make sure Card components are still imported if used directly here
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Type definitions (can be moved to a shared types file if many components use it)
+// Type definitions
 interface Task {
   id: string;
   TaskName: string;
@@ -30,7 +30,15 @@ interface Task {
   priority?: string;
 }
 
-// ฟังก์ชันดึงข้อมูลจาก Firebase (kept in the server component)
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  status?: string;
+  team?: string;
+}
+
+// ฟังก์ชันดึงข้อมูล Task จาก Firebase
 async function getTasks(): Promise<Task[]> {
   try {
     const tasksCol = collection(db, 'tasks');
@@ -62,9 +70,49 @@ async function getTasks(): Promise<Task[]> {
   }
 }
 
+// ฟังก์ชันดึงข้อมูล Project จาก Firebase
+async function getProjects(): Promise<Project[]> {
+  try {
+    const projectsCol = collection(db, 'projects');
+    const projectSnapshot = await getDocs(projectsCol);
+    const projectList = projectSnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || data.ProjectName || data.title || `Project ${doc.id.substring(0, 8)}`,
+        description: data.description || '',
+        status: data.status || '',
+        team: data.team || '',
+      } as Project;
+    });
+    return projectList;
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    return [];
+  }
+}
+
 // Main Analytics Page Component (Server Component)
 export default async function AnalyticsPage() {
-  const tasks = await getTasks();
+  // Fetch both tasks and projects data
+  const [tasks, projects] = await Promise.all([
+    getTasks(),
+    getProjects()
+  ]);
+
+  // Create a map from projectId to project name for easy lookup
+  const projectNamesMap = new Map<string, string>();
+  projects.forEach(project => {
+    projectNamesMap.set(project.id, project.name);
+  });
+
+  // Log for debugging
+  console.log('Projects loaded:', projects.length);
+  console.log('Project names map:', Object.fromEntries(projectNamesMap));
+  console.log('Sample tasks with projectId:', tasks.slice(0, 3).map(t => ({ 
+    TaskName: t.TaskName, 
+    projectId: t.projectId 
+  })));
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -83,7 +131,7 @@ export default async function AnalyticsPage() {
 
         {/* Row 2: Project Progress + Task Prioritization Matrix */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProjectProgressChart tasks={tasks} />
+          <ProjectProgressChart tasks={tasks} projectNamesMap={projectNamesMap} />
           <TaskPrioritizationMatrix tasks={tasks} />
         </div>
 
@@ -94,7 +142,7 @@ export default async function AnalyticsPage() {
 
         {/* Row 4: Filtered Tasks Table (Full Width) */}
         <div className="grid grid-cols-1">
-          <FilteredTasksTable tasks={tasks} />
+          <FilteredTasksTable tasks={tasks} projectNamesMap={projectNamesMap} />
         </div>
 
       </div>
