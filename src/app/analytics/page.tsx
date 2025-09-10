@@ -1,10 +1,17 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { TaskStatusChart, TaskAssigneeChart, ProjectProgressChart, TaskPrioritizationMatrix, BurndownChart, FilteredTasksTable } from '@/components/charts';
+import {
+  TaskStatusChart,
+  TaskAssigneeChart,
+  ProjectProgressChart,
+  TaskPrioritizationMatrix,
+  BurndownChart,
+  FilteredTasksTable
+} from '@/components/charts';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Make sure Card components are still imported if used directly here
 
-// Type definitions (Moved here as data fetching remains in server component)
+// Type definitions (can be moved to a shared types file if many components use it)
 interface Task {
   id: string;
   TaskName: string;
@@ -23,7 +30,7 @@ interface Task {
   priority?: string;
 }
 
-// ฟังก์ชันดึงข้อมูลจาก Firebase (Remains in server component)
+// ฟังก์ชันดึงข้อมูลจาก Firebase (kept in the server component)
 async function getTasks(): Promise<Task[]> {
   try {
     const tasksCol = collection(db, 'tasks');
@@ -55,8 +62,7 @@ async function getTasks(): Promise<Task[]> {
   }
 }
 
-
-// Main Analytics Page Component
+// Main Analytics Page Component (Server Component)
 export default async function AnalyticsPage() {
   const tasks = await getTasks();
 
