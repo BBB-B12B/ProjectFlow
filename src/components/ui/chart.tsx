@@ -20,7 +20,7 @@ import {
   ReferenceLine,
 } from "recharts";
 
-// ---------- helper (ไม่พึ่ง lib ภายนอก)
+// ---------- helper function
 function cn(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -38,6 +38,7 @@ const THEMES = { light: "", dark: ".dark" } as const;
 
 type ChartContextProps = { config: ChartConfig };
 const ChartContext = React.createContext<ChartContextProps | null>(null);
+
 function useChart() {
   const ctx = React.useContext(ChartContext);
   if (!ctx) throw new Error("useChart must be used within a <ChartContainer/>");
@@ -45,7 +46,7 @@ function useChart() {
 }
 
 // =======================
-// ChartContainer (export) - FIXED
+// ChartContainer Component
 // =======================
 export const ChartContainer = React.forwardRef<
   HTMLDivElement,
@@ -84,6 +85,7 @@ export const ChartContainer = React.forwardRef<
 
 ChartContainer.displayName = "ChartContainer";
 
+// Chart Style Component
 export function ChartStyle({ id, config }: { id: string; config: ChartConfig }) {
   const rules = Object.entries(THEMES)
     .map(([theme, prefix]) => {
@@ -110,7 +112,7 @@ function getConfigFromPayload(config: ChartConfig, key: string) {
 }
 
 // ==============
-// PieChart (FIXED)
+// PieChart Component
 // ==============
 interface PieChartProps {
   data: { name: string; value: number; colorKey?: string; color?: string }[];
@@ -172,7 +174,7 @@ export const PieChart: React.FC<PieChartProps> = ({
 };
 
 // ==============
-// BarChart (FIXED)
+// BarChart Component
 // ==============
 interface BarChartProps {
   data: Array<Record<string, string | number>>;
@@ -302,7 +304,7 @@ export const BarChart: React.FC<BarChartProps> = ({
 };
 
 // ========================================
-// TaskEffortChart (Prioritization Matrix) - FIXED
+// TaskEffortChart (Prioritization Matrix)
 // ========================================
 export function TaskEffortChart({
   data,
