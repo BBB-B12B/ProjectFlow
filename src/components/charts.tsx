@@ -22,6 +22,11 @@ interface Task {
   priority?: string;
 }
 
+function useDarkMode() {
+  if (typeof window === 'undefined') return false;
+  return document.documentElement.classList.contains('dark');
+}
+
 // Helper function to split multiselect assignees
 function splitAssignees(assigneeString: string): string[] {
   if (!assigneeString || assigneeString.trim() === '') return ['Unassigned'];
@@ -37,7 +42,7 @@ function splitAssignees(assigneeString: string): string[] {
 // Component สำหรับ Task Status Donut Chart
 export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
   console.log('TaskStatusChart received tasks:', tasks.length);
-
+  const isDark = useDarkMode();
   // Debug: แสดงข้อมูล Task ทั้งหมดทุก field
   console.log('=== ALL TASKS DATA ===');
   tasks.forEach((task, index) => {
@@ -108,15 +113,15 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
 
   const total = tasks.length || 1;
   const chartData = [
-    { name: 'To Do', value: (tasksByStatus['To Do'] / total) * 100, count: tasksByStatus['To Do'], color: '#67e8f9' },
+    { name: 'To Do', value: (tasksByStatus['To Do'] / total) * 100, count: tasksByStatus['To Do'], color: isDark ? '#38bdf8' : '#67e8f9' },
     { name: 'In Progress', value: (tasksByStatus['In Progress'] / total) * 100, count: tasksByStatus['In Progress'], color: '#0ea5e9' },
     { name: 'Done', value: (tasksByStatus['Done'] / total) * 100, count: tasksByStatus['Done'], color: '#0369a1' }
   ];
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200 w-full">
+    <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border`}>
       <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold text-gray-800">Task Status</CardTitle>
+        <CardTitle className={`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>Task Status</CardTitle>
       </CardHeader>
       <CardContent className="p-6 pt-0">
         <div className="flex items-center justify-center gap-8">
@@ -146,12 +151,13 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
               </Pie>
               <Tooltip 
                 contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #e2e8f0',
+                  backgroundColor: isDark ? '#374151' : 'white',
+                  border: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}`,
                   borderRadius: '8px',
                   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
                   fontSize: '14px',
-                  padding: '12px'
+                  padding: '12px',
+                  color: isDark ? '#f3f4f6' : '#000'
                 }}
                 formatter={(value: any, name: any, props: any) => [`${props.payload.count} tasks`, name]}
                 labelFormatter={(label: any, props: any) => `Status: ${props[0]?.payload.name}`}
@@ -159,24 +165,25 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
             </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-sm text-gray-600">Total Task</span>
-              <span className="text-2xl font-bold">{tasks.length}</span>
-              <span className="text-sm text-gray-600">tasks</span>
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Total Task</span>
+              <span className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{tasks.length}</span>
+              <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>tasks</span>
             </div>
+
           </div>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-4 rounded-lg text-center min-w-[100px]">
-              <div className="text-sm text-gray-600 mb-1">To Do</div>
-              <div className="text-2xl font-bold">{tasksByStatus['To Do']}</div>
+            <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg text-center min-w-[100px]`}>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>To Do</div>
+              <div className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{tasksByStatus['To Do']}</div>
             </div>
-            <div className="bg-gray-50 p-4 rounded-lg text-center min-w-[100px]">
-              <div className="text-sm text-gray-600 mb-1">In Progress</div>
-              <div className="text-2xl font-bold">{tasksByStatus['In Progress']}</div>
+            <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg text-center min-w-[100px]`}>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>In Progress</div>
+              <div className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{tasksByStatus['In Progress']}</div>
             </div>
-            <div className="bg-gray-50 p-4 rounded-lg text-center col-span-2 min-w-[100px]">
-              <div className="text-sm text-gray-600 mb-1">Done</div>
-              <div className="text-2xl font-bold">{tasksByStatus['Done']}</div>
+            <div className={`${isDark ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg text-center min-w-[100px]`}>
+              <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} mb-1`}>Done</div>
+              <div className={`text-2xl font-bold ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>{tasksByStatus['Done']}</div>
             </div>
           </div>
         </div>
@@ -185,28 +192,10 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
           {chartData.map((item, index) => (
             <div key={index} className="flex items-center gap-2">
               <div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div>
-              <span>{item.name} {item.value.toFixed(1)}%</span>
+              <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>{item.name} {item.value.toFixed(1)}%</span>
             </div>
           ))}
         </div>
-
-        {/* Debug info แสดงในหน้าจอ */}
-        {/* <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600 max-h-40 overflow-y-auto">
-          <div><strong>Debug Info:</strong></div>
-          <div>Total tasks: {tasks.length}</div>
-          <div>Matched tasks: {Object.values(tasksByStatus).reduce((a, b) => a + b, 0)}</div>
-          <div>Unmatched tasks: {unmatchedTasks.length}</div>
-          <div><strong>Unique statuses:</strong> {uniqueStatuses.join(', ')}</div>
-          {unmatchedTasks.length > 0 && (
-            <div>
-              <strong>Unmatched tasks:</strong>
-              {unmatchedTasks.slice(0, 5).map((t, i) => (
-                <div key={i} className="ml-2">• {t.TaskName}: "{t.Status}"</div>
-              ))}
-              {unmatchedTasks.length > 5 && <div className="ml-2">... และอีก {unmatchedTasks.length - 5} tasks</div>}
-            </div>
-          )}
-        </div> */}
       </CardContent>
     </Card>
   );
@@ -215,6 +204,7 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
 // Component สำหรับ Task Assignee Bar Chart - Vertical Layout
 export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
   // Process assignee data with multiselect support
+  const isDark = useDarkMode();
   const assigneeData = tasks.reduce((acc: Record<string, number>, task) => {
     // Split multiselect assignees (e.g., "Pe,Jang" becomes ["Pe", "Jang"])
     const assigneeString = task.Assignee || '';
@@ -246,10 +236,10 @@ export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
     .slice(0, 10); // Show top 10 assignees
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200 w-full">
+    <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border`}>
       <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold text-gray-800">Task Assignee</CardTitle>
-        <p className="text-sm text-gray-600">Number of tasks assigned to each person</p>
+        <CardTitle className={`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>Task Assignee</CardTitle>
+        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Number of tasks assigned to each person</p>
       </CardHeader>
       <CardContent className="p-6 pt-0">
         <div className="w-full h-64 min-h-[256px]">
@@ -263,7 +253,7 @@ export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
                 bottom: chartData.length > 6 ? 60 : 40 
               }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f1f5f9'} />
               <XAxis 
                 dataKey="name"
                 angle={chartData.length > 6 ? -45 : 0}
@@ -271,35 +261,36 @@ export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
                 height={chartData.length > 6 ? 60 : 40}
                 fontSize={12}
                 interval={0}
-                tick={{ fill: '#64748b' }}
+                tick={{ fill: isDark ? '#9ca3af' : '#64748b' }}
                 axisLine={false}
                 tickLine={false}
               />
               <YAxis 
                 allowDecimals={false}
                 fontSize={12}
-                tick={{ fill: '#64748b' }}
+                tick={{ fill: isDark ? '#9ca3af' : '#64748b' }}
                 axisLine={false}
                 tickLine={false}
               />
               <Tooltip 
                 contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #e2e8f0',
+                  backgroundColor: isDark ? '#374151' : 'white',
+                  border: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}`,
                   borderRadius: '8px',
                   boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
                   fontSize: '14px',
-                  padding: '12px'
+                  padding: '12px',
+                  color: isDark ? '#f3f4f6' : '#000'
                 }}
                 formatter={(value: any) => [value, 'Tasks']}
                 labelFormatter={(label: any) => `Assignee: ${label}`}
-                cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
+                cursor={{ fill: isDark ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.05)' }}
               />
               <Bar 
                 dataKey="tasks" 
-                fill="#3b82f6"
+                fill={isDark ? '#60a5fa' : '#3b82f6'}
                 radius={[6, 6, 0, 0]}
-                stroke="#2563eb"
+                stroke={isDark ? '#3b82f6' : '#2563eb'}
                 strokeWidth={1}
               />
             </BarChart>
@@ -307,7 +298,7 @@ export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
         </div>
         
         {/* Summary info - responsive */}
-        <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-sm text-gray-600">
+        <div className={`mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           <span>Total People: {chartData.length}</span>
           <span>Total Tasks: {chartData.reduce((sum, item) => sum + item.tasks, 0)}</span>
         </div>
@@ -319,7 +310,7 @@ export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
 // Component สำหรับ Project Progress
 export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[], projectNamesMap?: Map<string, string> }) {
   console.log('ProjectProgressChart received tasks:', tasks.length); // Debug log
-
+  const isDark = useDarkMode();
   const progressData = tasks.reduce((acc: Record<string, any>, task: Task) => {
     const projectId = task.projectId || task.ProjectType || 'Unknown';
     if (!acc[projectId]) {
@@ -355,19 +346,19 @@ export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[]
     .slice(0, 6);
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200 w-full">
+    <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border`}>
       <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold text-gray-800">% Complete of Project</CardTitle>
-        <p className="text-sm text-gray-600">Project completion percentage by average task progress</p>
+        <CardTitle className={`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>% Complete of Project</CardTitle>
+        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Project completion percentage by average task progress</p>
       </CardHeader>
       <CardContent className="p-6 pt-0">
         <div className="space-y-3">
           {chartData.length > 0 ? chartData.map((project, index) => (
             <div key={index} className="flex items-center gap-3 group">
-              <span className="text-sm font-medium w-32 text-gray-700 truncate" title={project.fullName}>
+              <span className={`text-sm font-medium w-32 ${isDark ? 'text-gray-300' : 'text-gray-700'} truncate`} title={project.fullName}>
                 {project.name}
               </span>
-              <div className="flex-1 bg-gray-200 rounded-full h-6 relative overflow-hidden">
+              <div className={`flex-1 ${isDark ? 'bg-gray-600' : 'bg-gray-200'} rounded-full h-6 relative overflow-hidden`}>
                 <div 
                   className="bg-gradient-to-r from-cyan-400 to-cyan-600 h-6 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${Math.min(project.progress, 100)}%` }}
@@ -376,12 +367,12 @@ export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[]
                   {project.progress}%
                 </span>
               </div>
-              <span className="text-xs text-gray-500 w-16 text-right">
+              <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} w-16 text-right`}>
                 {project.taskCount} tasks
               </span>
             </div>
           )) : (
-            <div className="text-center text-gray-500 py-8">
+            <div className={`text-center ${isDark ? 'text-gray-400' : 'text-gray-500'} py-8`}>
               <div className="text-sm">No project data available</div>
               <div className="text-xs mt-1">Projects will appear here once tasks are assigned to them</div>
             </div>
@@ -390,7 +381,7 @@ export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[]
         
         {/* Summary info */}
         {chartData.length > 0 && (
-          <div className="mt-6 flex justify-between items-center text-sm text-gray-600 pt-4 border-t border-gray-100">
+          <div className={`mt-6 flex justify-between items-center text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'} pt-4 border-t ${isDark ? 'border-gray-600' : 'border-gray-100'}`}>
             <span>Active Projects: {chartData.length}</span>
             <span>Avg Progress: {Math.round(chartData.reduce((sum, p) => sum + p.progress, 0) / chartData.length)}%</span>
           </div>
@@ -401,10 +392,9 @@ export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[]
 }
 
 // Component สำหรับ Task Prioritization Matrix
-// Component สำหรับ Task Prioritization Matrix
 export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
   console.log('TaskPrioritizationMatrix received tasks:', tasks.length);
-
+  const isDark = useDarkMode();
   // Group tasks by effort/effect combination to handle duplicates
   const groupedTasks = tasks
     .filter(task => (task.Effort > 0 || task.Effect > 0) && task.TaskName)
@@ -455,9 +445,9 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
   });
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200">
+    <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border`}>
       <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-800">Task Prioritization Matrix</CardTitle>
+        <CardTitle className={`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>Task Prioritization Matrix</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-80">
@@ -466,20 +456,22 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
               margin={{ top: 20, right: 20, bottom: 40, left: 40 }}
               data={scatterData}
             >
-              <CartesianGrid strokeDasharray="3 3" />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f1f5f9'} />
               <XAxis 
                 type="number" 
                 dataKey="effort" 
                 name="Effort" 
                 domain={[0, 10]}
-                label={{ value: 'Effort', position: 'insideBottom', offset: -5 }}
+                tick={{ fill: isDark ? '#9ca3af' : '#64748b' }}
+                label={{ value: 'Effort', position: 'insideBottom', offset: -5, fill: isDark ? '#9ca3af' : '#64748b' }}
               />
               <YAxis 
                 type="number" 
                 dataKey="effect" 
                 name="Effect" 
                 domain={[0, 10]}
-                label={{ value: 'Effect', angle: -90, position: 'insideLeft' }}
+                tick={{ fill: isDark ? '#9ca3af' : '#64748b' }}
+                label={{ value: 'Effect', angle: -90, position: 'insideLeft', fill: isDark ? '#9ca3af' : '#64748b' }}
               />
               <Tooltip 
                 content={({ active, payload }) => {
@@ -488,33 +480,33 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
                   const data = payload[0].payload;
                   
                   return (
-                    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
-                      <div className="font-semibold text-gray-800">{data.fullName}</div>
-                      <div className="text-gray-600">Effort: {data.effort}</div>
-                      <div className="text-gray-600">Effect: {data.effect}</div>
+                    <div className={`${isDark ? 'bg-gray-700 border-gray-600 text-gray-100' : 'bg-white border-gray-200 text-gray-800'} rounded-lg shadow-lg p-3 min-w-[200px]`}>
+                      <div className={`font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>{data.fullName}</div>
+                      <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Effort: {data.effort}</div>
+                      <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Effect: {data.effect}</div>
                       
                       {data.taskCount === 1 ? (
                         <>
-                          <div className="text-gray-600">Status: {data.status}</div>
-                          <div className="text-gray-600">Assignee: {data.assignee}</div>
-                          <div className="text-gray-600">Progress: {data.progress}%</div>
+                          <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Status: {data.status}</div>
+                          <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Assignee: {data.assignee}</div>
+                          <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Progress: {data.progress}%</div>
                         </>
                       ) : (
                         <>
-                          <div className="text-gray-600">Tasks: {data.taskCount}</div>
-                          <div className="text-gray-600">Avg Progress: {data.progress}%</div>
-                          <div className="text-gray-600 text-xs max-h-32 overflow-y-auto">
+                          <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Tasks: {data.taskCount}</div>
+                          <div className={isDark ? 'text-gray-300' : 'text-gray-600'}>Avg Progress: {data.progress}%</div>
+                          <div className={`${isDark ? 'text-gray-400' : 'text-gray-600'} text-xs max-h-32 overflow-y-auto`}>
                             <div className="font-medium mb-1">Task Details:</div>
                             {data.taskList?.slice(0, 3).map((task: any, index: number) => (
                               <div key={index} className="mb-1">
                                 • {task.name.length > 25 ? task.name.substring(0, 25) + '...' : task.name}
-                                <div className="ml-2 text-xs text-gray-500">
+                                <div className={`ml-2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
                                   Status: {task.status} | Progress: {task.progress}%
                                 </div>
                               </div>
                             ))}
                             {(data.taskList?.length || 0) > 3 && (
-                              <div className="text-gray-500">... and {(data.taskList?.length || 0) - 3} more</div>
+                              <div className={`${isDark ? 'text-gray-500' : 'text-gray-500'}`}>... and {(data.taskList?.length || 0) - 3} more</div>
                             )}
                           </div>
                         </>
@@ -523,13 +515,13 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
                   );
                 }}
               />
-              <ReferenceLine x={5} strokeDasharray="5 5" stroke="#000" strokeWidth={2} />
-              <ReferenceLine y={5} strokeDasharray="5 5" stroke="#000" strokeWidth={2} />
+              <ReferenceLine x={5} strokeDasharray="5 5" stroke={isDark ? '#6b7280' : '#000'} strokeWidth={2} />
+              <ReferenceLine y={5} strokeDasharray="5 5" stroke={isDark ? '#6b7280' : '#000'} strokeWidth={2} />
               <Scatter 
                 name="Tasks" 
                 data={scatterData} 
-                fill="#67e8f9" 
-                stroke="#0ea5e9"
+                fill={isDark ? '#38bdf8' : '#67e8f9'}
+                stroke={isDark ? '#0ea5e9' : '#0ea5e9'}
                 strokeWidth={2}
                 r={6}
               />
@@ -544,7 +536,7 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
 // Component สำหรับ Burn-down Chart
 export function BurndownChart({ tasks }: { tasks: Task[] }) {
   console.log('BurndownChart received tasks:', tasks.length); // Debug log
-
+  const isDark = useDarkMode();
   const burnDownData = tasks
     .filter((task: Task) => task.EndDate)
     .reduce((acc: Array<{ month: string; effort: number }>, task: Task) => {
@@ -577,21 +569,30 @@ export function BurndownChart({ tasks }: { tasks: Task[] }) {
     })
     .slice(-12); // Last 12 months
 
-  const colors = ['#3b82f6', '#1e40af', '#7c3aed', '#a855f7', '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e'];
+  const colors = isDark 
+    ? ['#60a5fa', '#3b82f6', '#8b5cf6', '#a855f7', '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e']
+    : ['#3b82f6', '#1e40af', '#7c3aed', '#a855f7', '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e'];
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200">
+    <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border`}>
       <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-800">Burn-down chart for Effort</CardTitle>
+        <CardTitle className={`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>Burn-down chart for Effort</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={burnDownData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" fontSize={12} />
-              <YAxis />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#374151' : '#f1f5f9'} />
+              <XAxis dataKey="month" fontSize={12} tick={{ fill: isDark ? '#9ca3af' : '#64748b' }} />
+              <YAxis tick={{ fill: isDark ? '#9ca3af' : '#64748b' }} />
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: isDark ? '#374151' : 'white',
+                  border: `1px solid ${isDark ? '#4b5563' : '#e2e8f0'}`,
+                  borderRadius: '8px',
+                  color: isDark ? '#f3f4f6' : '#000'
+                }}
+              />
               <Bar dataKey="effort" radius={[4, 4, 0, 0]}>
                 {burnDownData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
@@ -608,47 +609,47 @@ export function BurndownChart({ tasks }: { tasks: Task[] }) {
 // Component สำหรับ Filtered Tasks Table
 export function FilteredTasksTable({ tasks }: { tasks: Task[] }) {
   const displayTasks = tasks.slice(0, 10);
-
+  const isDark = useDarkMode();
   return (
-    <Card className="bg-white rounded-xl border border-gray-200">
+    <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border`}>
       <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-800">Filtered Tasks</CardTitle>
+        <CardTitle className={`text-lg font-semibold ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>Filtered Tasks</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Task Name</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Progress</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Status</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Assignee</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Project Type</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Due Date</th>
+              <tr className={`border-b ${isDark ? 'border-gray-600' : 'border-gray-200'}`}>
+                <th className={`text-left py-3 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase text-xs`}>Task Name</th>
+                <th className={`text-left py-3 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase text-xs`}>Progress</th>
+                <th className={`text-left py-3 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase text-xs`}>Status</th>
+                <th className={`text-left py-3 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase text-xs`}>Assignee</th>
+                <th className={`text-left py-3 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase text-xs`}>Project Type</th>
+                <th className={`text-left py-3 px-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'} uppercase text-xs`}>Due Date</th>
               </tr>
             </thead>
             <tbody>
               {displayTasks.map((task, index) => (
-                <tr key={task.id || index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-2 font-medium text-gray-900">
+                <tr key={task.id || index} className={`border-b ${isDark ? 'border-gray-700 hover:bg-gray-700' : 'border-gray-100 hover:bg-gray-50'}`}>
+                  <td className={`py-3 px-2 font-medium ${isDark ? 'text-gray-100' : 'text-gray-900'}`}>
                     {task.TaskName?.substring(0, 40)}{task.TaskName?.length > 40 ? '...' : ''}
                   </td>
                   <td 
-                    className="py-3 px-2 text-gray-700"
+                    className={`py-3 px-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}
                     title={`Progress: ${task.Progress || 0}%\nStatus: ${task.Status || 'Unknown'}`}
                   >
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-medium w-8">{task.Progress || 0}%</span>
-                      <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden min-w-[60px]">
+                      <div className={`flex-1 ${isDark ? 'bg-gray-600' : 'bg-gray-200'} rounded-full h-3 relative overflow-hidden min-w-[60px]`}>
                         <div 
                           className={`h-3 rounded-full transition-all duration-300 ${
                             (task.Progress || 0) === 100 
-                              ? 'bg-green-700' 
+                              ? 'bg-green-600' 
                               : (task.Progress || 0) >= 70 
                               ? 'bg-green-500' 
                               : (task.Progress || 0) >= 50 
-                              ? 'bg-gray-700' 
-                              : 'bg-gray-700'
+                              ? isDark ? 'bg-blue-500' : 'bg-gray-700'
+                              : isDark ? 'bg-blue-600' : 'bg-gray-700'
                           }`}
                           style={{ width: `${Math.min(task.Progress || 0, 100)}%` }}
                         ></div>
@@ -660,21 +661,21 @@ export function FilteredTasksTable({ tasks }: { tasks: Task[] }) {
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 px-2 text-gray-700">{task.Status}</td>
-                  <td className="py-3 px-2 text-gray-700">
+                  <td className={`py-3 px-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{task.Status}</td>
+                  <td className={`py-3 px-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
                     {splitAssignees(task.Assignee).slice(0, 2).join(', ')}
                     {splitAssignees(task.Assignee).length > 2 && '...'}
                   </td>
                   <td className="py-3 px-2">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      task.ProjectType === 'QuickWin' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-blue-100 text-blue-800'
+                      task.ProjectType === 'QuickWin'
+                        ? isDark ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800'
+                        : isDark ? 'bg-blue-800 text-blue-200' : 'bg-blue-100 text-blue-800'
                     }`}>
                       {task.ProjectType}
                     </span>
                   </td>
-                  <td className="py-3 px-2 text-gray-700">{task.EndDate}</td>
+                  <td className={`py-3 px-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>{task.EndDate}</td>
                 </tr>
               ))}
             </tbody>

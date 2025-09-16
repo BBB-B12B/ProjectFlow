@@ -16,10 +16,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/projects/page.js"
     ],
-    "/project/[id]/page": [
+    "/analytics/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/project/[id]/page.js"
+      "static/chunks/app/analytics/page.js"
+    ],
+    "/api/check-password/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/check-password/route.js"
     ]
   }
 }

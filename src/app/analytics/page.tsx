@@ -1,15 +1,6 @@
 import React from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import {
-  TaskStatusChart,
-  TaskAssigneeChart,
-  ProjectProgressChart,
-  TaskPrioritizationMatrix,
-  BurndownChart,
-  FilteredTasksTable
-} from '@/components/charts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // Type definitions
 interface Task {
@@ -36,6 +27,7 @@ interface Project {
   description?: string;
   status?: string;
   team?: string;
+  isDarkModeOnly?: boolean; // Add this field
 }
 
 // ฟังก์ชันดึงข้อมูล Task จาก Firebase
@@ -83,6 +75,7 @@ async function getProjects(): Promise<Project[]> {
         description: data.description || '',
         status: data.status || '',
         team: data.team || '',
+        isDarkModeOnly: data.isDarkModeOnly ?? false, // Fetch isDarkModeOnly, default to false
       } as Project;
     });
     return projectList;
@@ -92,6 +85,9 @@ async function getProjects(): Promise<Project[]> {
   }
 }
 
+// Client Component to handle theme-based filtering
+import AnalyticsClient from './analytics-client';
+
 // Main Analytics Page Component (Server Component)
 export default async function AnalyticsPage() {
   // Fetch both tasks and projects data
@@ -100,52 +96,19 @@ export default async function AnalyticsPage() {
     getProjects()
   ]);
 
-  // Create a map from projectId to project name for easy lookup
-  const projectNamesMap = new Map<string, string>();
-  projects.forEach(project => {
-    projectNamesMap.set(project.id, project.name);
-  });
-
   // Log for debugging
   console.log('Projects loaded:', projects.length);
-  console.log('Project names map:', Object.fromEntries(projectNamesMap));
+  console.log('Sample projects with isDarkModeOnly:', projects.slice(0, 3).map(p => ({ 
+    name: p.name, 
+    isDarkModeOnly: p.isDarkModeOnly 
+  })));
   console.log('Sample tasks with projectId:', tasks.slice(0, 3).map(t => ({ 
     TaskName: t.TaskName, 
     projectId: t.projectId 
   })));
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Analytics</h1>
-          <p className="text-gray-600">Insights into your project tasks.</p>
-        </div>
-
-        {/* Row 1: Task Status + Task Assignee */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <TaskStatusChart tasks={tasks} />
-          <TaskAssigneeChart tasks={tasks} />
-        </div>
-
-        {/* Row 2: Project Progress + Task Prioritization Matrix */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProjectProgressChart tasks={tasks} projectNamesMap={projectNamesMap} />
-          <TaskPrioritizationMatrix tasks={tasks} />
-        </div>
-
-        {/* Row 3: Burn-down Chart (Full Width) */}
-        <div className="grid grid-cols-1">
-          <BurndownChart tasks={tasks} />
-        </div>
-
-        {/* Row 4: Filtered Tasks Table (Full Width) */}
-        <div className="grid grid-cols-1">
-          <FilteredTasksTable tasks={tasks} projectNamesMap={projectNamesMap} />
-        </div>
-
-      </div>
-    </div>
+    // AnalyticsClient will handle the div with min-h-screen bg-gray-50 p-6 and its children
+    <AnalyticsClient initialTasks={tasks} initialProjects={projects} />
   );
 }

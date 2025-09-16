@@ -1,1 +1,1 @@
-self.__REACT_LOADABLE_MANIFEST="{\"components/project-details-client.tsx -> @/components/task-gantt-chart\":{\"id\":\"components/project-details-client.tsx -> @/components/task-gantt-chart\",\"files\":[\"static/chunks/_app-pages-browser_src_components_task-gantt-chart_tsx.js\"]}}"
+self.__REACT_LOADABLE_MANIFEST="{}"
