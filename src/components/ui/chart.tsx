@@ -1,563 +1,365 @@
-'use client';
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ScatterChart, Scatter, ReferenceLine } from 'recharts';
+"use client"
 
-// Type definitions
-interface Task {
-  id: string;
-  TaskName: string;
-  Status: string;
-  Progress: number;
-  Assignee: string;
-  ProjectType: string;
-  projectId: string;
-  StartDate: string;
-  EndDate: string;
-  Effort: number;
-  Effect: number;
-  title?: string;
-  effort?: number;
-  effect?: number;
-  priority?: string;
+import * as React from "react"
+import * as RechartsPrimitive from "recharts"
+
+import { cn } from "@/lib/utils"
+
+// Format: { THEME_NAME: CSS_SELECTOR }
+const THEMES = { light: "", dark: ".dark" } as const
+
+export type ChartConfig = {
+  [k in string]: {
+    label?: React.ReactNode
+    icon?: React.ComponentType
+  } & (
+    | { color?: string; theme?: never }
+    | { color?: never; theme: Record<keyof typeof THEMES, string> }
+  )
 }
 
-// Helper function to split multiselect assignees
-function splitAssignees(assigneeString: string): string[] {
-  if (!assigneeString || assigneeString.trim() === '') return ['Unassigned'];
-  
-  // Split by comma and clean up whitespace
-  return assigneeString
-    .split(',')
-    .map(name => name.trim())
-    .filter(name => name.length > 0)
-    .map(name => name || 'Unassigned');
+type ChartContextProps = {
+  config: ChartConfig
 }
 
-// Component สำหรับ Task Status Donut Chart
-export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
-  console.log('TaskStatusChart received tasks:', tasks.length);
+const ChartContext = React.createContext<ChartContextProps | null>(null)
 
-  // Debug: แสดงข้อมูล Task ทั้งหมดทุก field
-  console.log('=== ALL TASKS DATA ===');
-  tasks.forEach((task, index) => {
-    console.log(`Task ${index + 1}:`, {
-      id: task.id,
-      TaskName: task.TaskName,
-      Status: task.Status,
-      Progress: task.Progress,
-      Assignee: task.Assignee,
-      ProjectType: task.ProjectType,
-      projectId: task.projectId,
-      StartDate: task.StartDate,
-      EndDate: task.EndDate,
-      Effort: task.Effort,
-      Effect: task.Effect,
-      title: task.title,
-      effort: task.effort,
-      effect: task.effect,
-      priority: task.priority
-    });
-  });
+function useChart() {
+  const context = React.useContext(ChartContext)
 
-  // Debug: แสดงสถานะทั้งหมดที่มีในข้อมูล
-  const allStatuses = tasks.map(t => t.Status).filter(status => status);
-  const uniqueStatuses = [...new Set(allStatuses)];
-  console.log('All unique statuses found:', uniqueStatuses);
-  console.log('Status count breakdown:', allStatuses.reduce((acc: Record<string, number>, status) => {
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, {}));
+  if (!context) {
+    throw new Error("useChart must be used within a <ChartContainer />")
+  }
 
-  // Create better status mapping based on actual Thai status values found in data
-  const tasksByStatus = {
-    'To Do': tasks.filter((t) => {
-      const status = t.Status?.toLowerCase();
-      return status === 'ยังไม่ได้เริ่ม' || status === 'ยังไม่เริ่ม' || status === 'รอดำเนินการ' || status === 'todo' || status === 'to do';
-    }).length,
-    'In Progress': tasks.filter((t) => {
-      const status = t.Status?.toLowerCase();
-      return status === 'กำลังดำเนินการ' || status === 'in progress' || status === 'doing' || status === 'progress';
-    }).length,
-    'Done': tasks.filter((t) => {
-      const status = t.Status?.toLowerCase();
-      return status === 'จบงานแล้ว' || status === 'เสร็จแล้ว' || status === 'done' || status === 'completed';
-    }).length,
-  };
+  return context
+}
 
-  // Debug: แสดงผลการจัดกลุ่ม
-  console.log('Tasks by status after filtering:', tasksByStatus);
-  console.log('Total matched tasks:', Object.values(tasksByStatus).reduce((a, b) => a + b, 0));
-
-  // หาสถานะที่ไม่ได้จัดกลุ่ม
-  const unmatchedTasks = tasks.filter((t) => {
-    const status = t.Status?.toLowerCase();
-    return !(
-      status === 'ยังไม่เริ่ม' || status === 'รอดำเนินการ' || status === 'todo' || status === 'to do' ||
-      status === 'กำลังดำเนินการ' || status === 'in progress' || status === 'doing' || status === 'progress' ||
-      status === 'จบงานแล้ว' || status === 'เสร็จแล้ว' || status === 'done' || status === 'completed'
-    );
-  });
-
-  console.log('Unmatched tasks count:', unmatchedTasks.length);
-  console.log('Unmatched tasks details:', unmatchedTasks.map(t => ({ 
-    TaskName: t.TaskName, 
-    Status: t.Status,
-    StatusLowerCase: t.Status?.toLowerCase()
-  })));
-
-  const total = tasks.length || 1;
-  const chartData = [
-    { name: 'To Do', value: (tasksByStatus['To Do'] / total) * 100, count: tasksByStatus['To Do'], color: '#67e8f9' },
-    { name: 'In Progress', value: (tasksByStatus['In Progress'] / total) * 100, count: tasksByStatus['In Progress'], color: '#0ea5e9' },
-    { name: 'Done', value: (tasksByStatus['Done'] / total) * 100, count: tasksByStatus['Done'], color: '#0369a1' }
-  ];
+const ChartContainer = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div"> & {
+    config: ChartConfig
+    children: React.ComponentProps<
+      typeof RechartsPrimitive.ResponsiveContainer
+    >["children"]
+  }
+>(({ id, className, children, config, ...props }, ref) => {
+  const uniqueId = React.useId()
+  const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200 w-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold text-gray-800">Task Status</CardTitle>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
-        <div className="flex items-center justify-center gap-8">
-          <div className="relative w-48 h-48">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  dataKey="value"
-                  startAngle={90}
-                  endAngle={450}
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-sm text-gray-600">Total Task</span>
-              <span className="text-2xl font-bold">{tasks.length}</span>
-              <span className="text-sm text-gray-600">tasks</span>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 p-4 rounded-lg text-center min-w-[100px]">
-              <div className="text-sm text-gray-600 mb-1">To Do</div>
-              <div className="text-2xl font-bold">{tasksByStatus['To Do']}</div>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg text-center min-w-[100px]">
-              <div className="text-sm text-gray-600 mb-1">In Progress</div>
-              <div className="text-2xl font-bold">{tasksByStatus['In Progress']}</div>
-            </div>
-            <div className="bg-gray-50 p-4 rounded-lg text-center col-span-2 min-w-[100px]">
-              <div className="text-sm text-gray-600 mb-1">Done</div>
-              <div className="text-2xl font-bold">{tasksByStatus['Done']}</div>
-            </div>
-          </div>
-        </div>
-        
-        <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs justify-center">
-          {chartData.map((item, index) => (
-            <div key={index} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded" style={{ backgroundColor: item.color }}></div>
-              <span>{item.name} {item.value.toFixed(1)}%</span>
-            </div>
-          ))}
-        </div>
-
-        {/* Debug info แสดงในหน้าจอ */}
-        {/* <div className="mt-4 p-3 bg-gray-50 rounded text-xs text-gray-600 max-h-40 overflow-y-auto">
-          <div><strong>Debug Info:</strong></div>
-          <div>Total tasks: {tasks.length}</div>
-          <div>Matched tasks: {Object.values(tasksByStatus).reduce((a, b) => a + b, 0)}</div>
-          <div>Unmatched tasks: {unmatchedTasks.length}</div>
-          <div><strong>Unique statuses:</strong> {uniqueStatuses.join(', ')}</div>
-          {unmatchedTasks.length > 0 && (
-            <div>
-              <strong>Unmatched tasks:</strong>
-              {unmatchedTasks.slice(0, 5).map((t, i) => (
-                <div key={i} className="ml-2">• {t.TaskName}: "{t.Status}"</div>
-              ))}
-              {unmatchedTasks.length > 5 && <div className="ml-2">... และอีก {unmatchedTasks.length - 5} tasks</div>}
-            </div>
-          )}
-        </div> */}
-      </CardContent>
-    </Card>
-  );
-}
-
-// Component สำหรับ Task Assignee Bar Chart - Vertical Layout
-export function TaskAssigneeChart({ tasks }: { tasks: Task[] }) {
-  // Process assignee data with multiselect support
-  const assigneeData = tasks.reduce((acc: Record<string, number>, task) => {
-    // Split multiselect assignees (e.g., "Pe,Jang" becomes ["Pe", "Jang"])
-    const assigneeString = task.Assignee || '';
-    const assignees = assigneeString
-      .split(',')
-      .map(name => name.trim())
-      .filter(name => name.length > 0);
-    
-    // If no assignees, mark as Unassigned
-    if (assignees.length === 0) {
-      assignees.push('Unassigned');
-    }
-    
-    // Count tasks for each assignee
-    assignees.forEach(assignee => {
-      acc[assignee] = (acc[assignee] || 0) + 1;
-    });
-    
-    return acc;
-  }, {});
-
-  // Convert to chart data and sort by task count (descending)
-  const chartData = Object.entries(assigneeData)
-    .map(([name, taskCount]) => ({ 
-      name, 
-      tasks: taskCount 
-    }))
-    .sort((a, b) => b.tasks - a.tasks)
-    .slice(0, 10); // Show top 10 assignees
-
-  return (
-    <Card className="bg-white rounded-xl border border-gray-200 w-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold text-gray-800">Task Assignee</CardTitle>
-        <p className="text-sm text-gray-600">Number of tasks assigned to each person</p>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
-        <div className="w-full h-64 min-h-[256px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart 
-              data={chartData}
-              margin={{ 
-                top: 20, 
-                right: 30, 
-                left: 20, 
-                bottom: chartData.length > 6 ? 60 : 40 
-              }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis 
-                dataKey="name"
-                angle={chartData.length > 6 ? -45 : 0}
-                textAnchor={chartData.length > 6 ? "end" : "middle"}
-                height={chartData.length > 6 ? 60 : 40}
-                fontSize={12}
-                interval={0}
-                tick={{ fill: '#64748b' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis 
-                allowDecimals={false}
-                fontSize={12}
-                tick={{ fill: '#64748b' }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip 
-                contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: '8px',
-                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                  fontSize: '14px',
-                  padding: '12px'
-                }}
-                formatter={(value: any) => [value, 'Tasks']}
-                labelFormatter={(label: any) => `Assignee: ${label}`}
-                cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }}
-              />
-              <Bar 
-                dataKey="tasks" 
-                fill="#3b82f6"
-                radius={[6, 6, 0, 0]}
-                stroke="#2563eb"
-                strokeWidth={1}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-        
-        {/* Summary info - responsive */}
-        <div className="mt-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-sm text-gray-600">
-          <span>Total People: {chartData.length}</span>
-          <span>Total Tasks: {chartData.reduce((sum, item) => sum + item.tasks, 0)}</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Component สำหรับ Project Progress
-export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[], projectNamesMap?: Map<string, string> }) {
-  console.log('ProjectProgressChart received tasks:', tasks.length); // Debug log
-
-  const progressData = tasks.reduce((acc: Record<string, any>, task: Task) => {
-    const projectId = task.projectId || task.ProjectType || 'Unknown';
-    if (!acc[projectId]) {
-      acc[projectId] = {
-        projectId,
-        totalTasks: 0,
-        totalProgress: 0,
-      };
-    }
-    
-    acc[projectId].totalTasks += 1;
-    acc[projectId].totalProgress += task.Progress || 0;
-    
-    return acc;
-  }, {});
-
-  const chartData = Object.values(progressData)
-    .map((project: any) => {
-      // Use project name from map if available, otherwise use projectId
-      const projectName = projectNamesMap?.get(project.projectId) || project.projectId;
-      const displayName = projectName === 'Unknown' ? 'Unknown Project' : 
-                         projectName.length > 20 ? `${projectName.substring(0, 20)}...` : projectName;
-      
-      return {
-        name: displayName,
-        fullName: projectName, // Keep full name for tooltip
-        progress: Math.round((project.totalProgress / project.totalTasks) || 0),
-        taskCount: project.totalTasks
-      };
-    })
-    .filter(project => project.name !== 'Unknown Project')
-    .sort((a, b) => b.progress - a.progress) // Sort by progress descending
-    .slice(0, 6);
-
-  return (
-    <Card className="bg-white rounded-xl border border-gray-200 w-full">
-      <CardHeader className="pb-4">
-        <CardTitle className="text-lg font-semibold text-gray-800">% Complete of Project</CardTitle>
-        <p className="text-sm text-gray-600">Project completion percentage by average task progress</p>
-      </CardHeader>
-      <CardContent className="p-6 pt-0">
-        <div className="space-y-3">
-          {chartData.length > 0 ? chartData.map((project, index) => (
-            <div key={index} className="flex items-center gap-3 group">
-              <span className="text-sm font-medium w-32 text-gray-700 truncate" title={project.fullName}>
-                {project.name}
-              </span>
-              <div className="flex-1 bg-gray-200 rounded-full h-6 relative overflow-hidden">
-                <div 
-                  className="bg-gradient-to-r from-cyan-400 to-cyan-600 h-6 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${Math.min(project.progress, 100)}%` }}
-                ></div>
-                <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-white mix-blend-difference">
-                  {project.progress}%
-                </span>
-              </div>
-              <span className="text-xs text-gray-500 w-16 text-right">
-                {project.taskCount} tasks
-              </span>
-            </div>
-          )) : (
-            <div className="text-center text-gray-500 py-8">
-              <div className="text-sm">No project data available</div>
-              <div className="text-xs mt-1">Projects will appear here once tasks are assigned to them</div>
-            </div>
-          )}
-        </div>
-        
-        {/* Summary info */}
-        {chartData.length > 0 && (
-          <div className="mt-6 flex justify-between items-center text-sm text-gray-600 pt-4 border-t border-gray-100">
-            <span>Active Projects: {chartData.length}</span>
-            <span>Avg Progress: {Math.round(chartData.reduce((sum, p) => sum + p.progress, 0) / chartData.length)}%</span>
-          </div>
+    <ChartContext.Provider value={{ config }}>
+      <div
+        data-chart={chartId}
+        ref={ref}
+        className={cn(
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+          className
         )}
-      </CardContent>
-    </Card>
-  );
-}
+        {...props}
+      >
+        <ChartStyle id={chartId} config={config} />
+        <RechartsPrimitive.ResponsiveContainer>
+          {children}
+        </RechartsPrimitive.ResponsiveContainer>
+      </div>
+    </ChartContext.Provider>
+  )
+})
+ChartContainer.displayName = "Chart"
 
-// Component สำหรับ Task Prioritization Matrix
-export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
-  console.log('TaskPrioritizationMatrix received tasks:', tasks.length); // Debug log
+const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
+  const colorConfig = Object.entries(config).filter(
+    ([, config]) => config.theme || config.color
+  )
 
-  const scatterData = tasks
-    .filter(task => (task.Effort > 0 || task.Effect > 0) && task.TaskName)
-    .map((task) => ({
-      effort: Number(task.Effort || 0),
-      effect: Number(task.Effect || 0),
-      name: task.TaskName?.substring(0, 30) + (task.TaskName?.length > 30 ? '...' : '') || '',
-    }));
+  if (!colorConfig.length) {
+    return null
+  }
 
   return (
-    <Card className="bg-white rounded-xl border border-gray-200">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-800">Task Prioritization Matrix</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                type="number" 
-                dataKey="effort" 
-                name="Effort" 
-                domain={[0, 10]}
-                label={{ value: 'Effort', position: 'insideBottom', offset: -5 }}
-              />
-              <YAxis 
-                type="number" 
-                dataKey="effect" 
-                name="Effect" 
-                domain={[0, 10]}
-                label={{ value: 'Effect', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip 
-                cursor={{ strokeDasharray: '3 3' }}
-                formatter={(value, name) => [value, name]}
-                labelFormatter={(label, payload) => {
-                  if (payload && payload[0]) {
-                    return payload[0].payload.name;
-                  }
-                  return '';
-                }}
-              />
-              <ReferenceLine x={5} strokeDasharray="5 5" stroke="#000" strokeWidth={2} />
-              <ReferenceLine y={5} strokeDasharray="5 5" stroke="#000" strokeWidth={2} />
-              <Scatter 
-                name="Tasks" 
-                data={scatterData} 
-                fill="#67e8f9" 
-                stroke="#0ea5e9"
-                strokeWidth={2}
-              />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
+    <style
+      dangerouslySetInnerHTML={{
+        __html: Object.entries(THEMES)
+          .map(
+            ([theme, prefix]) => `
+${prefix} [data-chart=${id}] {
+${colorConfig
+  .map(([key, itemConfig]) => {
+    const color =
+      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
+      itemConfig.color
+    return color ? `  --color-${key}: ${color};` : null
+  })
+  .join("\n")}
+}
+`
+          )
+          .join("\n"),
+      }}
+    />
+  )
 }
 
-// Component สำหรับ Burn-down Chart
-export function BurndownChart({ tasks }: { tasks: Task[] }) {
-  console.log('BurndownChart received tasks:', tasks.length); // Debug log
+const ChartTooltip = RechartsPrimitive.Tooltip
 
-  const burnDownData = tasks
-    .filter((task: Task) => task.EndDate)
-    .reduce((acc: Array<{ month: string; effort: number }>, task: Task) => {
-      try {
-        const date = new Date(task.EndDate);
-        if (isNaN(date.getTime())) return acc;
-        
-        const monthYear = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-        
-        const existingMonth = acc.find(item => item.month === monthYear);
-        if (existingMonth) {
-          existingMonth.effort += task.Effort || 0;
-        } else {
-          acc.push({
-            month: monthYear,
-            effort: task.Effort || 0
-          });
-        }
-        
-        return acc;
-      } catch (error) {
-        return acc;
+const ChartTooltipContent = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
+    React.ComponentProps<"div"> & {
+      hideLabel?: boolean
+      hideIndicator?: boolean
+      indicator?: "line" | "dot" | "dashed"
+      nameKey?: string
+      labelKey?: string
+    }
+>(
+  (
+    {
+      active,
+      payload,
+      className,
+      indicator = "dot",
+      hideLabel = false,
+      hideIndicator = false,
+      label,
+      labelFormatter,
+      labelClassName,
+      formatter,
+      color,
+      nameKey,
+      labelKey,
+    },
+    ref
+  ) => {
+    const { config } = useChart()
+
+    const tooltipLabel = React.useMemo(() => {
+      if (hideLabel || !payload?.length) {
+        return null
       }
-    }, [])
-    .sort((a, b) => {
-      // Sort by month/year properly
-      const dateA = new Date(a.month + ' 01');
-      const dateB = new Date(b.month + ' 01');
-      return dateA.getTime() - dateB.getTime();
-    })
-    .slice(-12); // Last 12 months
 
-  const colors = ['#3b82f6', '#1e40af', '#7c3aed', '#a855f7', '#ec4899', '#f43f5e', '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e'];
+      const [item] = payload
+      const key = `${labelKey || item.dataKey || item.name || "value"}`
+      const itemConfig = getPayloadConfigFromPayload(config, item, key)
+      const value =
+        !labelKey && typeof label === "string"
+          ? config[label as keyof typeof config]?.label || label
+          : itemConfig?.label
 
-  return (
-    <Card className="bg-white rounded-xl border border-gray-200">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-800">Burn-down chart for Effort</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={burnDownData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" fontSize={12} />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="effort" radius={[4, 4, 0, 0]}>
-                {burnDownData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+      if (labelFormatter) {
+        return (
+          <div className={cn("font-medium", labelClassName)}>
+            {labelFormatter(value, payload)}
+          </div>
+        )
+      }
+
+      if (!value) {
+        return null
+      }
+
+      return <div className={cn("font-medium", labelClassName)}>{value}</div>
+    }, [
+      label,
+      labelFormatter,
+      payload,
+      hideLabel,
+      labelClassName,
+      config,
+      labelKey,
+    ])
+
+    if (!active || !payload?.length) {
+      return null
+    }
+
+    const nestLabel = payload.length === 1 && indicator !== "dot"
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
+          className
+        )}
+      >
+        {!nestLabel ? tooltipLabel : null}
+        <div className="grid gap-1.5">
+          {payload.map((item, index) => {
+            const key = `${nameKey || item.name || item.dataKey || "value"}`
+            const itemConfig = getPayloadConfigFromPayload(config, item, key)
+            const indicatorColor = color || item.payload.fill || item.color
+
+            return (
+              <div
+                key={item.dataKey}
+                className={cn(
+                  "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
+                  indicator === "dot" && "items-center"
+                )}
+              >
+                {formatter && item?.value !== undefined && item.name ? (
+                  formatter(item.value, item.name, item, index, item.payload)
+                ) : (
+                  <>
+                    {itemConfig?.icon ? (
+                      <itemConfig.icon />
+                    ) : (
+                      !hideIndicator && (
+                        <div
+                          className={cn(
+                            "shrink-0 rounded-[2px] border-[--color-border] bg-[--color-bg]",
+                            {
+                              "h-2.5 w-2.5": indicator === "dot",
+                              "w-1": indicator === "line",
+                              "w-0 border-[1.5px] border-dashed bg-transparent":
+                                indicator === "dashed",
+                              "my-0.5": nestLabel && indicator === "dashed",
+                            }
+                          )}
+                          style={
+                            {
+                              "--color-bg": indicatorColor,
+                              "--color-border": indicatorColor,
+                            } as React.CSSProperties
+                          }
+                        />
+                      )
+                    )}
+                    <div
+                      className={cn(
+                        "flex flex-1 justify-between leading-none",
+                        nestLabel ? "items-end" : "items-center"
+                      )}
+                    >
+                      <div className="grid gap-1.5">
+                        {nestLabel ? tooltipLabel : null}
+                        <span className="text-muted-foreground">
+                          {itemConfig?.label || item.name}
+                        </span>
+                      </div>
+                      {item.value && (
+                        <span className="font-mono font-medium tabular-nums text-foreground">
+                          {item.value.toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          })}
         </div>
-      </CardContent>
-    </Card>
-  );
+      </div>
+    )
+  }
+)
+ChartTooltipContent.displayName = "ChartTooltip"
+
+const ChartLegend = RechartsPrimitive.Legend
+
+const ChartLegendContent = React.forwardRef<
+  HTMLDivElement,
+  React.ComponentProps<"div"> &
+    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
+      hideIcon?: boolean
+      nameKey?: string
+    }
+>(
+  (
+    { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },
+    ref
+  ) => {
+    const { config } = useChart()
+
+    if (!payload?.length) {
+      return null
+    }
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          "flex items-center justify-center gap-4",
+          verticalAlign === "top" ? "pb-3" : "pt-3",
+          className
+        )}
+      >
+        {payload.map((item) => {
+          const key = `${nameKey || item.dataKey || "value"}`
+          const itemConfig = getPayloadConfigFromPayload(config, item, key)
+
+          return (
+            <div
+              key={item.value}
+              className={cn(
+                "flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3 [&>svg]:text-muted-foreground"
+              )}
+            >
+              {itemConfig?.icon && !hideIcon ? (
+                <itemConfig.icon />
+              ) : (
+                <div
+                  className="h-2 w-2 shrink-0 rounded-[2px]"
+                  style={{
+                    backgroundColor: item.color,
+                  }}
+                />
+              )}
+              {itemConfig?.label}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+)
+ChartLegendContent.displayName = "ChartLegend"
+
+// Helper to extract item config from a payload.
+function getPayloadConfigFromPayload(
+  config: ChartConfig,
+  payload: unknown,
+  key: string
+) {
+  if (typeof payload !== "object" || payload === null) {
+    return undefined
+  }
+
+  const payloadPayload =
+    "payload" in payload &&
+    typeof payload.payload === "object" &&
+    payload.payload !== null
+      ? payload.payload
+      : undefined
+
+  let configLabelKey: string = key
+
+  if (
+    key in payload &&
+    typeof payload[key as keyof typeof payload] === "string"
+  ) {
+    configLabelKey = payload[key as keyof typeof payload] as string
+  } else if (
+    payloadPayload &&
+    key in payloadPayload &&
+    typeof payloadPayload[key as keyof typeof payloadPayload] === "string"
+  ) {
+    configLabelKey = payloadPayload[
+      key as keyof typeof payloadPayload
+    ] as string
+  }
+
+  return configLabelKey in config
+    ? config[configLabelKey]
+    : config[key as keyof typeof config]
 }
 
-// Component สำหรับ Filtered Tasks Table
-export function FilteredTasksTable({ tasks }: { tasks: Task[] }) {
-  const displayTasks = tasks.slice(0, 10);
-
-  return (
-    <Card className="bg-white rounded-xl border border-gray-200">
-      <CardHeader>
-        <CardTitle className="text-lg font-semibold text-gray-800">Filtered Tasks</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Task Name</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Progress</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Status</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Assignee</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Project Type</th>
-                <th className="text-left py-3 px-2 font-medium text-gray-600 uppercase text-xs">Due Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayTasks.map((task, index) => (
-                <tr key={task.id || index} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="py-3 px-2 font-medium text-gray-900">
-                    {task.TaskName?.substring(0, 40)}{task.TaskName?.length > 40 ? '...' : ''}
-                  </td>
-                  <td className="py-3 px-2 text-gray-700">{task.Progress || 0}%</td>
-                  <td className="py-3 px-2 text-gray-700">{task.Status}</td>
-                  <td className="py-3 px-2 text-gray-700">
-                    {splitAssignees(task.Assignee).slice(0, 2).join(', ')}
-                    {splitAssignees(task.Assignee).length > 2 && '...'}
-                  </td>
-                  <td className="py-3 px-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      task.ProjectType === 'QuickWin' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-blue-100 text-blue-800'
-                    }`}>
-                      {task.ProjectType}
-                    </span>
-                  </td>
-                  <td className="py-3 px-2 text-gray-700">{task.EndDate}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
-    </Card>
-  );
+export {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+  ChartStyle,
 }

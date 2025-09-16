@@ -1,5 +1,5 @@
 'use client';
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, ScatterChart, Scatter, ReferenceLine } from 'recharts';
 
@@ -122,22 +122,41 @@ export function TaskStatusChart({ tasks }: { tasks: Task[] }) {
         <div className="flex items-center justify-center gap-8">
           <div className="relative w-48 h-48">
             <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={chartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={90}
-                  dataKey="value"
-                  startAngle={90}
-                  endAngle={450}
-                >
-                  {chartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-              </PieChart>
+            <PieChart>
+            <Pie
+              data={chartData}
+              cx="50%"
+              cy="50%"
+              innerRadius={60}
+              outerRadius={90}
+              dataKey="value"
+              startAngle={90}
+              endAngle={450}
+              onMouseEnter={(data, index) => console.log('Pie hover:', data, index)}
+              stroke="transparent"
+              strokeWidth={2}
+            >
+                {chartData.map((entry, index) => (
+                  <Cell 
+                    key={`cell-${index}`} 
+                    fill={entry.color}
+                    style={{ cursor: 'pointer' }}
+                  />
+                ))}
+              </Pie>
+              <Tooltip 
+                contentStyle={{
+                  backgroundColor: 'white',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+                  fontSize: '14px',
+                  padding: '12px'
+                }}
+                formatter={(value: any, name: any, props: any) => [`${props.payload.count} tasks`, name]}
+                labelFormatter={(label: any, props: any) => `Status: ${props[0]?.payload.name}`}
+              />
+            </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-sm text-gray-600">Total Task</span>
@@ -382,16 +401,58 @@ export function ProjectProgressChart({ tasks, projectNamesMap }: { tasks: Task[]
 }
 
 // Component สำหรับ Task Prioritization Matrix
+// Component สำหรับ Task Prioritization Matrix
 export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
-  console.log('TaskPrioritizationMatrix received tasks:', tasks.length); // Debug log
+  console.log('TaskPrioritizationMatrix received tasks:', tasks.length);
 
-  const scatterData = tasks
+  // Group tasks by effort/effect combination to handle duplicates
+  const groupedTasks = tasks
     .filter(task => (task.Effort > 0 || task.Effect > 0) && task.TaskName)
-    .map((task) => ({
-      effort: Number(task.Effort || 0),
-      effect: Number(task.Effect || 0),
-      name: task.TaskName?.substring(0, 30) + (task.TaskName?.length > 30 ? '...' : '') || '',
-    }));
+    .reduce((acc: Record<string, Task[]>, task) => {
+      const key = `${task.Effort || 0}-${task.Effect || 0}`;
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(task);
+      return acc;
+    }, {});
+
+  const scatterData = Object.entries(groupedTasks).map(([key, tasks]) => {
+    const [effort, effect] = key.split('-').map(Number);
+    
+    if (tasks.length === 1) {
+      // Single task
+      const task = tasks[0];
+      return {
+        effort,
+        effect,
+        name: task.TaskName?.substring(0, 30) + (task.TaskName?.length > 30 ? '...' : '') || '',
+        fullName: task.TaskName || '',
+        status: task.Status || 'Unknown',
+        assignee: task.Assignee || 'Unassigned',
+        progress: task.Progress || 0,
+        taskCount: 1
+      };
+    } else {
+      // Multiple tasks with same effort/effect
+      return {
+        effort,
+        effect,
+        name: `${tasks.length} tasks`,
+        fullName: `Multiple tasks (${tasks.length})`,
+        status: 'Multiple',
+        assignee: 'Multiple',
+        progress: Math.round(tasks.reduce((sum, t) => sum + (t.Progress || 0), 0) / tasks.length),
+        taskCount: tasks.length,
+        taskList: tasks.map(t => ({
+          name: t.TaskName || 'Unnamed',
+          status: t.Status || 'Unknown',
+          assignee: t.Assignee || 'Unassigned',
+          progress: t.Progress || 0
+        }))
+      };
+    }
+  });
 
   return (
     <Card className="bg-white rounded-xl border border-gray-200">
@@ -401,7 +462,10 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
       <CardContent>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: 20, right: 20, bottom: 40, left: 40 }}>
+            <ScatterChart 
+              margin={{ top: 20, right: 20, bottom: 40, left: 40 }}
+              data={scatterData}
+            >
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis 
                 type="number" 
@@ -418,13 +482,45 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
                 label={{ value: 'Effect', angle: -90, position: 'insideLeft' }}
               />
               <Tooltip 
-                cursor={{ strokeDasharray: '3 3' }}
-                formatter={(value, name) => [value, name]}
-                labelFormatter={(label, payload) => {
-                  if (payload && payload[0]) {
-                    return payload[0].payload.name;
-                  }
-                  return '';
+                content={({ active, payload }) => {
+                  if (!active || !payload || payload.length === 0) return null;
+                  
+                  const data = payload[0].payload;
+                  
+                  return (
+                    <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
+                      <div className="font-semibold text-gray-800">{data.fullName}</div>
+                      <div className="text-gray-600">Effort: {data.effort}</div>
+                      <div className="text-gray-600">Effect: {data.effect}</div>
+                      
+                      {data.taskCount === 1 ? (
+                        <>
+                          <div className="text-gray-600">Status: {data.status}</div>
+                          <div className="text-gray-600">Assignee: {data.assignee}</div>
+                          <div className="text-gray-600">Progress: {data.progress}%</div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-gray-600">Tasks: {data.taskCount}</div>
+                          <div className="text-gray-600">Avg Progress: {data.progress}%</div>
+                          <div className="text-gray-600 text-xs max-h-32 overflow-y-auto">
+                            <div className="font-medium mb-1">Task Details:</div>
+                            {data.taskList?.slice(0, 3).map((task: any, index: number) => (
+                              <div key={index} className="mb-1">
+                                • {task.name.length > 25 ? task.name.substring(0, 25) + '...' : task.name}
+                                <div className="ml-2 text-xs text-gray-500">
+                                  Status: {task.status} | Progress: {task.progress}%
+                                </div>
+                              </div>
+                            ))}
+                            {(data.taskList?.length || 0) > 3 && (
+                              <div className="text-gray-500">... and {(data.taskList?.length || 0) - 3} more</div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
                 }}
               />
               <ReferenceLine x={5} strokeDasharray="5 5" stroke="#000" strokeWidth={2} />
@@ -435,6 +531,7 @@ export function TaskPrioritizationMatrix({ tasks }: { tasks: Task[] }) {
                 fill="#67e8f9" 
                 stroke="#0ea5e9"
                 strokeWidth={2}
+                r={6}
               />
             </ScatterChart>
           </ResponsiveContainer>
@@ -536,7 +633,33 @@ export function FilteredTasksTable({ tasks }: { tasks: Task[] }) {
                   <td className="py-3 px-2 font-medium text-gray-900">
                     {task.TaskName?.substring(0, 40)}{task.TaskName?.length > 40 ? '...' : ''}
                   </td>
-                  <td className="py-3 px-2 text-gray-700">{task.Progress || 0}%</td>
+                  <td 
+                    className="py-3 px-2 text-gray-700"
+                    title={`Progress: ${task.Progress || 0}%\nStatus: ${task.Status || 'Unknown'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium w-8">{task.Progress || 0}%</span>
+                      <div className="flex-1 bg-gray-200 rounded-full h-3 relative overflow-hidden min-w-[60px]">
+                        <div 
+                          className={`h-3 rounded-full transition-all duration-300 ${
+                            (task.Progress || 0) === 100 
+                              ? 'bg-green-700' 
+                              : (task.Progress || 0) >= 70 
+                              ? 'bg-green-500' 
+                              : (task.Progress || 0) >= 50 
+                              ? 'bg-gray-700' 
+                              : 'bg-gray-700'
+                          }`}
+                          style={{ width: `${Math.min(task.Progress || 0, 100)}%` }}
+                        ></div>
+                        {(task.Progress || 0) === 100 && (
+                          <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                            Complete
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                   <td className="py-3 px-2 text-gray-700">{task.Status}</td>
                   <td className="py-3 px-2 text-gray-700">
                     {splitAssignees(task.Assignee).slice(0, 2).join(', ')}
