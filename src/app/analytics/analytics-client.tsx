@@ -12,7 +12,7 @@ import {
   FilteredTasksTable
 } from '@/components/charts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
+import { EditTaskDialog } from '@/components/edit-task-dialog';
 // Type definitions
 interface Task {
   id: string;
@@ -78,7 +78,8 @@ export default function AnalyticsClient({
 
   // Track which chart triggered the filter for visual feedback
   const [activeFilterSource, setActiveFilterSource] = useState<string | null>(null);
-
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   // Filter update functions
   const updateFilter = useCallback((key: keyof FilterState, value: any, source?: string) => {
     setFilters(prev => ({
@@ -246,22 +247,33 @@ export default function AnalyticsClient({
     
     switch (filterType) {
       case 'status-chart':
-        return `${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200`;
+        return `${baseClasses} mt-1 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200`;
       case 'assignee-chart':
-        return `${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200`;
+        return `${baseClasses} mt-1 bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200`;
       case 'progress-chart':
-        return `${baseClasses} bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`;
+        return `${baseClasses} mt-1 bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200`;
       case 'matrix-chart':
-        return `${baseClasses} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200`;
+        return `${baseClasses} mt-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200`;
       case 'burndown-chart':
-        return `${baseClasses} bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
+        return `${baseClasses} mt-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
         case 'date-filter':
-          return `${baseClasses} bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
+          return `${baseClasses} mt-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
         default:
-        return `${baseClasses} bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200`;
+        return `${baseClasses} mt-1 bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200`;
     }
   };
+  // เพิ่มก่อน return statement
+  const handleTaskClick = useCallback((task: Task) => {
+    setSelectedTask(task);
+    setIsEditDialogOpen(true);
+  }, []);
 
+  // สร้าง assignees list จาก tasks
+  const assignees = [...new Set(
+    filteredTasks
+      .flatMap(task => task.Assignee?.split(',').map(name => name.trim()).filter(name => name.length > 0) || [])
+      .filter(Boolean)
+  )];
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -315,7 +327,7 @@ export default function AnalyticsClient({
           <Card className="border-l-4 border-l-purple-500">
             <CardContent className="p-4">
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Active Filters:</span>
+                <span className="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300">Active Filters:</span>
                 
                 {filters.status && (
                   <span className={getFilterBadgeColor('status-chart')}>
@@ -355,7 +367,7 @@ export default function AnalyticsClient({
                 
                 <button 
                   onClick={handleClearFilters} 
-                  className="ml-4 px-3 py-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full text-xs font-medium hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                  className="ml-4 mt-1 px-3 py-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded-full text-xs font-medium hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
                 >
                   Clear All Filters
                 </button>
@@ -460,13 +472,18 @@ export default function AnalyticsClient({
               tasks={filteredTasks} 
               projectNamesMap={projectNamesMap} 
               filters={filters}
-              onTaskClick={(task) => {
-                console.log('Task clicked:', task);
-              }}
+              onTaskClick={handleTaskClick} 
             />
           </div>
         </div>
-        </div>
+      </div>
+      <EditTaskDialog
+        isOpen={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        task={selectedTask}
+        projectId={selectedTask?.projectId || ''}
+        assignees={assignees}
+      />
     </div>
   );
 }
