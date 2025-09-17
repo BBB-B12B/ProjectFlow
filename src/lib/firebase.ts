@@ -1,7 +1,7 @@
+// /home/user/studio/src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// Firebase configuration from environment variables
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -12,14 +12,33 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase using a singleton pattern
 let app;
-if (!getApps().length) {
-  app = initializeApp(firebaseConfig);
-} else {
-  app = getApp(); // if already initialized, use that one
+let db;
+
+// Check if firebaseConfig has necessary values, especially projectId
+if (!firebaseConfig.projectId) {
+  console.error("Firebase: Environment variables (e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID) are not properly set.");
+  // It's crucial to handle this, as initializeApp will fail without it.
+  // For now, we proceed but expect a failure later if not set.
 }
 
-const db = getFirestore(app);
+if (!getApps().length) {
+  try {
+    app = initializeApp(firebaseConfig);
+    console.log("Firebase: New app initialized (server-side).");
+  } catch (e) {
+    console.error("Firebase: Error initializing new Firebase app (server-side):", e);
+  }
+} else {
+  app = getApp();
+  console.log("Firebase: Using existing Firebase app (server-side).");
+}
+
+if (app) {
+  db = getFirestore(app);
+  console.log("Firebase: Firestore instance obtained (server-side).");
+} else {
+  console.error("Firebase: Firebase app is undefined, cannot get Firestore instance.");
+}
 
 export { app, db };

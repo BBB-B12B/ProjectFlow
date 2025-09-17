@@ -1,3 +1,4 @@
+// /home/user/studio/src/lib/types.ts
 export interface Project {
   id: string;
   name: string;
@@ -16,10 +17,7 @@ export interface Task {
   projectId: string;
   TaskName?: string;
   Description?: string; // Added Description field matching Task.description
-  Assignee?: {
-    name: string;
-    avatar?: string;
-  };
+  Assignee?: string; // Changed Assignee to be a string directly
   StartDate: string;
   EndDate: string;
   Status: 'ยังไม่เริ่ม' | 'กำลังดำเนินการ' | 'ติดปัญหา' | 'จบงานแล้ว';
@@ -45,6 +43,24 @@ export interface CalendarEvent {
     projectId: string;
   };
   isDarkModeOnly?: boolean;
+}
+
+export interface ProjectTrackingProgress {
+  id: string;
+  taskId: string;
+  projectId: string;
+  trackerName: string;
+  date: string; // วันที่ลงข้อมูล
+  hoursWorked: number;
+  progressPercentage: number;
+  createdAt: string; // วันที่สร้างข้อมูล
+  updatedAt: string; // วันที่แก้ไขล่าสุด
+  editHistory?: {
+    editedAt: string;
+    editedBy: string;
+    previousHours: number;
+    previousProgress: number;
+  }[];
 }
 
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';

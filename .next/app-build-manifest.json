@@ -21,10 +21,10 @@
       "static/chunks/main-app.js",
       "static/chunks/app/analytics/page.js"
     ],
-    "/api/check-password/route": [
+    "/tracking/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/api/check-password/route.js"
+      "static/chunks/app/tracking/page.js"
     ]
   }
 }

@@ -45,6 +45,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 Calendar
             </Link>
             <Link
+                href="/tracking"
+                className={cn(
+                    "transition-colors hover:text-foreground",
+                    pathname.includes('/tracking') ? "text-foreground" : "text-muted-foreground"
+                )}
+            >
+                Tracking
+            </Link>
+            <Link
                 href="/party"
                 className={cn(
                     "transition-colors hover:text-foreground",
