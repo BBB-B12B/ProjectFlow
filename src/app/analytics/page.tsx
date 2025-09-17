@@ -1,3 +1,4 @@
+// /home/user/studio/src/app/analytics/page.tsx
 import React from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';

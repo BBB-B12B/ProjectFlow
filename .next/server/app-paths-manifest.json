@@ -1,5 +1,5 @@
 {
-  "/api/check-password/route": "app/api/check-password/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
   "/projects/page": "app/projects/page.js",
   "/analytics/page": "app/analytics/page.js"
 }
