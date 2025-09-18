@@ -8,20 +8,16 @@ interface TaskWithProjectName extends Task {
   projectName: string;
 }
 
-// Function to fetch all unique assignees (from multi-choice strings)
 async function getAssignees(): Promise<string[]> {
-  console.log('Server: getAssignees - db object:', db); // Debugging db
   try {
     const tasksRef = collection(db, 'tasks');
-    console.log('Server: getAssignees - tasksRef:', tasksRef); // Debugging tasksRef
-    const querySnapshot = await getDocs(tasksRef); // Fetch all tasks
+    const querySnapshot = await getDocs(tasksRef);
 
     const uniqueAssignees = new Set<string>();
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       const assigneeString = data.Assignee as string; 
       if (assigneeString) {
-        // Split the multi-choice string by comma, trim spaces, and add to set
         assigneeString.split(',').forEach(name => {
           const trimmedName = name.trim();
           if (trimmedName !== '') {
@@ -30,10 +26,10 @@ async function getAssignees(): Promise<string[]> {
         });
       }
     });
-    console.log('Server: Unique Assignees fetched in getAssignees:', Array.from(uniqueAssignees));
+    
     return Array.from(uniqueAssignees);
   } catch (error) {
-    console.error('Server: Error fetching assignees in server component:', error);
+    console.error('Error fetching assignees:', error);
     return [];
   }
 }
@@ -147,14 +143,11 @@ export default async function TrackingPage() {
   console.log('Server: firstAssignee for initial data fetch:', firstAssignee);
 
   const { tasks: initialTasks, trackingData: initialTrackingData } = await getInitialTrackingData(firstAssignee);
-  console.log('Server: initialTasks for TrackingClient props:', initialTasks);
-  console.log('Server: initialTrackingData for TrackingClient props:', initialTrackingData);
+
 
   return (
     <TrackingClient
       initialAssignees={initialAssignees}
-      initialTasks={initialTasks}
-      initialTrackingData={initialTrackingData}
-    />
+      />
   );
 }

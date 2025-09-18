@@ -133,7 +133,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
             Effort: task.Effort ?? 5,
             Status: task.Status ?? 'ยังไม่ได้เริ่ม',
             ProjectType: task.ProjectType ?? 'Main',
-            Assignee: task.Assignee?.name ?? '',
+            Assignee: task.Assignee ?? '',
             Owner: task.Owner ?? '',
             Want: task.Want ?? '',
           });

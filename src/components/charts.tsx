@@ -352,8 +352,8 @@ export function TaskAssigneeChart({
             </BarChart>
           </ResponsiveContainer>
           {/* เพิ่มปุ่มคลิกสำหรับ Assignee */}
-          <div className="mt-4 flex flex-wrap gap-2 justify-center">
-            {chartData.map((assignee, index) => (
+          <div className="mt-4 mb-6 flex flex-wrap gap-2 justify-center">
+            {chartData.slice(0, 4).map((assignee, index) => (
               <button
                 key={index}
                 onClick={() => handleBarClick(assignee)}
@@ -366,6 +366,11 @@ export function TaskAssigneeChart({
                 {assignee.name} ({assignee.tasks})
               </button>
             ))}
+            {chartData.length > 4 && (
+              <span className="px-3 py-1 text-xs text-gray-500 dark:text-gray-400 italic">
+                +{chartData.length - 4} more (click on chart bars)
+              </span>
+            )}
           </div>
         </div>
         

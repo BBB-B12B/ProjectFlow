@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from 'next-themes';
+import { normalizeAssigneeName, formatAssigneeDisplayName } from '@/lib/utils';
 import {
   TaskStatusChart,
   TaskAssigneeChart,
@@ -269,11 +270,29 @@ export default function AnalyticsClient({
   }, []);
 
   // สร้าง assignees list จาก tasks
-  const assignees = [...new Set(
-    filteredTasks
-      .flatMap(task => task.Assignee?.split(',').map(name => name.trim()).filter(name => name.length > 0) || [])
-      .filter(Boolean)
-  )];
+  const assignees = React.useMemo(() => {
+  const assigneeMap = new Map<string, string>();
+  
+  filteredTasks.forEach(task => {
+    if (task.Assignee) {
+      task.Assignee.split(',').forEach(name => {
+        const trimmed = name.trim();
+        if (trimmed.length > 0) {
+          const normalized = normalizeAssigneeName(trimmed);
+          const formatted = formatAssigneeDisplayName(trimmed);
+          
+          // เก็บเฉพาะตัวแรกที่พบ หรือเลือกตัวที่มี format ดีกว่า
+          if (!assigneeMap.has(normalized) || 
+              (formatted.charAt(0) === formatted.charAt(0).toUpperCase() && 
+                assigneeMap.get(normalized)?.charAt(0) !== assigneeMap.get(normalized)?.charAt(0).toUpperCase())) {
+            assigneeMap.set(normalized, formatted);
+          }
+        }
+      });
+    }
+  });
+  return Array.from(assigneeMap.values()).sort();
+}, [filteredTasks]);
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
       <div className="max-w-7xl mx-auto space-y-6">

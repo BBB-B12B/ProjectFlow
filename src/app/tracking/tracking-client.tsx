@@ -1,7 +1,7 @@
 // /home/user/studio/src/app/tracking/tracking-client.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { ProjectTrackingProgress, Task, Project } from '@/lib/types';
 import {
   Select,
@@ -40,6 +40,7 @@ import {
   setDoc,
   updateDoc,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -49,11 +50,8 @@ interface TaskWithProjectName extends Task {
 
 interface TrackingClientProps {
   initialAssignees: string[];
-  initialTasks: TaskWithProjectName[];
-  initialTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number }>;
 }
 
-// Extended interface สำหรับ audit trail
 interface ExtendedProjectTrackingProgress extends ProjectTrackingProgress {
   createdAt?: any;
   updatedAt?: any;
@@ -73,142 +71,219 @@ interface TaskChange {
   originalProgress: number;
 }
 
-const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }: TrackingClientProps) => {
-  const [assignees, setAssignees] = useState<string[]>(initialAssignees);
+const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
+  const [assignees] = useState<string[]>(initialAssignees);
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [tasks, setTasks] = useState<TaskWithProjectName[]>(initialTasks);
+  const [tasks, setTasks] = useState<TaskWithProjectName[]>([]);
   const [trackingData, setTrackingData] = useState<
     Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }>
-  >(initialTrackingData);
+  >({});
   const [originalTrackingData, setOriginalTrackingData] = useState<
     Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }>
-  >(initialTrackingData);
+  >({});
   const [loading, setLoading] = useState<boolean>(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [pendingChanges, setPendingChanges] = useState<TaskChange[]>([]);
 
-  const fetchTasksAndTrackingData = useCallback(async (assigneeName: string, forDate: string = new Date().toISOString().split('T')[0]) => {
-    setLoading(true);
+  // 🚀 Enhanced caching with better structure
+  const [projectsCache, setProjectsCache] = useState<Map<string, string>>(new Map());
+  const [allTasksCache, setAllTasksCache] = useState<Task[]>([]);
+  const [trackingCache, setTrackingCache] = useState<Map<string, ExtendedProjectTrackingProgress[]>>(new Map());
+  const [cacheInitialized, setCacheInitialized] = useState<boolean>(false);
+  
+  // 🚀 Add debouncing
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const abortControllerRef = useRef<AbortController>();
+
+  // 🚀 Optimized: Initialize all cache at once
+  const initializeCache = useCallback(async () => {
+    if (cacheInitialized) return;
+    
     try {
+      console.time('Cache initialization');
+      setLoading(true);
+      
       const tasksRef = collection(db, 'tasks');
       const projectsRef = collection(db, 'projects');
       const trackingRef = collection(db, 'projectTrackingProgress');
 
-      // Fetch all tasks first
-      const allTasksSnapshot = await getDocs(tasksRef);
-      let fetchedTasks: Task[] = [];
+      // Fetch all data in parallel
+      const [allTasksSnapshot, allProjectsSnapshot, allTrackingSnapshot] = await Promise.all([
+        getDocs(tasksRef),
+        getDocs(projectsRef),
+        getDocs(trackingRef)
+      ]);
+
+      // Cache tasks
+      const fetchedTasks: Task[] = [];
       allTasksSnapshot.forEach((doc) => {
         const data = doc.data();
         const task = { id: doc.id, ...data } as Task;
-        task.Assignee = data.Assignee as string; 
+        task.Assignee = data.Assignee as string;
         fetchedTasks.push(task);
       });
+      setAllTasksCache(fetchedTasks);
 
-      // Filter tasks in memory
-      let filteredTasks: Task[] = fetchedTasks;
-      if (assigneeName) {
-        filteredTasks = fetchedTasks.filter(task => 
-          task.Assignee?.split(',').map(name => name.trim()).includes(assigneeName)
-        );
-      }
-
-      const projectIds = new Set<string>();
-      filteredTasks.forEach(task => {
-        projectIds.add(task.projectId);
-      });
-
+      // Cache projects
       const projectsMap = new Map<string, string>();
-      if (projectIds.size > 0) {
-        const allProjectsSnapshot = await getDocs(projectsRef);
-        allProjectsSnapshot.forEach((doc) => {
-          if (projectIds.has(doc.id)) {
-            const project = doc.data() as Project;
-            projectsMap.set(doc.id, project.name);
-          }
-        });
-      }
-
-      const tasksWithProjectName: TaskWithProjectName[] = filteredTasks.map((task) => ({
-        ...task,
-        projectName: projectsMap.get(task.projectId) || 'Unknown Project',
-      }));
-      setTasks(tasksWithProjectName);
-
-      // Fetch tracking data สำหรับวันที่เลือก
-      const currentInitialTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }> = {};
-      
-      for (const task of tasksWithProjectName) {
-        // Query tracking data สำหรับ task นี้ทั้งหมด
-        const q = query(trackingRef, where('taskId', '==', task.id));
-        const trackingSnapshot = await getDocs(q);
-        let totalHoursWorkedForTask = 0;
-        let latestProgress = task.Progress || 0;
-        let specificDateData = null;
-
-        trackingSnapshot.forEach((doc) => {
-          const track = doc.data() as ExtendedProjectTrackingProgress;
-          totalHoursWorkedForTask += track.hoursWorked;
-          
-          // เช็คข้อมูลสำหรับวันที่เลือก
-          if (track.date === forDate) {
-            specificDateData = track;
-          }
-          
-          latestProgress = Math.max(latestProgress, track.progressPercentage);
-        });
-
-        if (specificDateData) {
-          // มีข้อมูลสำหรับวันที่เลือกแล้ว
-          const today = new Date().toISOString().split('T')[0];
-          currentInitialTrackingData[task.id] = {
-            hoursWorked: specificDateData.hoursWorked,
-            progressPercentage: specificDateData.progressPercentage,
-            totalHoursWorked: totalHoursWorkedForTask,
-            isBackdated: forDate !== today
-          };
-        } else {
-          // ไม่มีข้อมูลสำหรับวันที่เลือก - ใช้ค่าเริ่มต้น
-          const today = new Date().toISOString().split('T')[0];
-          currentInitialTrackingData[task.id] = {
-            hoursWorked: 0,
-            progressPercentage: latestProgress,
-            totalHoursWorked: totalHoursWorkedForTask,
-            isBackdated: forDate !== today
-          };
-        }
-      }
-      setTrackingData(currentInitialTrackingData);
-      setOriginalTrackingData({ ...currentInitialTrackingData });
-    } catch (error) {
-      console.error('Error fetching tasks and tracking data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to fetch tasks or tracking data. Check console for details.',
-        variant: 'destructive',
+      allProjectsSnapshot.forEach((doc) => {
+        const project = doc.data() as Project;
+        projectsMap.set(doc.id, project.name);
       });
+      setProjectsCache(projectsMap);
+
+      // 🚀 Cache all tracking data by taskId
+      const trackingMap = new Map<string, ExtendedProjectTrackingProgress[]>();
+      allTrackingSnapshot.forEach((doc) => {
+        const track = doc.data() as ExtendedProjectTrackingProgress;
+        if (!trackingMap.has(track.taskId)) {
+          trackingMap.set(track.taskId, []);
+        }
+        trackingMap.get(track.taskId)!.push(track);
+      });
+      setTrackingCache(trackingMap);
+
+      setCacheInitialized(true);
+      console.timeEnd('Cache initialization');
+      console.log('Cache initialized with:', {
+        tasks: fetchedTasks.length,
+        projects: projectsMap.size,
+        tracking: trackingMap.size
+      });
+    } catch (error) {
+      console.error('Error initializing cache:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cacheInitialized]);
 
-  // Re-fetch เมื่อ assignee หรือวันที่เปลี่ยน
-  useEffect(() => {
-    if (selectedAssignee) {
-      fetchTasksAndTrackingData(selectedAssignee, selectedDate);
-    } else {
-      setTasks(initialTasks);
-      setTrackingData(initialTrackingData);
-      setOriginalTrackingData(initialTrackingData);
+  // 🚀 Super fast filtering from cache
+  const getFilteredTasksFromCache = useCallback((assigneeName: string): TaskWithProjectName[] => {
+    if (!cacheInitialized || !assigneeName) return [];
+
+    return allTasksCache
+      .filter(task => 
+        task.Assignee?.split(',').some(name => name.trim() === assigneeName)
+      )
+      .map(task => ({
+        ...task,
+        projectName: projectsCache.get(task.projectId) || 'Unknown Project',
+      }));
+  }, [allTasksCache, projectsCache, cacheInitialized]);
+
+  // 🚀 Lightning fast tracking data processing from cache
+  const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    const currentTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }> = {};
+    
+    taskIds.forEach(taskId => {
+      const taskTracking = trackingCache.get(taskId) || [];
+      let totalHoursWorkedForTask = 0;
+      let latestProgress = 0;
+      let specificDateData = null;
+
+      // Find task progress from allTasksCache
+      const task = allTasksCache.find(t => t.id === taskId);
+      latestProgress = task?.Progress || 0;
+
+      taskTracking.forEach(track => {
+        totalHoursWorkedForTask += track.hoursWorked;
+        if (track.date === forDate) {
+          specificDateData = track;
+        }
+        latestProgress = Math.max(latestProgress, track.progressPercentage);
+      });
+
+      currentTrackingData[taskId] = {
+        hoursWorked: specificDateData?.hoursWorked || 0,
+        progressPercentage: specificDateData?.progressPercentage || latestProgress,
+        totalHoursWorked: totalHoursWorkedForTask,
+        isBackdated: forDate !== today
+      };
+    });
+
+    return currentTrackingData;
+  }, [trackingCache, allTasksCache]);
+
+  // 🚀 Debounced fetch function
+  const debouncedFetchData = useCallback(async (assigneeName: string, forDate: string) => {
+    // Clear previous timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
     }
-  }, [selectedAssignee, selectedDate, fetchTasksAndTrackingData, initialTasks, initialTrackingData]);
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    debounceTimeoutRef.current = setTimeout(async () => {
+      if (!assigneeName) {
+        setTasks([]);
+        setTrackingData({});
+        setOriginalTrackingData({});
+        return;
+      }
+
+      abortControllerRef.current = new AbortController();
+      
+      try {
+        setLoading(true);
+        console.time(`Fetch data for ${assigneeName}`);
+        
+        // Initialize cache if needed
+        await initializeCache();
+        
+        // Get filtered tasks from cache (instant)
+        const tasksWithProjectName = getFilteredTasksFromCache(assigneeName);
+        setTasks(tasksWithProjectName);
+
+        if (tasksWithProjectName.length === 0) {
+          setTrackingData({});
+          setOriginalTrackingData({});
+          return;
+        }
+
+        // Process tracking data from cache (instant)
+        const taskIds = tasksWithProjectName.map(task => task.id);
+        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate);
+
+        setTrackingData(currentTrackingData);
+        setOriginalTrackingData({ ...currentTrackingData });
+        
+        console.timeEnd(`Fetch data for ${assigneeName}`);
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.error('Error fetching data:', error);
+          toast({
+            title: 'Error',
+            description: 'Failed to fetch tasks or tracking data.',
+            variant: 'destructive',
+          });
+        }
+      } finally {
+        setLoading(false);
+      }
+    }, 150); // 150ms debounce
+  }, [initializeCache, getFilteredTasksFromCache, processTrackingDataFromCache]);
+
+  // Effect for assignee/date changes
+  useEffect(() => {
+    debouncedFetchData(selectedAssignee, selectedDate);
+    
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [selectedAssignee, selectedDate, debouncedFetchData]);
 
   const handleInputChange = useCallback(
-    (
-      taskId: string,
-      field: 'hoursWorked' | 'progressPercentage',
-      value: string,
-    ) => {
+    (taskId: string, field: 'hoursWorked' | 'progressPercentage', value: string) => {
       setTrackingData((prev) => ({
         ...prev,
         [taskId]: {
@@ -220,15 +295,15 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
     [],
   );
 
-  // ตรวจสอบการเปลี่ยนแปลงและเตรียมข้อมูลสำหรับบันทึก
-  const getChangedTasks = useCallback((): TaskChange[] => {
+  const changedTasks = useMemo((): TaskChange[] => {
     const changes: TaskChange[] = [];
     
     Object.keys(trackingData).forEach(taskId => {
       const current = trackingData[taskId];
       const original = originalTrackingData[taskId];
       
-      // ตรวจสอบว่ามีการเปลี่ยนแปลงและมีค่ามากกว่า 0
+      if (!current || !original) return;
+      
       const hasHoursChanged = current.hoursWorked !== original.hoursWorked && current.hoursWorked > 0;
       const hasProgressChanged = current.progressPercentage !== original.progressPercentage;
       
@@ -259,9 +334,7 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
       return;
     }
 
-    const changes = getChangedTasks();
-    
-    if (changes.length === 0) {
+    if (changedTasks.length === 0) {
       toast({
         title: 'No Changes',
         description: 'No changes detected to save.',
@@ -270,10 +343,11 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
       return;
     }
 
-    setPendingChanges(changes);
+    setPendingChanges(changedTasks);
     setShowConfirmDialog(true);
-  }, [selectedAssignee, getChangedTasks]);
+  }, [selectedAssignee, changedTasks]);
 
+  // 🚀 Enhanced save with cache updates
   const confirmSave = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0];
     const isBackdated = selectedDate !== today;
@@ -282,23 +356,26 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
     setShowConfirmDialog(false);
     
     try {
+      console.time('Save operation');
+      const batch = writeBatch(db);
       const trackingRef = collection(db, 'projectTrackingProgress');
-      
-      for (const change of pendingChanges) {
+      const updatedTaskIds = new Set<string>();
+
+      // Batch all operations for better performance
+      const existingTrackingQueries = await Promise.all(
+        pendingChanges.map(change => 
+          getDocs(query(trackingRef, where('taskId', '==', change.task.id), where('date', '==', selectedDate)))
+        )
+      );
+
+      pendingChanges.forEach((change, index) => {
         const { task, hoursWorked, progressPercentage } = change;
-        
-        // ตรวจสอบข้อมูลเดิมในฐานข้อมูล
-        const q = query(
-          trackingRef,
-          where('taskId', '==', task.id),
-          where('date', '==', selectedDate),
-        );
-        const querySnapshot = await getDocs(q);
+        const querySnapshot = existingTrackingQueries[index];
 
         if (querySnapshot.empty) {
-          // สร้างข้อมูลใหม่
+          const newId = uuidv4();
           const newTracking: ExtendedProjectTrackingProgress = {
-            id: uuidv4(),
+            id: newId,
             taskId: task.id,
             projectId: task.projectId,
             trackerName: selectedAssignee,
@@ -309,13 +386,17 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
             updatedAt: serverTimestamp(),
             editHistory: []
           };
-          await setDoc(doc(db, 'projectTrackingProgress', newTracking.id), newTracking);
+          batch.set(doc(db, 'projectTrackingProgress', newId), newTracking);
+          
+          // Update cache
+          if (!trackingCache.has(task.id)) {
+            trackingCache.set(task.id, []);
+          }
+          trackingCache.get(task.id)!.push(newTracking);
         } else {
-          // อัปเดตข้อมูลเดิม และเก็บ audit trail
           const existingDoc = querySnapshot.docs[0];
           const existingData = existingDoc.data() as ExtendedProjectTrackingProgress;
           
-          // สร้าง edit history entry
           const editEntry = {
             editedAt: new Date().toISOString(),
             editedBy: selectedAssignee,
@@ -323,36 +404,64 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
             previousProgress: existingData.progressPercentage
           };
 
-          // อัปเดตข้อมูล
           const updatedEditHistory = [...(existingData.editHistory || []), editEntry];
           
-          await updateDoc(doc(db, 'projectTrackingProgress', existingDoc.id), {
+          batch.update(doc(db, 'projectTrackingProgress', existingDoc.id), {
             hoursWorked: hoursWorked,
             progressPercentage: progressPercentage,
             updatedAt: serverTimestamp(),
             editHistory: updatedEditHistory
           });
+
+          // Update cache
+          const cached = trackingCache.get(task.id);
+          if (cached) {
+            const cachedItem = cached.find(t => t.id === existingDoc.id);
+            if (cachedItem) {
+              cachedItem.hoursWorked = hoursWorked;
+              cachedItem.progressPercentage = progressPercentage;
+              cachedItem.editHistory = updatedEditHistory;
+            }
+          }
         }
 
-        // อัปเดต task progress เฉพาะกรณีที่ลงข้อมูลวันปัจจุบัน
-        // หรือกรณีที่ progress ใหม่สูงกว่าค่าเดิม
         if (!isBackdated || progressPercentage > (task.Progress || 0)) {
-          const taskRef = doc(db, 'tasks', task.id);
-          await updateDoc(taskRef, {
+          batch.update(doc(db, 'tasks', task.id), {
             Progress: progressPercentage,
           });
+          updatedTaskIds.add(task.id);
         }
+      });
+
+      await batch.commit();
+
+      // Update caches
+      if (updatedTaskIds.size > 0) {
+        const newAllTasksCache = allTasksCache.map(task => 
+          updatedTaskIds.has(task.id) 
+            ? { ...task, Progress: pendingChanges.find(c => c.task.id === task.id)?.progressPercentage || task.Progress }
+            : task
+        );
+        setAllTasksCache(newAllTasksCache);
+        
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            updatedTaskIds.has(task.id) 
+              ? { ...task, Progress: pendingChanges.find(c => c.task.id === task.id)?.progressPercentage || task.Progress }
+              : task
+          )
+        );
       }
+
+      setOriginalTrackingData({ ...trackingData });
 
       toast({
         title: 'Success',
         description: `Successfully saved ${pendingChanges.length} task updates ${isBackdated ? `(Backdated: ${selectedDate})` : ''}!`,
       });
       
-      // รีเฟรชข้อมูล
-      await fetchTasksAndTrackingData(selectedAssignee, selectedDate);
       setPendingChanges([]);
-      
+      console.timeEnd('Save operation');
     } catch (error) {
       console.error('Error saving tracking data:', error);
       toast({
@@ -363,21 +472,37 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
     } finally {
       setLoading(false);
     }
-  }, [pendingChanges, selectedAssignee, selectedDate, fetchTasksAndTrackingData]);
+  }, [pendingChanges, selectedAssignee, selectedDate, trackingData, trackingCache, allTasksCache]);
 
   const cancelSave = useCallback(() => {
     setShowConfirmDialog(false);
     setPendingChanges([]);
   }, []);
 
-  // คำนวณจำนวน tasks ที่มีการเปลี่ยนแปลง
-  const changedTasksCount = getChangedTasks().length;
-  const totalHoursToSave = getChangedTasks().reduce((total, change) => total + change.hoursWorked, 0);
+  const summary = useMemo(() => ({
+    totalHours: Object.values(trackingData).reduce((total, data) => total + (data.hoursWorked || 0), 0),
+    tasksWithHours: Object.values(trackingData).filter(data => data.hoursWorked > 0).length,
+    totalTasks: tasks.length,
+    changedTasksCount: changedTasks.length,
+    totalHoursToSave: changedTasks.reduce((total, change) => total + change.hoursWorked, 0)
+  }), [trackingData, tasks.length, changedTasks]);
 
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Daily Tracking</h1>
       
+      {/* Loading indicator */}
+      {loading && !cacheInitialized && (
+        <div className="fixed top-24 right-4 z-20">
+          <div className="bg-blue-100 dark:bg-blue-900 rounded-lg p-4 shadow-lg border border-blue-200 dark:border-blue-700">
+            <div className="text-sm text-blue-800 dark:text-blue-200">
+              Loading data...
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Summary Panel */}
       {!loading && selectedAssignee && tasks.length > 0 && (
         <div className="fixed top-24 right-4 z-10"> 
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-200 dark:border-gray-700 min-w-[200px]">
@@ -387,25 +512,21 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Total Hours:</span>
-                <span className="font-medium">
-                  {Object.values(trackingData).reduce((total, data) => total + (data.hoursWorked || 0), 0).toFixed(2)}h
-                </span>
+                <span className="font-medium">{summary.totalHours.toFixed(2)}h</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Tasks Updated:</span>
-                <span className="font-medium">
-                  {Object.values(trackingData).filter(data => data.hoursWorked > 0).length}
-                </span>
+                <span className="font-medium">{summary.tasksWithHours}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600 dark:text-gray-400">Total Tasks:</span>
-                <span className="font-medium">{tasks.length}</span>
+                <span className="font-medium">{summary.totalTasks}</span>
               </div>
-              {changedTasksCount > 0 && (
+              {summary.changedTasksCount > 0 && (
                 <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
                   <div className="flex justify-between text-green-600 dark:text-green-400">
                     <span className="text-xs">Unsaved Changes:</span>
-                    <span className="text-xs font-medium">{changedTasksCount}</span>
+                    <span className="text-xs font-medium">{summary.changedTasksCount}</span>
                   </div>
                 </div>
               )}
@@ -459,7 +580,11 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
         )}
       </div>
 
-      {loading && <p>Loading tasks...</p>}
+      {loading && cacheInitialized && (
+        <div className="flex items-center justify-center py-8">
+          <div className="text-sm text-gray-600 dark:text-gray-400">Processing...</div>
+        </div>
+      )}
 
       {!loading && selectedAssignee && tasks.length === 0 && (
         <p>No tasks assigned to {selectedAssignee}.</p>
@@ -554,20 +679,19 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
             </TableBody>
           </Table>
           
-          {/* ปุ่ม Save ล่างสุด */}
           <div className="mt-6 flex justify-end">
             <Button 
               onClick={handleSaveAll} 
-              disabled={loading || changedTasksCount === 0}
+              disabled={loading || summary.changedTasksCount === 0}
               className="px-8 py-2"
             >
-              {loading ? 'Saving...' : `Save All Changes ${changedTasksCount > 0 ? `(${changedTasksCount})` : ''}`}
+              {loading ? 'Saving...' : `Save All Changes ${summary.changedTasksCount > 0 ? `(${summary.changedTasksCount})` : ''}`}
             </Button>
           </div>
         </div>
       )}
 
-      {/* Confirmation Dialog */}
+      {/* Confirmation Dialog - Same as before */}
       <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -638,7 +762,7 @@ const TrackingClient = ({ initialAssignees, initialTasks, initialTrackingData }:
             </div>
             <div className="flex justify-between text-sm">
               <span>Total Hours to Add:</span>
-              <span className="font-medium">{totalHoursToSave.toFixed(2)}h</span>
+              <span className="font-medium">{summary.totalHoursToSave.toFixed(2)}h</span>
             </div>
           </div>
 
