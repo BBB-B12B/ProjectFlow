@@ -27,7 +27,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react"; // Import Plus icon
+import type { Customer } from "@/lib/types"; // Import Customer type
+import { NewCustomerQuickAddDialog } from './new-customer-quick-add-dialog'; // Import the new dialog
 
 const initialState = {
   success: false,
@@ -56,18 +58,42 @@ export function NewProjectDialog({
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
+  const [customers, setCustomers] = useState<{ value: string; label: string; }[]>([]);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
+  const [isNewCustomerQuickAddDialogOpen, setIsNewCustomerQuickAddDialogOpen] = useState(false);
+  const [selectedCustomerValue, setSelectedCustomerValue] = useState<string>(''); // State to manage selected customer
   
+  // Function to fetch customers
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch('/api/customers');
+      if (!response.ok) {
+        throw new Error('Failed to fetch customers');
+      }
+      const data: Customer[] = await response.json();
+      setCustomers(data.map(customer => ({ value: customer.id, label: customer.name })));
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load customer list.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
         getTeams().then(setTeams);
+        fetchCustomers(); // Fetch customers when dialog opens
         const today = new Date().toISOString().split('T')[0];
         setStartDate(today);
         setEndDate(today);
         setIsFormDirty(false);
+        setSelectedCustomerValue(''); // Reset selected customer when opening dialog
     }
   }, [isOpen]);
 
@@ -105,7 +131,14 @@ export function NewProjectDialog({
     }
   };
 
-  console.log("Teams data being passed to SingleSelectAutocomplete:", teams);
+  const handleCustomerAdded = (newCustomer: Customer) => {
+    // Add the new customer to the list of options
+    setCustomers(prev => [...prev, { value: newCustomer.id, label: newCustomer.name }]);
+    // Set the newly added customer as the selected value
+    setSelectedCustomerValue(newCustomer.id);
+    setIsNewCustomerQuickAddDialogOpen(false); // Close the quick add dialog
+    setIsFormDirty(true);
+  };
 
   return (
     <>
@@ -132,6 +165,26 @@ export function NewProjectDialog({
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea id="description" name="description" placeholder="A brief description of the project..." onChange={() => setIsFormDirty(true)} />
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="customerId">Customer</Label>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setIsNewCustomerQuickAddDialogOpen(true)}
+                        type="button" // Prevent form submission
+                    >
+                        <Plus className="mr-1 h-3 w-3" /> New Customer
+                    </Button>
+                </div>
+                <SingleSelectAutocomplete
+                  options={customers}
+                  placeholder="Select a customer (optional)"
+                  name="customerId"
+                  onValueChange={(value) => { setSelectedCustomerValue(value); setIsFormDirty(true); }}
+                  value={selectedCustomerValue}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="team">Team</Label>
@@ -180,6 +233,11 @@ export function NewProjectDialog({
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <NewCustomerQuickAddDialog 
+        isOpen={isNewCustomerQuickAddDialogOpen} 
+        onOpenChange={setIsNewCustomerQuickAddDialogOpen}
+        onCustomerAdded={handleCustomerAdded}
+      />
     </>
   );
 }

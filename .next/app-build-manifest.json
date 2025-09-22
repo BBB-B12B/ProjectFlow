@@ -21,15 +21,30 @@
       "static/chunks/main-app.js",
       "static/chunks/app/analytics/page.js"
     ],
-    "/tracking/page": [
+    "/crm/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/tracking/page.js"
+      "static/chunks/app/crm/page.js"
     ],
-    "/party/page": [
+    "/api/customers/route": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/party/page.js"
+      "static/chunks/app/api/customers/route.js"
+    ],
+    "/project/[id]/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/project/[id]/page.js"
+    ],
+    "/api/customers/[id]/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/customers/[id]/route.js"
+    ],
+    "/api/check-password/route": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/api/check-password/route.js"
     ]
   }
 }

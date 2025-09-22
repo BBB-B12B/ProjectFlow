@@ -854,12 +854,14 @@ export function FilteredTasksTable({
   tasks, 
   projectNamesMap, 
   filters, 
-  onTaskClick 
+  onTaskClick,
+  trackingData 
 }: { 
   tasks: Task[], 
   projectNamesMap?: Map<string, string>,
   filters?: any,
-  onTaskClick?: (task: Task) => void
+  onTaskClick?: (task: Task) => void,
+  trackingData?: Record<string, { totalHoursWorked: number }>
 }) {
   const isDark = useDarkMode();
   

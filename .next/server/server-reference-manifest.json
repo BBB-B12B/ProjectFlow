@@ -82,10 +82,15 @@
         "app/analytics/page": {
           "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=true!",
           "async": false
+        },
+        "app/project/[id]/page": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
         }
       },
       "layer": {
-        "app/analytics/page": "action-browser"
+        "app/analytics/page": "action-browser",
+        "app/project/[id]/page": "rsc"
       }
     },
     "600402e62e255ed2243f69fb22d40cb067cbdabfbd": {
@@ -93,10 +98,15 @@
         "app/analytics/page": {
           "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=true!",
           "async": false
+        },
+        "app/project/[id]/page": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
         }
       },
       "layer": {
-        "app/analytics/page": "action-browser"
+        "app/analytics/page": "action-browser",
+        "app/project/[id]/page": "rsc"
       }
     },
     "602b583b068c00c52d63144c0c572027c7dfca1df5": {
@@ -104,10 +114,15 @@
         "app/analytics/page": {
           "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=true!",
           "async": false
+        },
+        "app/project/[id]/page": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
         }
       },
       "layer": {
-        "app/analytics/page": "action-browser"
+        "app/analytics/page": "action-browser",
+        "app/project/[id]/page": "rsc"
       }
     },
     "604dfb846fc3c048218c16a726db14db32ebd21927": {
@@ -115,10 +130,15 @@
         "app/analytics/page": {
           "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=true!",
           "async": false
+        },
+        "app/project/[id]/page": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
         }
       },
       "layer": {
-        "app/analytics/page": "action-browser"
+        "app/analytics/page": "action-browser",
+        "app/project/[id]/page": "rsc"
       }
     },
     "60dca56e89950e7e318deb2ffe413e59eefa7e8890": {
@@ -126,10 +146,15 @@
         "app/analytics/page": {
           "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=true!",
           "async": false
+        },
+        "app/project/[id]/page": {
+          "moduleId": "(rsc)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2Fhome%2Fuser%2Fstudio%2Fsrc%2Fapp%2Fproject%2F%5Bid%5D%2Factions.ts%22%2C%5B%7B%22id%22%3A%2200fa36d9ddea0044f71c1be199e290cdbf2fbe3b89%22%2C%22exportedName%22%3A%22getUniqueAssignees%22%7D%2C%7B%22id%22%3A%22600402e62e255ed2243f69fb22d40cb067cbdabfbd%22%2C%22exportedName%22%3A%22createTask%22%7D%2C%7B%22id%22%3A%22602b583b068c00c52d63144c0c572027c7dfca1df5%22%2C%22exportedName%22%3A%22updateTask%22%7D%2C%7B%22id%22%3A%22604dfb846fc3c048218c16a726db14db32ebd21927%22%2C%22exportedName%22%3A%22updateTaskStatus%22%7D%2C%7B%22id%22%3A%2260dca56e89950e7e318deb2ffe413e59eefa7e8890%22%2C%22exportedName%22%3A%22deleteTask%22%7D%5D%5D%5D&__client_imported__=!",
+          "async": false
         }
       },
       "layer": {
-        "app/analytics/page": "action-browser"
+        "app/analytics/page": "action-browser",
+        "app/project/[id]/page": "rsc"
       }
     }
   },

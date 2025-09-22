@@ -13,6 +13,7 @@ const CreateProjectSchema = z.object({
   endDate: z.string().min(1, "End date is required."),
   taskName: z.string().min(1, "First task name is required."),
   team: z.string().optional(),
+  customerId: z.string().optional(), // Added customerId
 });
 
 const UpdateProjectSchema = z.object({
@@ -20,6 +21,7 @@ const UpdateProjectSchema = z.object({
     name: z.string().min(1, "Project name is required."),
     description: z.string().optional(),
     team: z.string().optional(),
+    customerId: z.string().optional(), // Added customerId
 });
 
 export async function createProject(prevState: any, formData: FormData) {
@@ -32,7 +34,7 @@ export async function createProject(prevState: any, formData: FormData) {
     return { success: false, message: "Invalid form data." };
   }
 
-  const { name, description, startDate, endDate, taskName, team } = validatedFields.data;
+  const { name, description, startDate, endDate, taskName, team, customerId } = validatedFields.data;
 
   if (new Date(endDate) < new Date(startDate)) {
     return { success: false, message: "End date cannot be before the start date." };
@@ -52,6 +54,7 @@ export async function createProject(prevState: any, formData: FormData) {
       status: 'กำลังดำเนินการ',
       team: team || "",
       isDarkModeOnly: isDarkModeOnly,
+      customerId: customerId || null, // Save customerId
     });
 
     const taskRef = doc(collection(db, "tasks"));
@@ -90,7 +93,7 @@ export async function updateProject(prevState: any, formData: FormData) {
         return { success: false, message: "Invalid form data." };
     }
 
-    const { projectId, name, description, team } = validatedFields.data;
+    const { projectId, name, description, team, customerId } = validatedFields.data;
 
     try {
         const isDarkModeOnly = team?.trim().toUpperCase() === 'OS';
@@ -100,6 +103,7 @@ export async function updateProject(prevState: any, formData: FormData) {
             description: description || "",
             team: team || "",
             isDarkModeOnly: isDarkModeOnly,
+            customerId: customerId || null, // Update customerId
         });
 
         revalidatePath("/projects");

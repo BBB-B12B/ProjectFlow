@@ -14,6 +14,10 @@ import {
 } from '@/components/charts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EditTaskDialog } from '@/components/edit-task-dialog';
+import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
+import { ProjectTrackingProgress } from '@/lib/types';
+
 // Type definitions
 interface Task {
   id: string;
@@ -67,6 +71,10 @@ export default function AnalyticsClient({
   const [filteredTasks, setFilteredTasks] = useState<Task[]>(initialTasks);
   const [filteredProjects, setFilteredProjects] = useState<Project[]>(initialProjects);
   
+  // Add tracking data state
+  const [trackingData, setTrackingData] = useState<Map<string, number>>(new Map());
+  const [trackingLoading, setTrackingLoading] = useState<boolean>(false);
+  
   // Enhanced filter state
   const [filters, setFilters] = useState<FilterState>({
     status: null,
@@ -81,6 +89,37 @@ export default function AnalyticsClient({
   const [activeFilterSource, setActiveFilterSource] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // Function to fetch tracking data for all tasks
+  const fetchTrackingData = useCallback(async () => {
+    if (filteredTasks.length === 0) return;
+    
+    setTrackingLoading(true);
+    try {
+      const trackingRef = collection(db, 'projectTrackingProgress');
+      const trackingSnapshot = await getDocs(trackingRef);
+      
+      const taskHoursMap = new Map<string, number>();
+      
+      trackingSnapshot.forEach((doc) => {
+        const data = doc.data() as ProjectTrackingProgress;
+        const currentHours = taskHoursMap.get(data.taskId) || 0;
+        taskHoursMap.set(data.taskId, currentHours + (data.hoursWorked || 0));
+      });
+      
+      setTrackingData(taskHoursMap);
+    } catch (error) {
+      console.error('Error fetching tracking data:', error);
+    } finally {
+      setTrackingLoading(false);
+    }
+  }, [filteredTasks]);
+
+  // Fetch tracking data when component mounts or filtered tasks change
+  useEffect(() => {
+    fetchTrackingData();
+  }, [fetchTrackingData]);
+
   // Filter update functions
   const updateFilter = useCallback((key: keyof FilterState, value: any, source?: string) => {
     setFilters(prev => ({
@@ -257,13 +296,13 @@ export default function AnalyticsClient({
         return `${baseClasses} mt-1 bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200`;
       case 'burndown-chart':
         return `${baseClasses} mt-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
-        case 'date-filter':
-          return `${baseClasses} mt-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
-        default:
+      case 'date-filter':
+        return `${baseClasses} mt-1 bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200`;
+      default:
         return `${baseClasses} mt-1 bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200`;
     }
   };
-  // เพิ่มก่อน return statement
+
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task);
     setIsEditDialogOpen(true);
@@ -271,28 +310,29 @@ export default function AnalyticsClient({
 
   // สร้าง assignees list จาก tasks
   const assignees = React.useMemo(() => {
-  const assigneeMap = new Map<string, string>();
-  
-  filteredTasks.forEach(task => {
-    if (task.Assignee) {
-      task.Assignee.split(',').forEach(name => {
-        const trimmed = name.trim();
-        if (trimmed.length > 0) {
-          const normalized = normalizeAssigneeName(trimmed);
-          const formatted = formatAssigneeDisplayName(trimmed);
-          
-          // เก็บเฉพาะตัวแรกที่พบ หรือเลือกตัวที่มี format ดีกว่า
-          if (!assigneeMap.has(normalized) || 
-              (formatted.charAt(0) === formatted.charAt(0).toUpperCase() && 
-                assigneeMap.get(normalized)?.charAt(0) !== assigneeMap.get(normalized)?.charAt(0).toUpperCase())) {
-            assigneeMap.set(normalized, formatted);
+    const assigneeMap = new Map<string, string>();
+    
+    filteredTasks.forEach(task => {
+      if (task.Assignee) {
+        task.Assignee.split(',').forEach(name => {
+          const trimmed = name.trim();
+          if (trimmed.length > 0) {
+            const normalized = normalizeAssigneeName(trimmed);
+            const formatted = formatAssigneeDisplayName(trimmed);
+            
+            // เก็บเฉพาะตัวแรกที่พบ หรือเลือกตัวที่มี format ดีกว่า
+            if (!assigneeMap.has(normalized) || 
+                (formatted.charAt(0) === formatted.charAt(0).toUpperCase() && 
+                 assigneeMap.get(normalized)?.charAt(0) !== assigneeMap.get(normalized)?.charAt(0).toUpperCase())) {
+              assigneeMap.set(normalized, formatted);
+            }
           }
-        }
-      });
-    }
-  });
-  return Array.from(assigneeMap.values()).sort();
-}, [filteredTasks]);
+        });
+      }
+    });
+    return Array.from(assigneeMap.values()).sort();
+  }, [filteredTasks]);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -336,6 +376,7 @@ export default function AnalyticsClient({
             </div>
           </div>
         </div>
+        
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-300">Interactive insights into your project tasks - click on charts to filter data</p>
@@ -491,6 +532,8 @@ export default function AnalyticsClient({
               tasks={filteredTasks} 
               projectNamesMap={projectNamesMap} 
               filters={filters}
+              trackingData={trackingData}
+              trackingLoading={trackingLoading}
               onTaskClick={handleTaskClick} 
             />
           </div>

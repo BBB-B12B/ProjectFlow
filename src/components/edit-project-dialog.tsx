@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { updateProject, getTeams } from "@/app/projects/actions";
-import type { Project } from "@/lib/types";
+import type { Project, Customer } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete";
+import { Plus } from 'lucide-react'; // Import Plus icon
+import { NewCustomerQuickAddDialog } from './new-customer-quick-add-dialog'; // Import the new dialog
 
 const initialState = {
   success: false,
@@ -36,13 +38,38 @@ export function EditProjectDialog({
   const [state, formAction] = useActionState(updateProject, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const [teams, setTeams] = useState<string[]>([]);
+  const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
+  const [customers, setCustomers] = useState<{ value: string; label: string; }[]>([]);
+  const [isNewCustomerQuickAddDialogOpen, setIsNewCustomerQuickAddDialogOpen] = useState(false);
+  const [selectedCustomerValue, setSelectedCustomerValue] = useState<string>(''); // Initialize with empty string
+
+  // Function to fetch customers
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch('/api/customers');
+      if (!response.ok) {
+        throw new Error('Failed to fetch customers');
+      }
+      const data: Customer[] = await response.json();
+      setCustomers(data.map(customer => ({ value: customer.id, label: customer.name })));
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load customer list.",
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
-      getTeams().then(setTeams);
+      getTeams().then(data => setTeams(data.map(team => ({ value: team.value, label: team.label }))));
+      fetchCustomers(); // Fetch customers when dialog opens
+      // Set the selected customer value when the dialog opens or project changes
+      setSelectedCustomerValue(project?.customerId || ''); 
     }
-  }, [isOpen]);
+  }, [isOpen, project?.customerId]); // project?.customerId is in dependency array
 
   useEffect(() => {
     if (state.success) {
@@ -60,11 +87,17 @@ export function EditProjectDialog({
     }
   }, [state, toast, onOpenChange]);
 
+  const handleCustomerAdded = (newCustomer: Customer) => {
+    setCustomers(prev => [...prev, { value: newCustomer.id, label: newCustomer.name }]);
+    setSelectedCustomerValue(newCustomer.id);
+    setIsNewCustomerQuickAddDialogOpen(false);
+  };
+
   if (!project) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Project</DialogTitle>
           <DialogDescription>
@@ -83,9 +116,31 @@ export function EditProjectDialog({
               <Textarea id="description" name="description" defaultValue={project.description} />
             </div>
             <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                    <Label htmlFor="customerId">Customer</Label>
+                    <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setIsNewCustomerQuickAddDialogOpen(true)}
+                        type="button"
+                    >
+                        <Plus className="mr-1 h-3 w-3" /> New Customer
+                    </Button>
+                </div>
+                <SingleSelectAutocomplete
+                  key={project.id + '-customer'}
+                  options={customers}
+                  placeholder="Select a customer (optional)"
+                  name="customerId"
+                  // Removed initialValue, now fully controlled by 'value' prop
+                  value={selectedCustomerValue} 
+                  onValueChange={setSelectedCustomerValue}
+                />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="team">Team</Label>
               <SingleSelectAutocomplete
-                key={project.id}
+                key={project.id + '-team'}
                 options={teams}
                 placeholder="Select or create a team..."
                 name="team"
@@ -111,6 +166,11 @@ export function EditProjectDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+      <NewCustomerQuickAddDialog 
+        isOpen={isNewCustomerQuickAddDialogOpen} 
+        onOpenChange={setIsNewCustomerQuickAddDialogOpen}
+        onCustomerAdded={handleCustomerAdded}
+      />
     </Dialog>
   );
 }

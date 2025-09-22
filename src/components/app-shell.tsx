@@ -62,6 +62,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             >
                 Party
             </Link>
+            <Link
+                href="/crm"
+                className={cn(
+                    "transition-colors hover:text-foreground",
+                    pathname.includes('/crm') ? "text-foreground" : "text-muted-foreground"
+                )}
+            >
+                CRM
+            </Link>
         </>
     );
 

@@ -10,6 +10,7 @@ export interface Project {
   completedTasks: number;
   totalTasks: number;
   isDarkModeOnly?: boolean;
+  customerId?: string; // Added customerId for CRM integration
 }
 
 export interface Task {
@@ -76,4 +77,18 @@ export interface Presence {
   editors: {
     [userId: string]: Editor;
   };
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  companyName?: string;
+  businessType?: string;
+  businessDetails?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  relatedProjectCount?: number;
 }

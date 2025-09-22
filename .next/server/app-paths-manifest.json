@@ -1,5 +1,7 @@
 {
+  "/api/customers/route": "app/api/customers/route.js",
   "/projects/page": "app/projects/page.js",
-  "/tracking/page": "app/tracking/page.js",
-  "/analytics/page": "app/analytics/page.js"
+  "/analytics/page": "app/analytics/page.js",
+  "/crm/page": "app/crm/page.js",
+  "/project/[id]/page": "app/project/[id]/page.js"
 }
