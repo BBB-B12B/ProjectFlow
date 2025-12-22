@@ -5,10 +5,10 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { X as RemoveIcon, Check } from "lucide-react";
 // เปลี่ยน import จาก name-utils เป็น utils
-import { 
-  normalizeAssigneeName, 
-  formatAssigneeDisplayName, 
-  deduplicateAssignees 
+import {
+    normalizeAssigneeName,
+    formatAssigneeDisplayName,
+    deduplicateAssignees
 } from "@/lib/utils";
 
 interface MultiSelectAutocompleteProps {
@@ -35,19 +35,19 @@ export function MultiSelectAutocomplete({
     // Normalize และ deduplicate options
     const normalizedOptions = React.useMemo(() => {
         const optionMap = new Map<string, string>();
-        
+
         initialOptions.forEach(option => {
             const normalized = normalizeAssigneeName(option);
             const formatted = formatAssigneeDisplayName(option);
-            
+
             // เก็บเฉพาะตัวแรกที่พบ หรือเลือกตัวที่มี format ดีกว่า
-            if (!optionMap.has(normalized) || 
-                (formatted.charAt(0) === formatted.charAt(0).toUpperCase() && 
-                 optionMap.get(normalized)?.charAt(0) !== optionMap.get(normalized)?.charAt(0).toUpperCase())) {
+            if (!optionMap.has(normalized) ||
+                (formatted.charAt(0) === formatted.charAt(0).toUpperCase() &&
+                    optionMap.get(normalized)?.charAt(0) !== optionMap.get(normalized)?.charAt(0).toUpperCase())) {
                 optionMap.set(normalized, formatted);
             }
         });
-        
+
         return Array.from(optionMap.values()).sort();
     }, [initialOptions]);
 
@@ -63,7 +63,7 @@ export function MultiSelectAutocomplete({
                 valueToSet = deduped.split(',').map(item => item.trim()).filter(item => item !== '');
             }
         }
-        
+
         if (JSON.stringify(valueToSet) !== JSON.stringify(selected)) {
             setSelected(valueToSet);
         }
@@ -73,7 +73,7 @@ export function MultiSelectAutocomplete({
         // Normalize ก่อนเก็บ
         const normalizedSelected = newSelected.map(formatAssigneeDisplayName);
         const uniqueSelected = [...new Set(normalizedSelected)];
-        
+
         setSelected(uniqueSelected);
         if (onValueChange) {
             onValueChange(uniqueSelected.join(', '));
@@ -83,14 +83,14 @@ export function MultiSelectAutocomplete({
     const handleSelect = (optionValue: string) => {
         setInputValue("");
         const formattedValue = formatAssigneeDisplayName(optionValue);
-        
+
         // ตรวจสอบว่ามีอยู่แล้วหรือไม่ (case-insensitive)
         const normalizedSelected = selected.map(normalizeAssigneeName);
         const normalizedValue = normalizeAssigneeName(formattedValue);
-        
+
         if (normalizedSelected.includes(normalizedValue)) {
             // ถ้ามีอยู่แล้ว ให้ลบออก
-            const newSelected = selected.filter(item => 
+            const newSelected = selected.filter(item =>
                 normalizeAssigneeName(item) !== normalizedValue
             );
             updateSelected(newSelected);
@@ -98,14 +98,14 @@ export function MultiSelectAutocomplete({
             // ถ้ายังไม่มี ให้เพิ่มเข้าไป
             updateSelected([...selected, formattedValue]);
         }
-        
+
         setHighlightedIndex(-1);
         setTimeout(() => inputRef.current?.focus(), 0);
     };
 
     const handleRemove = (optionValue: string) => {
         const normalizedValue = normalizeAssigneeName(optionValue);
-        const newSelected = selected.filter(item => 
+        const newSelected = selected.filter(item =>
             normalizeAssigneeName(item) !== normalizedValue
         );
         updateSelected(newSelected);
@@ -114,37 +114,37 @@ export function MultiSelectAutocomplete({
     const handleCreate = (newValue: string) => {
         const trimmedValue = newValue.trim();
         if (!trimmedValue) return;
-        
+
         const formattedValue = formatAssigneeDisplayName(trimmedValue);
         const normalizedValue = normalizeAssigneeName(formattedValue);
-        
+
         // ตรวจสอบว่ามีอยู่แล้วหรือไม่
         const normalizedSelected = selected.map(normalizeAssigneeName);
         const normalizedOptionValues = normalizedOptions.map(normalizeAssigneeName);
-        
-        if (!normalizedSelected.includes(normalizedValue) && 
+
+        if (!normalizedSelected.includes(normalizedValue) &&
             !normalizedOptions.includes(normalizedValue)) {
             updateSelected([...selected, formattedValue]);
         }
-        
+
         setInputValue("");
         setHighlightedIndex(-1);
         setTimeout(() => inputRef.current?.focus(), 0);
     };
-    
+
     const filteredOptions = normalizedOptions.filter(option => {
         const normalizedOption = normalizeAssigneeName(option);
         const normalizedSelected = selected.map(normalizeAssigneeName);
         const normalizedInput = normalizeAssigneeName(inputValue);
-        
+
         return !normalizedSelected.includes(normalizedOption) &&
-               normalizedOption.includes(normalizedInput);
+            normalizedOption.includes(normalizedInput);
     });
 
-    const showCreateOption = inputValue && 
+    const showCreateOption = inputValue &&
         !normalizedOptions.some(opt => normalizeAssigneeName(opt) === normalizeAssigneeName(inputValue)) &&
         !selected.some(sel => normalizeAssigneeName(sel) === normalizeAssigneeName(inputValue));
-    
+
     // สร้าง array ของตัวเลือกทั้งหมดที่แสดงใน dropdown
     const allDisplayOptions = React.useMemo(() => {
         const opts = [...filteredOptions];
@@ -182,7 +182,7 @@ export function MultiSelectAutocomplete({
                     return nextIndex < allDisplayOptions.length ? nextIndex : 0;
                 });
                 break;
-                
+
             case 'ArrowUp':
                 e.preventDefault();
                 setHighlightedIndex(prev => {
@@ -190,7 +190,7 @@ export function MultiSelectAutocomplete({
                     return nextIndex >= 0 ? nextIndex : allDisplayOptions.length - 1;
                 });
                 break;
-                
+
             case 'Enter':
                 e.preventDefault();
                 if (highlightedIndex >= 0 && highlightedIndex < allDisplayOptions.length) {
@@ -204,13 +204,13 @@ export function MultiSelectAutocomplete({
                     handleCreate(inputValue);
                 }
                 break;
-                
+
             case 'Escape':
                 e.preventDefault();
                 setOpen(false);
                 setHighlightedIndex(-1);
                 break;
-                
+
             case 'Tab':
                 if (highlightedIndex >= 0 && highlightedIndex < allDisplayOptions.length) {
                     e.preventDefault();
@@ -222,7 +222,7 @@ export function MultiSelectAutocomplete({
                     }
                 }
                 break;
-                
+
             case 'Backspace':
                 if (inputValue === '' && selected.length > 0) {
                     e.preventDefault();
@@ -236,7 +236,7 @@ export function MultiSelectAutocomplete({
         <div className="w-full">
             <input type="hidden" name={name} value={selected.join(', ')} />
             <div className="group w-full rounded-md border border-input text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                <div 
+                <div
                     className="flex flex-wrap gap-1.5 p-1.5"
                     onClick={() => inputRef.current?.focus()}
                 >
@@ -250,9 +250,9 @@ export function MultiSelectAutocomplete({
                             <button
                                 type="button"
                                 aria-label={`Remove ${value}`}
-                                onClick={(e) => { 
-                                    e.stopPropagation(); 
-                                    handleRemove(value); 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemove(value);
                                 }}
                                 onMouseDown={(e) => e.preventDefault()}
                                 className="ml-1 rounded-full p-0.5 outline-none ring-offset-background hover:bg-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -261,7 +261,7 @@ export function MultiSelectAutocomplete({
                             </button>
                         </Badge>
                     ))}
-                    <div className="flex-1" style={{minWidth: '100px'}}>
+                    <div className="flex-1" style={{ minWidth: '100px' }}>
                         <input
                             ref={inputRef}
                             type="text"
@@ -278,8 +278,9 @@ export function MultiSelectAutocomplete({
                                 }
                             }}
                             onBlur={(e) => {
+                                const currentTarget = e.currentTarget;
                                 setTimeout(() => {
-                                    if (!e.currentTarget.closest('.group')?.contains(document.activeElement)) {
+                                    if (!currentTarget.closest('.group')?.contains(document.activeElement)) {
                                         setOpen(false);
                                         setHighlightedIndex(-1);
                                     }
@@ -300,17 +301,17 @@ export function MultiSelectAutocomplete({
                             {allDisplayOptions.map((option, index) => {
                                 const isCreateOption = showCreateOption && index === allDisplayOptions.length - 1;
                                 const isHighlighted = index === highlightedIndex;
-                                const isSelected = selected.some(sel => 
+                                const isSelected = selected.some(sel =>
                                     normalizeAssigneeName(sel) === normalizeAssigneeName(option)
                                 );
-                                
+
                                 return (
                                     <div
                                         key={`${normalizeAssigneeName(option)}-${index}`}
                                         className={`
                                             relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none
-                                            ${isHighlighted 
-                                                ? 'bg-accent text-accent-foreground' 
+                                            ${isHighlighted
+                                                ? 'bg-accent text-accent-foreground'
                                                 : 'hover:bg-accent hover:text-accent-foreground'
                                             }
                                         `}

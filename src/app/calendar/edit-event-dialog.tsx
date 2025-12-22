@@ -12,16 +12,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,7 +51,7 @@ export function EditEventDialog({
   members,
   locations,
 }: EditEventDialogProps) {
-  const [state, formAction] = useActionState(updateEvent, initialState);
+  const [state, formAction, isSaving] = useActionState(updateEvent, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -68,23 +69,23 @@ export function EditEventDialog({
 
   useEffect(() => {
     if (event?.id) {
-        const presenceRef = doc(db, 'presence', event.id);
+      const presenceRef = doc(db, 'presence', event.id);
 
-        if (isOpen) {
-            const editorData = {
-                userName: currentUser.name,
-                avatarUrl: currentUser.avatarUrl,
-                lastSeen: serverTimestamp(),
-            };
-            setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
-                .catch(console.error);
+      if (isOpen) {
+        const editorData = {
+          userName: currentUser.name,
+          avatarUrl: currentUser.avatarUrl,
+          lastSeen: serverTimestamp(),
+        };
+        setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
+          .catch(console.error);
 
-            return () => {
-                updateDoc(presenceRef, {
-                    [`editors.${currentUser.id}`]: deleteField()
-                }).catch(console.error);
-            };
-        }
+        return () => {
+          updateDoc(presenceRef, {
+            [`editors.${currentUser.id}`]: deleteField()
+          }).catch(console.error);
+        };
+      }
     }
   }, [isOpen, event, currentUser]);
 
@@ -99,7 +100,7 @@ export function EditEventDialog({
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }
   }, [state, toast, onOpenChange, router]);
-  
+
   useEffect(() => {
     if (isOpen) {
       const fetchTasks = async () => {
@@ -124,20 +125,20 @@ export function EditEventDialog({
   }, [isOpen, event]);
 
   const handleDeleteConfirm = () => {
-      if(event) {
-          startTransition(async () => {
-              const result = await deleteEvent(event.id);
-              if (result.success) {
-                  toast({ title: "Success", description: result.message });
-                  router.refresh();
-                  onOpenChange(false);
-                  setIsDirty(false); // Reset dirty state on successful delete
-              } else {
-                  toast({ title: "Error", description: result.message, variant: "destructive" });
-              }
-              setIsDeleteAlertOpen(false);
-          });
-      }
+    if (event) {
+      startTransition(async () => {
+        const result = await deleteEvent(event.id);
+        if (result.success) {
+          toast({ title: "Success", description: result.message });
+          router.refresh();
+          onOpenChange(false);
+          setIsDirty(false); // Reset dirty state on successful delete
+        } else {
+          toast({ title: "Error", description: result.message, variant: "destructive" });
+        }
+        setIsDeleteAlertOpen(false);
+      });
+    }
   }
 
   // Formats date to 'YYYY-MM-DD' for date input type in local time
@@ -184,7 +185,7 @@ export function EditEventDialog({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
+
     const startDate = formData.get('startDate') as string;
     const startTime = formData.get('startTime') as string;
     const endDate = formData.get('endDate') as string;
@@ -220,7 +221,7 @@ export function EditEventDialog({
   };
 
   return (
-    <> 
+    <>
       <Dialog open={isOpen} onOpenChange={handleOpenChangeInternal}>
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -245,7 +246,7 @@ export function EditEventDialog({
                     label: `${task.TaskName} (Project: ${task.projectName})`
                   }))}
                   placeholder="Select a related task..."
-                  name="relatedTaskId_display" 
+                  name="relatedTaskId_display"
                   onValueChange={(taskId) => {
                     const task = tasks.find(t => t.id === taskId) || null;
                     setSelectedTask(task);
@@ -263,7 +264,7 @@ export function EditEventDialog({
                   </div>
                 )}
                 {selectedTask && (
-                  <> 
+                  <>
                     <input type="hidden" name="relatedTaskId" value={selectedTask.id} />
                     <input type="hidden" name="relatedTaskName" value={selectedTask.TaskName || ""} />
                     <input type="hidden" name="relatedTaskProjectId" value={selectedTask.projectId} />
@@ -271,46 +272,46 @@ export function EditEventDialog({
                   </>
                 )}
               </div>
-               <div className="space-y-2">
-                  <Label htmlFor="members">Members</Label>
-                  <MultiSelectAutocomplete
-                      options={members}
-                      placeholder="Select members..."
-                      name="members"
-                      initialValue={event.members}
-                      onValueChange={() => setIsDirty(true)} // Mark as dirty on members change
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="members">Members</Label>
+                <MultiSelectAutocomplete
+                  options={members}
+                  placeholder="Select members..."
+                  name="members"
+                  initialValue={event.members}
+                  onValueChange={() => setIsDirty(true)} // Mark as dirty on members change
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
                 <SingleSelectAutocomplete
-                    options={locations.map(loc => ({ value: loc, label: loc }))}
-                    placeholder="Select or create a location..."
-                    name="location"
-                    initialValue={event.location}
-                    onValueChange={() => setIsDirty(true)} // Mark as dirty on location change
-                    value={event.location}
+                  options={locations.map(loc => ({ value: loc, label: loc }))}
+                  placeholder="Select or create a location..."
+                  name="location"
+                  initialValue={event.location}
+                  onValueChange={() => setIsDirty(true)} // Mark as dirty on location change
+                  value={event.location}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Start Date</Label>
-                    <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(event.start)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="startTime">Start Time</Label>
-                    <Input id="startTime" name="startTime" type="time" defaultValue={formatTimeToHHMM(event.start)} required />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(event.start)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startTime">Start Time</Label>
+                  <Input id="startTime" name="startTime" type="time" defaultValue={formatTimeToHHMM(event.start)} required />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate">End Date</Label>
-                    <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(event.end)} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endTime">End Time</Label>
-                    <Input id="endTime" name="endTime" type="time" defaultValue={formatTimeToHHMM(event.end)} required />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(event.end)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endTime">End Time</Label>
+                  <Input id="endTime" name="endTime" type="time" defaultValue={formatTimeToHHMM(event.end)} required />
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox id="allDay" name="allDay" value="true" defaultChecked={event.allDay} onChange={() => setIsDirty(true)} />
@@ -319,12 +320,12 @@ export function EditEventDialog({
             </div>
             <DialogFooter className="justify-between">
               <Button type="button" variant="destructive" size="icon" onClick={() => setIsDeleteAlertOpen(true)}>
-                  <Trash2 className="h-4 w-4" />
-                  <span className="sr-only">Delete Event</span>
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Delete Event</span>
               </Button>
               <div className="flex gap-2">
-                  <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
-                  <Button type="submit">Save Changes</Button>
+                <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
+                <LoadingButton type="submit" loading={isSaving}>Save Changes</LoadingButton>
               </div>
             </DialogFooter>
           </form>
@@ -332,42 +333,42 @@ export function EditEventDialog({
       </Dialog>
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete this event.
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteConfirm} disabled={isPending}>
-                      {isPending ? "Deleting..." : "Delete"}
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete this event.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isPending}>
+              {isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
 
       {/* Unsaved Changes Warning Dialog */}
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      You have unsaved changes. Are you sure you want to discard them?
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => {
-                      onOpenChange(false); // Close the main dialog
-                      setIsConfirmOpen(false); // Close this confirmation dialog
-                      setIsDirty(false); // Reset dirty state
-                  }}>
-                      Discard
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              onOpenChange(false); // Close the main dialog
+              setIsConfirmOpen(false); // Close this confirmation dialog
+              setIsDirty(false); // Reset dirty state
+            }}>
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
     </>
   );

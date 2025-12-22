@@ -16,10 +16,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import Link from 'next/link';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
     AlertDialog,
@@ -38,14 +38,14 @@ import { useTheme } from "next-themes"; // Import useTheme
 
 // --- (2) IMPORT firebase/firestore ---
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
 
 export function ProjectsClientPage({ projects: initialProjects }: { projects: Project[] }) {
     // --- (3) SETUP STATE FOR REAL-TIME UPDATES ---
     const [projects, setProjects] = useState(initialProjects);
     const { theme } = useTheme(); // Get current theme
     const [isLoading, setIsLoading] = useState(true); // Add isLoading state
-    
+
     const [isNewProjectDialogOpen, setIsNewProjectDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [isArchivedDialogOpen, setIsArchivedDialogOpen] = useState(false);
@@ -60,8 +60,8 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
     // --- (4) SETUP REAL-TIME LISTENER ---
     useEffect(() => {
         setIsLoading(true); // Set loading to true when starting to fetch/filter
-        // Query for projects that are not archived
-        const q = query(collection(db, 'projects'), where('status', '!=', 'Archived'));
+        // Query for projects, limited to 100 recent (Filtering Archived client-side to avoid permission issues)
+        const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'), limit(100));
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const projectsFromFirestore = querySnapshot.docs.map(doc => {
@@ -72,7 +72,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 // We will merge the live data with the initial data to preserve the task counts
                 // calculated on the server. A full refresh (or navigating) will get fresh counts.
                 const initialProjectData = initialProjects.find(p => p.id === projectId);
-                
+
                 return {
                     id: projectId,
                     name: data.name || data.ProjectName,
@@ -92,7 +92,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 } else {
                     return !project.isDarkModeOnly; // In light mode, hide if isDarkModeOnly is true
                 }
-            }); 
+            });
             setProjects(projectsFromFirestore);
             setIsLoading(false); // Set loading to false after projects are set
         });
@@ -111,7 +111,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
     const handleConfirm = async (action: 'delete' | 'archive') => {
         if (selectedProject) {
             startTransition(async () => {
-                const result = action === 'delete' 
+                const result = action === 'delete'
                     ? await deleteProject(selectedProject.id)
                     : await archiveProject(selectedProject.id);
 
@@ -198,7 +198,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                                                         <DropdownMenuItem onSelect={() => handleActionClick(project, 'archive')}>
                                                             Archive
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem 
+                                                        <DropdownMenuItem
                                                             className="text-red-500"
                                                             onSelect={() => handleActionClick(project, 'delete')}
                                                         >
@@ -271,7 +271,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-            
+
             <AlertDialog open={isArchiveAlertOpen} onOpenChange={setIsArchiveAlertOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>

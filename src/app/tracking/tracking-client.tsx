@@ -49,7 +49,7 @@ interface TaskWithProjectName extends Task {
 }
 
 interface TrackingClientProps {
-  initialAssignees: string[];
+  initialAssignees?: string[]; // Made optional for backward compatibility
 }
 
 interface ExtendedProjectTrackingProgress extends ProjectTrackingProgress {
@@ -71,8 +71,8 @@ interface TaskChange {
   originalProgress: number;
 }
 
-const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
-  const [assignees] = useState<string[]>(initialAssignees);
+const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
+  const [assignees, setAssignees] = useState<string[]>(initialAssignees);
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [tasks, setTasks] = useState<TaskWithProjectName[]>([]);
@@ -91,29 +91,39 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
   const [allTasksCache, setAllTasksCache] = useState<Task[]>([]);
   const [trackingCache, setTrackingCache] = useState<Map<string, ExtendedProjectTrackingProgress[]>>(new Map());
   const [cacheInitialized, setCacheInitialized] = useState<boolean>(false);
-  
+
   // 🚀 Add debouncing
   const debounceTimeoutRef = useRef<NodeJS.Timeout>();
   const abortControllerRef = useRef<AbortController>();
 
   // 🚀 Optimized: Initialize all cache at once
+  // 🚀 Optimized: Initialize all cache at once
   const initializeCache = useCallback(async () => {
-    if (cacheInitialized) return;
-    
+    if (cacheInitialized) return null;
+
     try {
       console.time('Cache initialization');
-      setLoading(true);
-      
+
       const tasksRef = collection(db, 'tasks');
       const projectsRef = collection(db, 'projects');
       const trackingRef = collection(db, 'projectTrackingProgress');
 
-      // Fetch all data in parallel
-      const [allTasksSnapshot, allProjectsSnapshot, allTrackingSnapshot] = await Promise.all([
+      // Fetch all data in parallel with better error handling
+      const results = await Promise.allSettled([
         getDocs(tasksRef),
         getDocs(projectsRef),
         getDocs(trackingRef)
       ]);
+
+      const [tasksResult, projectsResult, trackingResult] = results;
+
+      if (tasksResult.status === 'rejected') console.error('Error fetching tasks for cache:', tasksResult.reason);
+      if (projectsResult.status === 'rejected') console.error('Error fetching projects for cache:', projectsResult.reason);
+      if (trackingResult.status === 'rejected') console.error('Error fetching tracking for cache:', trackingResult.reason);
+
+      const allTasksSnapshot = tasksResult.status === 'fulfilled' ? tasksResult.value : (({ forEach: () => { } }) as any);
+      const allProjectsSnapshot = projectsResult.status === 'fulfilled' ? projectsResult.value : (({ forEach: () => { } }) as any);
+      const allTrackingSnapshot = trackingResult.status === 'fulfilled' ? trackingResult.value : (({ forEach: () => { } }) as any);
 
       // Cache tasks
       const fetchedTasks: Task[] = [];
@@ -146,45 +156,66 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
 
       setCacheInitialized(true);
       console.timeEnd('Cache initialization');
-      console.log('Cache initialized with:', {
-        tasks: fetchedTasks.length,
-        projects: projectsMap.size,
-        tracking: trackingMap.size
-      });
+
+      return {
+        tasks: fetchedTasks,
+        projects: projectsMap,
+        tracking: trackingMap
+      };
     } catch (error) {
       console.error('Error initializing cache:', error);
-    } finally {
-      setLoading(false);
+      return null;
     }
   }, [cacheInitialized]);
 
-  // 🚀 Super fast filtering from cache
-  const getFilteredTasksFromCache = useCallback((assigneeName: string): TaskWithProjectName[] => {
-    if (!cacheInitialized || !assigneeName) return [];
+  // Fetch assignees on mount
+  useEffect(() => {
+    const fetchAssignees = async () => {
+      try {
+        const tasksRef = collection(db, 'tasks');
+        const querySnapshot = await getDocs(tasksRef);
+        const uniqueAssignees = new Set<string>();
 
-    return allTasksCache
-      .filter(task => 
-        task.Assignee?.split(',').some(name => name.trim() === assigneeName)
-      )
-      .map(task => ({
-        ...task,
-        projectName: projectsCache.get(task.projectId) || 'Unknown Project',
-      }));
-  }, [allTasksCache, projectsCache, cacheInitialized]);
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          const assigneeString = data.Assignee as string;
+          if (assigneeString) {
+            assigneeString.split(',').forEach(name => {
+              const trimmedName = name.trim();
+              if (trimmedName.length > 0) {
+                uniqueAssignees.add(trimmedName);
+              }
+            });
+          }
+        });
+
+        setAssignees(Array.from(uniqueAssignees).sort());
+
+        // Also initialize main cache if not already done
+        if (!cacheInitialized) {
+          initializeCache();
+        }
+      } catch (error) {
+        console.error('Error fetching assignees:', error);
+      }
+    };
+
+    fetchAssignees();
+  }, [initializeCache, cacheInitialized]);
 
   // 🚀 Lightning fast tracking data processing from cache
-  const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string) => {
+  const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string, tasksSource: Task[], trackingSource: Map<string, ExtendedProjectTrackingProgress[]>) => {
     const today = new Date().toISOString().split('T')[0];
     const currentTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }> = {};
-    
+
     taskIds.forEach(taskId => {
-      const taskTracking = trackingCache.get(taskId) || [];
+      const taskTracking = trackingSource.get(taskId) || [];
       let totalHoursWorkedForTask = 0;
       let latestProgress = 0;
       let specificDateData = null;
 
-      // Find task progress from allTasksCache
-      const task = allTasksCache.find(t => t.id === taskId);
+      // Find task progress from tasksSource
+      const task = tasksSource.find(t => t.id === taskId);
       latestProgress = task?.Progress || 0;
 
       taskTracking.forEach(track => {
@@ -204,7 +235,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
     });
 
     return currentTrackingData;
-  }, [trackingCache, allTasksCache]);
+  }, []);
 
   // 🚀 Debounced fetch function
   const debouncedFetchData = useCallback(async (assigneeName: string, forDate: string) => {
@@ -227,16 +258,31 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
       }
 
       abortControllerRef.current = new AbortController();
-      
+
       try {
         setLoading(true);
         console.time(`Fetch data for ${assigneeName}`);
-        
-        // Initialize cache if needed
-        await initializeCache();
-        
-        // Get filtered tasks from cache (instant)
-        const tasksWithProjectName = getFilteredTasksFromCache(assigneeName);
+
+        // Initialize cache if needed and get fresh data
+        const freshData = await initializeCache();
+
+        // Use fresh data if available, otherwise use state
+        const tasksSource = freshData?.tasks || allTasksCache;
+        const projectsSource = freshData?.projects || projectsCache;
+        const trackingSource = freshData?.tracking || trackingCache;
+
+        // Filter tasks using local variables (not stale state)
+        const tasksWithProjectName = tasksSource
+          .filter(task => {
+            if (!task.Assignee) return false;
+            const assignees = task.Assignee.split(',').map(name => name.trim());
+            return assignees.includes(assigneeName);
+          })
+          .map(task => ({
+            ...task,
+            projectName: projectsSource.get(task.projectId) || 'Unknown Project',
+          }));
+
         setTasks(tasksWithProjectName);
 
         if (tasksWithProjectName.length === 0) {
@@ -245,16 +291,16 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
           return;
         }
 
-        // Process tracking data from cache (instant)
+        // Process tracking data
         const taskIds = tasksWithProjectName.map(task => task.id);
-        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate);
+        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate, tasksSource, trackingSource);
 
         setTrackingData(currentTrackingData);
         setOriginalTrackingData({ ...currentTrackingData });
-        
+
         console.timeEnd(`Fetch data for ${assigneeName}`);
       } catch (error) {
-        if (error.name !== 'AbortError') {
+        if (error instanceof Error && error.name !== 'AbortError') {
           console.error('Error fetching data:', error);
           toast({
             title: 'Error',
@@ -266,12 +312,12 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
         setLoading(false);
       }
     }, 150); // 150ms debounce
-  }, [initializeCache, getFilteredTasksFromCache, processTrackingDataFromCache]);
+  }, [initializeCache, allTasksCache, projectsCache, trackingCache, processTrackingDataFromCache]);
 
   // Effect for assignee/date changes
   useEffect(() => {
     debouncedFetchData(selectedAssignee, selectedDate);
-    
+
     return () => {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
@@ -297,16 +343,16 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
 
   const changedTasks = useMemo((): TaskChange[] => {
     const changes: TaskChange[] = [];
-    
+
     Object.keys(trackingData).forEach(taskId => {
       const current = trackingData[taskId];
       const original = originalTrackingData[taskId];
-      
+
       if (!current || !original) return;
-      
+
       const hasHoursChanged = current.hoursWorked !== original.hoursWorked && current.hoursWorked > 0;
       const hasProgressChanged = current.progressPercentage !== original.progressPercentage;
-      
+
       if (hasHoursChanged || hasProgressChanged) {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
@@ -320,7 +366,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
         }
       }
     });
-    
+
     return changes;
   }, [trackingData, originalTrackingData, tasks]);
 
@@ -354,7 +400,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
 
     setLoading(true);
     setShowConfirmDialog(false);
-    
+
     try {
       console.time('Save operation');
       const batch = writeBatch(db);
@@ -363,7 +409,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
 
       // Batch all operations for better performance
       const existingTrackingQueries = await Promise.all(
-        pendingChanges.map(change => 
+        pendingChanges.map(change =>
           getDocs(query(trackingRef, where('taskId', '==', change.task.id), where('date', '==', selectedDate)))
         )
       );
@@ -387,7 +433,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
             editHistory: []
           };
           batch.set(doc(db, 'projectTrackingProgress', newId), newTracking);
-          
+
           // Update cache
           if (!trackingCache.has(task.id)) {
             trackingCache.set(task.id, []);
@@ -396,7 +442,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
         } else {
           const existingDoc = querySnapshot.docs[0];
           const existingData = existingDoc.data() as ExtendedProjectTrackingProgress;
-          
+
           const editEntry = {
             editedAt: new Date().toISOString(),
             editedBy: selectedAssignee,
@@ -405,7 +451,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
           };
 
           const updatedEditHistory = [...(existingData.editHistory || []), editEntry];
-          
+
           batch.update(doc(db, 'projectTrackingProgress', existingDoc.id), {
             hoursWorked: hoursWorked,
             progressPercentage: progressPercentage,
@@ -437,16 +483,16 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
 
       // Update caches
       if (updatedTaskIds.size > 0) {
-        const newAllTasksCache = allTasksCache.map(task => 
-          updatedTaskIds.has(task.id) 
+        const newAllTasksCache = allTasksCache.map(task =>
+          updatedTaskIds.has(task.id)
             ? { ...task, Progress: pendingChanges.find(c => c.task.id === task.id)?.progressPercentage || task.Progress }
             : task
         );
         setAllTasksCache(newAllTasksCache);
-        
-        setTasks(prevTasks => 
-          prevTasks.map(task => 
-            updatedTaskIds.has(task.id) 
+
+        setTasks(prevTasks =>
+          prevTasks.map(task =>
+            updatedTaskIds.has(task.id)
               ? { ...task, Progress: pendingChanges.find(c => c.task.id === task.id)?.progressPercentage || task.Progress }
               : task
           )
@@ -459,7 +505,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
         title: 'Success',
         description: `Successfully saved ${pendingChanges.length} task updates ${isBackdated ? `(Backdated: ${selectedDate})` : ''}!`,
       });
-      
+
       setPendingChanges([]);
       console.timeEnd('Save operation');
     } catch (error) {
@@ -490,7 +536,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
   return (
     <div className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Daily Tracking</h1>
-      
+
       {/* Loading indicator */}
       {loading && !cacheInitialized && (
         <div className="fixed top-24 right-4 z-20">
@@ -501,10 +547,10 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
           </div>
         </div>
       )}
-      
+
       {/* Summary Panel */}
       {!loading && selectedAssignee && tasks.length > 0 && (
-        <div className="fixed top-24 right-4 z-10"> 
+        <div className="fixed top-24 right-4 z-10">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-200 dark:border-gray-700 min-w-[200px]">
             <h3 className="text-sm font-semibold mb-2 text-gray-800 dark:text-gray-200">
               {selectedDate === new Date().toISOString().split('T')[0] ? "Today's Summary" : `Summary for ${selectedDate}`}
@@ -539,7 +585,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
           </div>
         </div>
       )}
-      
+
       <div className="mb-6 flex gap-4 items-end">
         <div>
           <Label htmlFor="assignee-select" className="mb-2 block">
@@ -558,7 +604,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
             </SelectContent>
           </Select>
         </div>
-        
+
         <div>
           <Label htmlFor="date-select" className="mb-2 block">
             Date to Track:
@@ -572,7 +618,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
             max={new Date().toISOString().split('T')[0]}
           />
         </div>
-        
+
         {selectedDate !== new Date().toISOString().split('T')[0] && (
           <div className="px-3 py-2 bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400 rounded-md text-sm">
             📅 Backdated Entry
@@ -593,7 +639,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
       {!loading && selectedAssignee && tasks.length > 0 && (
         <div>
           <h2 className="text-2xl font-semibold mb-4">
-            Tasks for {selectedAssignee} 
+            Tasks for {selectedAssignee}
             {selectedDate !== new Date().toISOString().split('T')[0] && (
               <span className="text-lg text-amber-600 dark:text-amber-400 ml-2">
                 (Date: {new Date(selectedDate).toLocaleDateString()})
@@ -619,17 +665,17 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
                   totalHoursWorked: 0,
                   isBackdated: false
                 };
-                
+
                 const originalTracking = originalTrackingData[task.id] || currentTracking;
-                const hasChanges = currentTracking.hoursWorked !== originalTracking.hoursWorked || 
-                                 currentTracking.progressPercentage !== originalTracking.progressPercentage;
-                
+                const hasChanges = currentTracking.hoursWorked !== originalTracking.hoursWorked ||
+                  currentTracking.progressPercentage !== originalTracking.progressPercentage;
+
                 const latestProgress = task.Progress || 0;
                 const updateProgress = currentTracking.progressPercentage;
-                
+
                 return (
-                  <TableRow 
-                    key={task.id} 
+                  <TableRow
+                    key={task.id}
                     className={`
                       ${currentTracking.isBackdated ? "bg-amber-50 dark:bg-amber-900/10" : ""}
                       ${hasChanges ? "bg-green-50 dark:bg-green-900/10 border-l-4 border-l-green-500" : ""}
@@ -678,10 +724,10 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
               })}
             </TableBody>
           </Table>
-          
+
           <div className="mt-6 flex justify-end">
-            <Button 
-              onClick={handleSaveAll} 
+            <Button
+              onClick={handleSaveAll}
               disabled={loading || summary.changedTasksCount === 0}
               className="px-8 py-2"
             >
@@ -705,7 +751,7 @@ const TrackingClient = ({ initialAssignees }: TrackingClientProps) => {
               )}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="max-h-96 overflow-y-auto">
             <Table>
               <TableHeader>

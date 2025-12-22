@@ -12,16 +12,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,13 +66,13 @@ export function NewEventDialog({
       toast({ title: "Error", description: state.message, variant: "destructive" });
     }
   }, [state, toast, onOpenChange, router]);
-  
+
   useEffect(() => {
     if (!isOpen) {
-        formRef.current?.reset();
-        setIsDirty(false);
-        setSelectedTask(null); // Reset selected task when dialog closes
-        setSelectedLocation(""); // Reset selected location
+      formRef.current?.reset();
+      setIsDirty(false);
+      setSelectedTask(null); // Reset selected task when dialog closes
+      setSelectedLocation(""); // Reset selected location
     }
   }, [isOpen]);
 
@@ -111,17 +112,17 @@ export function NewEventDialog({
       onOpenChange(open);
     }
   };
-  
+
   const handleFormChange = () => {
-      setIsDirty(true);
+    setIsDirty(true);
   }
-  
+
   const handleCancel = () => {
-      if (isDirty) {
-          setIsConfirmOpen(true);
-      } else {
-          onOpenChange(false);
-      }
+    if (isDirty) {
+      setIsConfirmOpen(true);
+    } else {
+      onOpenChange(false);
+    }
   }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -158,7 +159,7 @@ export function NewEventDialog({
       formData.delete("relatedTaskProjectId");
       formData.delete("isDarkModeOnly");
     }
-    
+
     formAction(formData);
   };
 
@@ -188,7 +189,7 @@ export function NewEventDialog({
                     label: `${task.TaskName} (Project: ${task.projectName})` // Show both in dropdown
                   }))}
                   placeholder="Select a related task..."
-                  name="relatedTaskId_display" 
+                  name="relatedTaskId_display"
                   onValueChange={(taskId) => {
                     const task = tasks.find(t => t.id === taskId) || null;
                     setSelectedTask(task);
@@ -215,79 +216,80 @@ export function NewEventDialog({
                   </>
                 )}
               </div>
-               <div className="space-y-2">
-                  <Label htmlFor="members">Members</Label>
-                  <MultiSelectAutocomplete
-                      options={members}
-                      placeholder="Select members..."
-                      name="members"
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="members">Members</Label>
+                <MultiSelectAutocomplete
+                  options={members}
+                  placeholder="Select members..."
+                  name="members"
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
                 <SingleSelectAutocomplete
-                    options={locations.map(loc => ({ value: loc, label: loc }))}
-                    placeholder="Select or create a location..."
-                    name="location" 
-                    onValueChange={(value) => {
-                        setSelectedLocation(value);
-                        setIsDirty(true);
-                    }}
-                    value={selectedLocation}
+                  options={locations.map(loc => ({ value: loc, label: loc }))}
+                  placeholder="Select or create a location..."
+                  name="location"
+                  onValueChange={(value) => {
+                    setSelectedLocation(value);
+                    setIsDirty(true);
+                  }}
+                  value={selectedLocation}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="startDate">Start Date</Label>
-                    <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
-                    {state.errors?.start && <p className="text-red-500 text-sm">{state.errors.start[0]}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="startTime">Start Time</Label>
-                    <Input id="startTime" name="startTime" type="time" defaultValue={formatTimeToHHMM(defaultDate)} required />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
+                  {state.errors?.start && <p className="text-red-500 text-sm">{state.errors.start[0]}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startTime">Start Time</Label>
+                  <Input id="startTime" name="startTime" type="time" defaultValue={formatTimeToHHMM(defaultDate)} required />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="endDate">End Date</Label>
-                    <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
-                    {state.errors?.end && <p className="text-red-500 text-sm">{state.errors.end[0]}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endTime">End Time</Label>
-                    <Input id="endTime" name="endTime" type="time" defaultValue={formatTimeToHHMM(defaultDate)} required />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
+                  {state.errors?.end && <p className="text-red-500 text-sm">{state.errors.end[0]}</p>}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endTime">End Time</Label>
+                  <Input id="endTime" name="endTime" type="time" defaultValue={formatTimeToHHMM(defaultDate)} required />
+                </div>
               </div>
               <div className="flex items-center space-x-2">
                 <Checkbox id="allDay" name="allDay" value="true" />
                 <Label htmlFor="allDay">All day event</Label>
               </div>
             </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
-              <Button type="submit" disabled={isPending}>{isPending ? "Creating..." : "Create Event"}</Button>
+              <LoadingButton type="submit" loading={isPending}>Create Event</LoadingButton>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
       <AlertDialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      You have unsaved changes. Are you sure you want to discard them?
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => {
-                      onOpenChange(false);
-                      setIsConfirmOpen(false);
-                  }}>
-                      Discard
-                  </AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              onOpenChange(false);
+              setIsConfirmOpen(false);
+            }}>
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
     </>
   );

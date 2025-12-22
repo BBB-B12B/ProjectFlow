@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { StrictModeDroppable } from './strict-mode-droppable';
 // --- (1) IMPORT THE NEW Editor TYPE ---
 import type { Task, TaskStatus, Project, ProjectType, Presence, Editor } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -27,8 +28,8 @@ import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 
 const DynamicTaskGanttChart = dynamic(
-  () => import('@/components/task-gantt-chart').then(mod => mod.TaskGanttChart),
-  { ssr: false, loading: () => <Skeleton className="h-[400px] w-full" /> }
+    () => import('@/components/task-gantt-chart').then(mod => mod.TaskGanttChart),
+    { ssr: false, loading: () => <Skeleton className="h-[400px] w-full" /> }
 );
 
 // --- (2) UPDATE TaskCard to accept a map of editors ---
@@ -63,7 +64,7 @@ function TaskCard({ task, index, onClick, editors }: { task: Task; index: number
                         isCompleted ? "bg-success/10 border-success/50" : "",
                         isOverdue ? "bg-destructive/10 border-destructive/50" : "",
                         activeEditors.length > 0 ? "border-blue-500 border-2" : "" // Highlight if anyone is editing
-                        )}>
+                    )}>
                         <CardContent className="p-4 space-y-3">
                             <div className="flex items-start justify-between gap-4">
                                 <p className="font-medium text-card-foreground">{task.TaskName}</p>
@@ -117,7 +118,7 @@ function TaskCard({ task, index, onClick, editors }: { task: Task; index: number
         </Draggable>
     );
 }
-  
+
 function TaskColumn({ title, tasks, droppableId, onTaskClick, presenceData }: { title: string; tasks: Task[]; droppableId: string; onTaskClick: (task: Task) => void; presenceData: Record<string, Presence> }) {
     const statusConfig: Record<TaskStatus, { borderColor: string }> = {
         'หยุดงาน': { borderColor: 'border-t-destructive' },
@@ -131,7 +132,7 @@ function TaskColumn({ title, tasks, droppableId, onTaskClick, presenceData }: { 
     return (
         <div className={cn("flex h-full flex-col rounded-lg bg-card p-4 border-t-4", statusConfig[statusMap[title]] || 'border-t-muted')}>
             <h3 className="font-semibold text-lg text-foreground mb-4">{title} <span className='text-sm font-normal text-muted-foreground'>({tasks.length})</span></h3>
-            <Droppable droppableId={droppableId}>
+            <StrictModeDroppable droppableId={droppableId}>
                 {(provided, snapshot) => (
                     <div
                         ref={provided.innerRef}
@@ -144,7 +145,7 @@ function TaskColumn({ title, tasks, droppableId, onTaskClick, presenceData }: { 
                         {provided.placeholder}
                     </div>
                 )}
-            </Droppable>
+            </StrictModeDroppable>
         </div>
     );
 }
@@ -186,6 +187,15 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                 } as Task;
             });
             setTasks(taskList);
+        }, (error) => {
+            console.error("Error fetching tasks:", error);
+            if (error.code === 'permission-denied') {
+                toast({
+                    title: "Access Denied",
+                    description: "Please sign in to view tasks.",
+                    variant: "destructive",
+                });
+            }
         });
 
         const presenceQuery = query(collection(db, 'presence'));
@@ -199,6 +209,8 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                 }
             });
             setPresenceData(presences);
+        }, (error) => {
+            console.error("Error fetching presence:", error);
         });
 
 
@@ -225,7 +237,7 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
 
         const statusMap: Record<string, TaskStatus> = { 'to-do': 'ยังไม่ได้เริ่ม', 'in-progress': 'กำลังดำเนินการ', 'done': 'จบงานแล้ว' };
         const newStatus = statusMap[destination.droppableId];
-        
+
         try {
             await updateTaskStatus(draggableId, newStatus);
             toast({ title: "Success!", description: "Task status updated." });
@@ -233,7 +245,7 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
             toast({ variant: "destructive", title: "Update failed", description: "Could not update task status." });
         }
     };
-    
+
     const tasksByColumn = {
         'to-do': tasks.filter((t) => t.Status === 'ยังไม่ได้เริ่ม'),
         'in-progress': tasks.filter((t) => t.Status === 'กำลังดำเนินการ'),
@@ -269,13 +281,13 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                         <DragDropContext onDragEnd={onDragEnd}>
                             <div className="flex flex-col md:flex-row md:space-x-6 space-y-6 md:space-y-0">
                                 <div className="md:w-1/3 w-full">
-                                    <TaskColumn title="To Do" tasks={tasksByColumn['to-do']} droppableId="to-do" onTaskClick={handleEditTask} presenceData={presenceData}/>
+                                    <TaskColumn title="To Do" tasks={tasksByColumn['to-do']} droppableId="to-do" onTaskClick={handleEditTask} presenceData={presenceData} />
                                 </div>
                                 <div className="md:w-1/3 w-full">
-                                    <TaskColumn title="In Progress" tasks={tasksByColumn['in-progress']} droppableId="in-progress" onTaskClick={handleEditTask} presenceData={presenceData}/>
+                                    <TaskColumn title="In Progress" tasks={tasksByColumn['in-progress']} droppableId="in-progress" onTaskClick={handleEditTask} presenceData={presenceData} />
                                 </div>
                                 <div className="md:w-1/3 w-full">
-                                    <TaskColumn title="Done" tasks={tasksByColumn['done']} droppableId="done" onTaskClick={handleEditTask} presenceData={presenceData}/>
+                                    <TaskColumn title="Done" tasks={tasksByColumn['done']} droppableId="done" onTaskClick={handleEditTask} presenceData={presenceData} />
                                 </div>
                             </div>
                         </DragDropContext>
@@ -302,12 +314,12 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                         </Card>
                     </TabsContent>
                 </Tabs>
-                <EditTaskDialog 
-                    isOpen={isTaskDialogOpen} 
-                    onOpenChange={setIsTaskDialogOpen} 
-                    task={selectedTask} 
-                    projectId={project.id} 
-                    assignees={assignees} 
+                <EditTaskDialog
+                    isOpen={isTaskDialogOpen}
+                    onOpenChange={setIsTaskDialogOpen}
+                    task={selectedTask}
+                    projectId={project.id}
+                    assignees={assignees}
                 />
             </div>
         </TooltipProvider>

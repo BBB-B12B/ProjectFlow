@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { useToast } from "@/hooks/use-toast";
 import { updateProject, getTeams } from "@/app/projects/actions";
 import type { Project } from "@/lib/types";
@@ -14,6 +15,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +25,17 @@ const initialState = {
   success: false,
   message: "",
 };
+
+
+function SubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <LoadingButton type="submit" loading={pending}>
+      Save Changes
+    </LoadingButton>
+  );
+}
 
 export function EditProjectDialog({
   isOpen,
@@ -36,7 +49,7 @@ export function EditProjectDialog({
   const [state, formAction] = useActionState(updateProject, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
-  const [teams, setTeams] = useState<string[]>([]);
+  const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
 
   useEffect(() => {
     if (isOpen) {
@@ -93,21 +106,21 @@ export function EditProjectDialog({
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="startDate">Start Date</Label>
-                    <Input id="startDate" name="startDate" type="date" value={project.startDate} disabled />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="endDate">End Date</Label>
-                    <Input id="endDate" name="endDate" type="date" value={project.endDate} disabled />
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="startDate">Start Date</Label>
+                <Input id="startDate" name="startDate" type="date" value={project.startDate} disabled />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate">End Date</Label>
+                <Input id="endDate" name="endDate" type="date" value={project.endDate} disabled />
+              </div>
             </div>
           </div>
           <DialogFooter>
             <DialogClose asChild>
-                <Button type="button" variant="ghost">Cancel</Button>
+              <Button type="button" variant="ghost">Cancel</Button>
             </DialogClose>
-            <Button type="submit">Save Changes</Button>
+            <SubmitButton />
           </DialogFooter>
         </form>
       </DialogContent>

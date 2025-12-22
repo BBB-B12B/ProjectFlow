@@ -1,6 +1,6 @@
-// /home/user/studio/src/lib/types.ts
 export interface Project {
   id: string;
+  customerId?: string; // Link to Customer
   name: string;
   description: string;
   startDate: string;
@@ -10,6 +10,46 @@ export interface Project {
   completedTasks: number;
   totalTasks: number;
   isDarkModeOnly?: boolean;
+}
+
+// ... existing Task interface ...
+
+export interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  company?: string;
+  businessType?: string;
+  tags?: string[]; // VIP, Prospect, etc.
+  status?: 'Lead' | 'Active' | 'Churn' | 'Inactive';
+  lastContactDate?: string; // ISO Date
+  healthScore?: number; // 0-100 calculated from ratings
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerRating {
+  id: string;
+  customerId: string;
+  raterId: string; // User ID
+  payer: number; // 0-10
+  visioner: number; // 0-10
+  harder: number; // 0-10
+  niceGuy: number; // 0-10
+  comment?: string;
+  updatedAt: string;
+}
+
+export interface CustomerActivityLog {
+  id: string;
+  customerId: string;
+  type: 'Call' | 'Meeting' | 'Email' | 'Note' | 'Event' | 'TaskUpdate';
+  description: string;
+  date: string; // ISO Date
+  relatedId?: string; // ID of the related CalendarEvent or Task
+  performedBy?: string; // User who performed the action
 }
 
 export interface Task {
@@ -42,7 +82,33 @@ export interface CalendarEvent {
     name: string;
     projectId: string;
   };
+  relatedCustomerIds?: string[]; // Added: Link events to multiple customers
   isDarkModeOnly?: boolean;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  company?: string;
+  businessType?: string;
+  tags?: string[]; // VIP, Prospect, etc.
+  status?: 'Lead' | 'Active' | 'Churn' | 'Inactive';
+  lastContactDate?: string; // ISO Date
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CustomerActivityLog {
+  id: string;
+  customerId: string;
+  type: 'Call' | 'Meeting' | 'Email' | 'Note' | 'Event' | 'TaskUpdate';
+  description: string;
+  date: string; // ISO Date
+  relatedId?: string; // ID of the related CalendarEvent or Task
+  performedBy?: string; // User who performed the action
 }
 
 export interface ProjectTrackingProgress {

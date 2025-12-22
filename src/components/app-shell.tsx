@@ -54,6 +54,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 Tracking
             </Link>
             <Link
+                href="/customers"
+                className={cn(
+                    "transition-colors hover:text-foreground",
+                    pathname.startsWith('/customers') ? "text-foreground" : "text-muted-foreground"
+                )}
+            >
+                Customers
+            </Link>
+            <Link
                 href="/party"
                 className={cn(
                     "transition-colors hover:text-foreground",
@@ -88,7 +97,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                     </SheetTrigger>
                     <SheetContent side="left">
                         <nav className="grid gap-6 text-lg font-medium">
-                             <Link href="/projects" className="flex items-center gap-2 text-lg font-semibold mb-4">
+                            <Link href="/projects" className="flex items-center gap-2 text-lg font-semibold mb-4">
                                 <Mountain className="h-6 w-6" />
                                 <span>ProjectFlow</span>
                             </Link>
@@ -96,9 +105,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                         </nav>
                     </SheetContent>
                 </Sheet>
-                 <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
+                <div className="flex w-full items-center justify-end gap-4 md:ml-auto md:gap-2 lg:gap-4">
                     <ThemeToggle /> {/* Add the toggle back */}
-                 </div>
+                </div>
             </header>
             <main className="flex flex-1 flex-col gap-4 p-4 md:gap-8 md:p-8">
                 {children}

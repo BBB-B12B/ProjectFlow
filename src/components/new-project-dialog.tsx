@@ -13,16 +13,17 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,15 +35,15 @@ const initialState = {
   message: "",
 };
 
+
 function SubmitButton() {
-    const { pending } = useFormStatus();
-  
-    return (
-      <Button type="submit" disabled={pending}>
-        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {pending ? "Creating..." : "Create Project"}
-      </Button>
-    );
+  const { pending } = useFormStatus();
+
+  return (
+    <LoadingButton type="submit" loading={pending}>
+      Create Project
+    </LoadingButton>
+  );
 }
 
 export function NewProjectDialog({
@@ -60,14 +61,14 @@ export function NewProjectDialog({
   const [endDate, setEndDate] = useState('');
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
-  
+
   useEffect(() => {
     if (isOpen) {
-        getTeams().then(setTeams);
-        const today = new Date().toISOString().split('T')[0];
-        setStartDate(today);
-        setEndDate(today);
-        setIsFormDirty(false);
+      getTeams().then(setTeams);
+      const today = new Date().toISOString().split('T')[0];
+      setStartDate(today);
+      setEndDate(today);
+      setIsFormDirty(false);
     }
   }, [isOpen]);
 
@@ -147,18 +148,18 @@ export function NewProjectDialog({
                 <Input id="taskName" name="taskName" placeholder="e.g. Project setup" required onChange={() => setIsFormDirty(true)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <Label htmlFor="startDate">Start Date</Label>
-                      <Input id="startDate" name="startDate" type="date" value={startDate} onChange={handleStartDateChange} required />
-                  </div>
-                  <div className="space-y-2">
-                      <Label htmlFor="endDate">End Date</Label>
-                      <Input id="endDate" name="endDate" type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setIsFormDirty(true); }} min={startDate} required />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input id="startDate" name="startDate" type="date" value={startDate} onChange={handleStartDateChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input id="endDate" name="endDate" type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setIsFormDirty(true); }} min={startDate} required />
+                </div>
               </div>
             </div>
             <DialogFooter>
-                <Button type="button" variant="ghost" onClick={handleCloseDialog}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={handleCloseDialog}>Cancel</Button>
               <SubmitButton />
             </DialogFooter>
           </form>
@@ -166,18 +167,18 @@ export function NewProjectDialog({
       </Dialog>
       <AlertDialog open={isConfirmCloseOpen} onOpenChange={setIsConfirmCloseOpen}>
         <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    You have unsaved changes. Are you sure you want to discard them?
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onOpenChange(false)}>
-                    Discard
-                </AlertDialogAction>
-            </AlertDialogFooter>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => onOpenChange(false)}>
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>
