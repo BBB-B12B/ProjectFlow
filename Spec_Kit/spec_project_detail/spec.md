@@ -16,10 +16,13 @@
     - `Archived`
   - สรุปตัวเลข: งานที่เสร็จ vs งานทั้งหมด
   - สร้าง/แก้ไข/ลบ โปรเจกต์ (CRUD)
-- **[F-003] การจัดการงาน (Task Management)**
-  - ติดตามงานอย่างละเอียดภายในโปรเจกต์
-  - **การจัดหมวดหมู่ (Matrix)**:
-    - `Main` (งานหลัก)
+  - **Project Owner Selection**:
+    - ใช้ **Autocomplete** เลือกจากรายชื่อ Customers
+    - มีปุ่ม **Quick Add** สำหรับเพิ่ม Customer ใหม่ได้ทันทีในหน้าสร้าง/แก้ไขโปรเจกต์
+- **[F-003] การจัดการงานแบบ Kanban (Task Management)**
+  - สามารถย้ายสถานะงานได้ด้วยการ Drag & Drop
+  - **Real-time Collaboration**: แสดงรูปโปรไฟล์ของผู้ที่กำลังเปิดแก้ไขการ์ดงานนั้นๆ (Presence System / Anonymous Animals)
+  - แบ่งหมวดหมู่งานตาม Project Type (Main, Quick Win, Fill-in, Thankless)
     - `QuickWin` (งานด่วนได้ผลเร็ว)
     - `Fillin` (งานแทรก)
     - `Thankless` (งานปิดทองหลังพระ)
@@ -30,39 +33,67 @@
 ### เครื่องมือเพิ่มประสิทธิภาพ (Productivity Tools)
 - **[F-004] การติดตามเวลาและความคืบหน้า (Time & Progress Tracking)**
   - บันทึกชั่วโมงทำงานและ % ความคืบหน้ารายวัน (`ProjectTrackingProgress`)
-  - ดูประวัติการแก้ไขเพื่อความโปร่งใส (Accountability)
-- **[F-005] มุมมองปฏิทิน (Calendar View)**
-  - ไทม์ไลน์แสดงงานและเหตุการณ์ในรูปแบบปฏิทิน
-  - แยกสีตามประเภทของโปรเจกต์หรืองาน
-- **[F-006] การทำงานร่วมกันแบบเรียลไทม์ (Party Mode)**
-  - ระบบ "Presence" แสดงผู้ที่กำลังออนไลน์หรือแก้ไขงานอยู่
-  - แสดง Avatar ของผู้ใช้งาน
-  - **Mini Game**: มีเกม "Spyfall" สำหรับเล่นกระชับมิตรในทีม (`src/app/party/spyfall`)
+  - **On-Demand Loading**: ดึงข้อมูลประวัติการทำงานเฉพาะ **Task ที่เกี่ยวข้องกับผู้ใช้ที่เลือก** และ **ตามความจำเป็น** (Chunk Query) เพื่อความรวดเร็ว
+  - **OS Project Filtering**:
+      - **Dark Mode**: แสดงเฉพาะ Tasks ของ OS Project
+      - **Light Mode**: แสดงเฉพาะ Tasks ของ Standard Project
+  - **Logic**:
+    - **Dual Update**: เมื่อบันทึก ระบบจะ save ลง 2 ที่พร้อมกัน:
+      1. `projectTrackingProgress` (History Log): เก็บประวัติว่าวันนี้นาย A ทำงาน B ไปกี่ ชม.
+      2. `tasks` (Master Data): อัปเดต `% Progress` ล่าสุดของงานนั้นทันที เพื่อให้ Project Manager เห็นสถานะจริง
+- **[F-006] ปฏิทินและตารางงาน (Calendar & Scheduling)**
+  - แสดงงานและเหตุการณ์ในรูปแบบปฏิทิน (Month/Week/Day)
+  - **Live Presence**: เห็นว่าใครกำลังเปิดดูหรือแก้ไข Event ไหนอยู่ในหน้าปฏิทิน
+  - เชื่อมโยง Event กับ Task และ Project ได้ (Traceability)
+  - **Members Autocomplete**:
+    - กรองลูกค้า OS (`isDarkModeOnly`) ตาม Dark Mode (Additive Logic: Dark Mode เห็นครบ, Light Mode ไม่เห็น OS)
+  - **Event Filtering**:
+    - **Events (Project/Task)**: ใช้ Mutually Exclusive Logic (Dark=OS Only, Light=Standard Only)
+
+      - **Events (Project/Task)**: ใช้ Mutually Exclusive Logic (Dark=OS Only, Light=Standard Only)
+- **[F-010] ระบบวิเคราะห์ข้อมูล (Analytics Dashboard)** (`src/app/analytics`)
+  - **Purpose**: วิเคราะห์ภาพรวมการทำงานของทีมผ่าน 2 มุมมองหลัก (Tabs)
+  - **Structure (Tabbed Interface)**:
+    1. **Task Overview (มุมมองการจัดการ)**:
+       - **Focus**: สถานะงาน (Status), การกระจายงาน (Assignee), ความสำคัญ (Priority Matrix)
+       - **Visuals**: Donut Chart, Bar Chart, Scatter Plot, Burndown Chart
+    2. **Workload Analysis (มุมมองประสิทธิภาพ)**:
+       - **Focus**: ชั่วโมงการทำงานจริง (Actual Hours), ประสิทธิภาพทีม
+       - **Visuals**:
+         - **Project Ranking**: จัดอันดับโปรเจกต์ที่ใช้เวลาเยอะที่สุด
+         - **Employee Ranking**: ใครทำงานหนักที่สุด (Top Performers)
+         - **Trend**: แนวโน้มการทำงานรายสัปดาห์/เดือน
+         - **Performance Table**: ตารางรายละเอียดงานพร้อม Hours Worked สะสม
+  - **Interactivity**:
+    - **Global Filtering**: ระบบกรองข้อมูลกลาง (Header) ส่งผลต่อกราฟในทุก Tabs
+    - **Deep Dive**: คลิกที่กราฟเพื่อ Drill-down ข้อมูลเฉพาะส่วนนั้นๆ
 
 ### ระบบ AI (AI Integration)
 - **[F-007] ผู้ช่วย AI (Genkit)**
   - ใช้ **Google Genkit** ในการช่วยเหลือด้านการพัฒนา (Development Flows)
-  - รองรับการสร้าง Flow สำหรับ AI Agent ใน `src/ai/dev.ts`
 
 ### การบริหารความสัมพันธ์ลูกค้า (CRM)
 - **[F-008] ระบบจัดการข้อมูลลูกค้า (Customer Relationship Management)** (`src/app/customers/*`)
   - จัดเก็บข้อมูลลูกค้า: ชื่อ, ช่องทางติดต่อ, อีเมล, เบอร์โทร
   - **Health Score & Rating**:
-    - ให้คะแนนลูกค้าตาม 4 มิติ (1-10 คะแนน):
-      1. **Payer** (การจ่ายเงิน)
-      2. **Visioner** (วิสัยทัศน์และการเติบโต)
-      3. **Nice Guy** (ความง่ายในการสื่อสาร)
-      4. **Harder** (ความยากในการทำงาน - ยิ่งมากยิ่งคะแนนน้อย)
-    - **สูตรคำนวณ Health (%)**: `((Payer + Visioner + Nice Guy + (10 - Harder)) / 40) * 100` ใช้ Radar Chart ในการแสดงผล
-  - **Project Linkage**: เชื่อมโยง Customers เข้ากับ Projects เพื่อดู 360-View (เห็นทุกโปรเจกต์ของลูกค้าคนนี้ในหน้าเดียว)
-  - **Activity Log**: บันทึกประวัติการติดต่อและกิจกรรมที่เกิดขึ้น
+    - ให้คะแนนลูกค้าตาม 4 มิติ (1-10 คะแนน)
+    - แสดงผลด้วย Radar Chart และคำนวณ % Health
+  - **Project Linkage**: เชื่อมโยง Customers เข้ากับ Projects
+  - **Performance Mode**:
+    - หน้า **Customer List**: ปิดการคำนวณ Project Stats (Total/Completed) แบบ Real-time เพื่อความรวดเร็วในการโหลด (Stats ดูได้ในหน้า Detail)
+  - **OS Customer Filtering**:
+    - รองรับการแบ่งแยก "ลูกค้า OS" ออกจากลูกค้าปกติ
+    - ทำงานร่วมกับ **Dark Mode**:
+      - **Customer List/Select**: Dark Mode เห็นครบ, Light Mode เห็นเฉพาะลูกค้าทั่วไป
 
 ### การเสถียรภาพและประสิทธิภาพ (Stability & Performance)
 - **[F-009] การปรับปรุงประสิทธิภาพและลดค่าใช้จ่าย (Performance & Cost Optimization)**
-  - **Pagination**: ใช้การดึงข้อมูลแบบแบ่งหน้า (Pagination) หรือ Infinite Scroll สำหรับรายการที่มีข้อมูลมาก (Customers, Projects) เพื่อลดจำนวน Read Operations
-  - **Server-Side Filtering**: ย้าย Logic การค้นหาและกรองข้อมูลไปทำที่ระดับ Query เพื่อลดปริมาณข้อมูลที่ส่งมายัง Client
-  - **Query Limits**: จำกัดจำนวนข้อมูลที่ดึงมาแสดงผลในแต่ละครั้ง และใช้ Indexing เพื่อความรวดเร็ว
-  - **On-Demand Fetching**: เปลี่ยนจาก Real-time Listener (`onSnapshot`) เป็นการดึงข้อมูลเมื่อจำเป็น (`getDocs`) ในส่วนข้อมูลที่ไม่ได้เปลี่ยนแปลงบ่อย (Cost Saving)
+  - **Global Listener Removal**: ยกเลิกการดึงข้อมูลทั้ง Collection (`onSnapshot`) ในจุดที่ไม่จำเป็น (Customers Page)
+  - **Global Caching Strategy**: ใช้ `DataCacheContext` เก็บข้อมูล Customers (Global State) + **Auto-Refresh ทุก 1 นาที** เพื่อให้ข้อมูล Real-time พอประมาณโดยไม่โหลดซ้ำ (Sustain & Lean)
+  - **Targeted Fetching**: ในหน้า Tracking, ดึง Log เฉพาะของผู้ใช้ที่เลือก (`trackerName`) แทนการดึงตาม Task ID (Chunk List) เพื่อแก้ปัญหา Permission และคำนวณ Total Hours ได้แม่นยำ
+  - **Pagination & Indexing**: ใช้ Indexing และ Limit ในการดึงข้อมูล Lists ใหญ่ๆ
+  - **Lazy Loading**: โหลด Component กราฟหนักๆ เฉพาะเมื่อต้องแสดงผล
+  - **Sustainable Security Rules**: ใช้ `firestore.rules` แบบเปิดกว้าง (User-based Check) แทนการ Filter ที่ซับซ้อน เพื่อความยั่งยืนของการ Query
 
 ---
 
@@ -90,6 +121,7 @@ erDiagram
         string[] tags "VIP, Prospect, etc."
         timestamp lastContactDate "วันที่ติดต่อล่าสุด"
         float healthScore "คะแนนความสัมพันธ์ (%)"
+        boolean isDarkModeOnly "ลูกค้า OS (แสดงเฉพาะ Dark Mode)"
         timestamp createdAt
         timestamp updatedAt
     }
@@ -100,7 +132,7 @@ erDiagram
         string raterId FK "User ID"
         int payerScore "Payer: 1-10"
         int visionerScore "Visioner: 1-10"
-        int harderScore "Harder: 1-10"
+        int harderScore "Harder: 1-10 (Direct Plot, Inverted for Health Calc)"
         int niceGuyScore "Nice_Guy: 1-10"
         timestamp updatedAt
     }
@@ -120,6 +152,8 @@ erDiagram
         string name "ชื่อโปรเจกต์"
         string description "รายละเอียด"
         string status "Enum: กำลังดำเนินการ, เสร็จสิ้น, วางแผน, Archived"
+        string team "ทีมรับผิดชอบ"
+        string owner "เจ้าของโปรเจกต์"
         int completedTasks
         int totalTasks
     }
@@ -232,3 +266,12 @@ graph TD
     Party --> SpyFall[Game: Spyfall]
     Customers --> CustomerDetail[Detail /customers/:id]
 ```
+
+    }
+
+## 6. Performance & Cost Constraints (Non-Functional)
+- **Data Freshness**: Customer cache auto-refresh interval = **5 minutes** (from 1 min) to optimize costs.
+- **Idle System (Soft-Logout)**:
+  - เมื่อไม่มี Interaction เกิน **4 นาที 30 วินาที** -> แสดง **Overlay (Backdrop Blur)** + ปุ่ม "Re-connect"
+  - **Stop Polling**: ระบบจะหยุดดึงข้อมูล Background Cache ชั่วคราวเมื่อ Overlay แสดง (Load Shedding)
+  - **Resume**: เมื่อผู้ใช้กด Re-connect จะดึงข้อมูลล่าสุดทันทีและเริ่มนับเวลาใหม่

@@ -3,7 +3,9 @@ import './globals.css';
 import AppShell from '@/components/app-shell';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { ThemeProvider } from 'next-themes';
+import { ThemeProvider } from '@/components/theme-provider';
+import { DataCacheProvider } from '@/context/data-cache-context';
+import { SessionTimeout } from '@/components/session-timeout';
 
 export const metadata: Metadata = {
   title: 'ProjectFlow',
@@ -28,7 +30,10 @@ export default function RootLayout({
       <body className="font-body antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <TooltipProvider>
-            <AppShell>{children}</AppShell>
+            <DataCacheProvider>
+              <SessionTimeout />
+              <AppShell>{children}</AppShell>
+            </DataCacheProvider>
           </TooltipProvider>
           <Toaster />
         </ThemeProvider>

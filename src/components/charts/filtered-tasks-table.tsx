@@ -29,24 +29,6 @@ export function FilteredTasksTable({
     onTaskClick?: (task: Task) => void
 }) {
     const isDark = useDarkMode();
-    const [currentPage, setCurrentPage] = useState(1);
-    const tasksPerPage = 10;
-
-    // Reset to first page when tasks change
-    React.useEffect(() => {
-        setCurrentPage(1);
-    }, [tasks.length, filters]);
-
-    // Calculate pagination keys
-    const indexOfLastTask = currentPage * tasksPerPage;
-    const indexOfFirstTask = indexOfLastTask - tasksPerPage;
-    const currentTasks = tasks.slice(indexOfFirstTask, indexOfLastTask);
-    const totalPages = Math.ceil(tasks.length / tasksPerPage);
-
-    const handlePageChange = (pageNumber: number) => {
-        setCurrentPage(pageNumber);
-    };
-
     // Helper function for status colors
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -67,6 +49,21 @@ export function FilteredTasksTable({
         return { label: 'Unknown', color: 'bg-gray-100 text-gray-800' };
     };
 
+    // Helper to render assignees as separate badges
+    const renderAssignees = (assigneeString?: string) => {
+        if (!assigneeString) return <span className="text-xs text-gray-400 italic">Unassigned</span>;
+        const names = assigneeString.split(',').map(name => name.trim()).filter(Boolean);
+        return (
+            <div className="flex flex-wrap gap-1">
+                {names.map((name, index) => (
+                    <span key={index} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 whitespace-nowrap">
+                        {name}
+                    </span>
+                ))}
+            </div>
+        );
+    };
+
     return (
         <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md mt-6 w-full`}>
             <CardHeader className="border-b border-gray-100 dark:border-gray-700 pb-4">
@@ -81,22 +78,22 @@ export function FilteredTasksTable({
                 </div>
             </CardHeader>
             <CardContent className="p-0">
-                <div className="overflow-x-auto w-full">
-                    <table className="w-full text-left border-collapse">
-                        <thead>
-                            <tr className={`${isDark ? 'bg-gray-700/50 text-gray-300' : 'bg-gray-50 text-gray-600'} text-xs uppercase tracking-wider`}>
-                                <th className="p-4 font-semibold rounded-tl-lg">Task Name</th>
-                                <th className="p-4 font-semibold">Status</th>
-                                <th className="p-4 font-semibold">Priority</th>
-                                <th className="p-4 font-semibold hidden md:table-cell">Details</th>
-                                <th className="p-4 font-semibold hidden lg:table-cell">Assignee</th>
-                                <th className="p-4 font-semibold hidden xl:table-cell">Project</th>
-                                <th className="p-4 font-semibold rounded-tr-lg">Action</th>
+                <div className="rounded-md h-[500px] w-full overflow-auto relative">
+                    <table className="w-full text-left border-collapse caption-bottom text-sm">
+                        <thead className="sticky top-0 z-10 shadow-sm">
+                            <tr className={`${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'} text-xs uppercase tracking-wider`}>
+                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Task Name</th>
+                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Status</th>
+                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Priority</th>
+                                <th className={`p-4 font-semibold hidden md:table-cell ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Details</th>
+                                <th className={`p-4 font-semibold hidden lg:table-cell ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Assignee</th>
+                                <th className={`p-4 font-semibold hidden xl:table-cell ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Project</th>
+                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Action</th>
                             </tr>
                         </thead>
                         <tbody className={`divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-100'}`}>
-                            {currentTasks.length > 0 ? (
-                                currentTasks.map((task) => {
+                            {tasks.length > 0 ? (
+                                tasks.map((task) => {
                                     const quadrant = getQuadrantInfo(task.Effort || 0, task.Effect || 0);
                                     const projectName = projectNamesMap?.get(task.projectId || '') || task.projectId || 'Unknown Project';
 
@@ -153,17 +150,7 @@ export function FilteredTasksTable({
                                                 </div>
                                             </td>
                                             <td className="p-4 align-top hidden lg:table-cell">
-                                                {task.Assignee ? (
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {task.Assignee.split(',').map((name, i) => (
-                                                            <span key={i} className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600">
-                                                                {name.trim()}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400 italic">Unassigned</span>
-                                                )}
+                                                {renderAssignees(task.Assignee)}
                                             </td>
                                             <td className="p-4 align-top hidden xl:table-cell">
                                                 <div className="text-sm text-gray-600 dark:text-gray-400 max-w-[150px] truncate" title={projectName}>
@@ -204,33 +191,6 @@ export function FilteredTasksTable({
                         </tbody>
                     </table>
                 </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="p-4 border-t border-gray-100 dark:border-gray-700 flex justify-center items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
-                            disabled={currentPage === 1}
-                            className="text-xs h-8"
-                        >
-                            Previous
-                        </Button>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 px-2">
-                            Page {currentPage} of {totalPages}
-                        </div>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handlePageChange(Math.min(totalPages, currentPage + 1))}
-                            disabled={currentPage === totalPages}
-                            className="text-xs h-8"
-                        >
-                            Next
-                        </Button>
-                    </div>
-                )}
             </CardContent>
         </Card>
     );

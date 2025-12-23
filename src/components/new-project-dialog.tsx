@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useToast } from "@/hooks/use-toast";
-import { createProject, getTeams } from "@/app/projects/actions";
+import { createProject, getTeams, getCustomers } from "@/app/projects/actions";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import { AddCustomerDialog } from "@/components/add-customer-dialog";
+
 
 const initialState = {
   success: false,
@@ -57,6 +59,8 @@ export function NewProjectDialog({
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
+  const [customers, setCustomers] = useState<{ value: string; label: string; }[]>([]);
+  const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isFormDirty, setIsFormDirty] = useState(false);
@@ -65,12 +69,18 @@ export function NewProjectDialog({
   useEffect(() => {
     if (isOpen) {
       getTeams().then(setTeams);
+      getCustomers().then(setCustomers);
       const today = new Date().toISOString().split('T')[0];
       setStartDate(today);
       setEndDate(today);
       setIsFormDirty(false);
     }
   }, [isOpen]);
+
+  const refreshCustomers = async () => {
+    const updatedCustomers = await getCustomers();
+    setCustomers(updatedCustomers);
+  };
 
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newStartDate = e.target.value;
@@ -144,6 +154,22 @@ export function NewProjectDialog({
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="owner">Owner (Customer)</Label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <SingleSelectAutocomplete
+                      options={customers}
+                      placeholder="Select or create a customer..."
+                      name="owner"
+                      onValueChange={() => setIsFormDirty(true)}
+                    />
+                  </div>
+                  <Button type="button" size="icon" variant="outline" onClick={() => setIsAddCustomerOpen(true)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="taskName">First Task Name</Label>
                 <Input id="taskName" name="taskName" placeholder="e.g. Project setup" required onChange={() => setIsFormDirty(true)} />
               </div>
@@ -164,7 +190,7 @@ export function NewProjectDialog({
             </DialogFooter>
           </form>
         </DialogContent>
-      </Dialog>
+      </Dialog >
       <AlertDialog open={isConfirmCloseOpen} onOpenChange={setIsConfirmCloseOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -181,6 +207,11 @@ export function NewProjectDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AddCustomerDialog
+        isOpen={isAddCustomerOpen}
+        onOpenChange={setIsAddCustomerOpen}
+        onSuccess={refreshCustomers}
+      />
     </>
   );
 }

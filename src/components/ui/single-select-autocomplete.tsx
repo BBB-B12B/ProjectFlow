@@ -34,19 +34,37 @@ export function SingleSelectAutocomplete({
     const [highlightedValue, setHighlightedValue] = React.useState("");
 
     React.useEffect(() => {
-        const currentSelectedId = value !== undefined ? value : internalValue;
+        const currentSelectedId = value !== undefined ? value : (internalValue || initialValue); // Prioritize controlled value, then internal, then initial
         const option = options.find(opt => opt.value === currentSelectedId);
-        
+
         if (option) {
             // Use displayFormatter for inputValue if provided
             setInputValue(displayFormatter ? displayFormatter(option) : option.label);
-        } else if (value === "" || value === null || value === undefined) {
+            setInternalValue(option.value); // Sync internal value to found option
+        } else if ((value === "" || value === null) && value !== undefined) {
+            // Explicit clear from parent
             setInputValue("");
-        } else if (value !== undefined) {
-            setInputValue(value);
+            setInternalValue("");
+        } else if (currentSelectedId && !option) {
+            // Case: We have an ID (initial or value) but options aren't loaded yet OR it's a custom value (legacy name)
+            // If it's a custom value (name), we want to show it. If it's an ID without option, we can't show label yet.
+            // But since we support "create", we usually treat unknown values as the label itself?
+            // Problem: If ID is "123" and option not loaded, showing "123" is bad. 
+            // Better strategy: Wait for options? Or keep showing what we have? 
+            // In EditProjectDialog, we pass (customerId || ownerName).
+            // If it's customerId "123", we don't want to show "123".
+            // If it's ownerName "John", we do want to show "John".
+
+            // Heuristic cleanup: If options are empty, do nothing (wait). 
+            // If options are populated and we still don't find it, maybe treat as label?
+            if (options.length > 0) {
+                // Options loaded but not found. Likely a legacy name or custom value.
+                // Just show it as is.
+                setInputValue(currentSelectedId);
+                setInternalValue(currentSelectedId);
+            }
         }
-        setInternalValue(currentSelectedId);
-    }, [value, options, displayFormatter]); // Add displayFormatter to dependencies
+    }, [value, options, displayFormatter, initialValue]); // Add initialValue to dependencies
 
     const filteredOptions = React.useMemo(() => {
         if (!inputValue) {
@@ -90,7 +108,7 @@ export function SingleSelectAutocomplete({
             onValueChange?.("");
         }
         setOpen(true);
-        setHighlightedValue(""); 
+        setHighlightedValue("");
     };
 
     const handleRemove = () => {
@@ -136,30 +154,30 @@ export function SingleSelectAutocomplete({
                     <div className="absolute top-0 z-50 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
                         <CommandList>
                             <CommandGroup className="max-h-64 overflow-auto">
-                               {filteredOptions.map((option, index) => (
-                                   <CommandItem
-                                       key={`${option.value}-${index}`}
-                                       value={option.label}
-                                       onSelect={handleSelect}
-                                   >
-                                       {option.label}
-                                   </CommandItem>
-                               ))}
-                               {inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
-                                   <CommandItem
-                                       key="create-new-option"
-                                       value={inputValue}
-                                       onSelect={handleCreate}
-                                   >
-                                       Create "{inputValue}"
-                                   </CommandItem>
-                               )}
-                               {filteredOptions.length === 0 && !inputValue && (
+                                {filteredOptions.map((option, index) => (
+                                    <CommandItem
+                                        key={`${option.value}-${index}`}
+                                        value={option.label}
+                                        onSelect={handleSelect}
+                                    >
+                                        {option.label}
+                                    </CommandItem>
+                                ))}
+                                {inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
+                                    <CommandItem
+                                        key="create-new-option"
+                                        value={inputValue}
+                                        onSelect={handleCreate}
+                                    >
+                                        Create "{inputValue}"
+                                    </CommandItem>
+                                )}
+                                {filteredOptions.length === 0 && !inputValue && (
                                     <CommandItem key="no-options-available" disabled>No options available.</CommandItem>
-                               )}
-                               {filteredOptions.length === 0 && inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
-                                   <CommandItem key="no-results-found" disabled>No results for "{inputValue}"</CommandItem>
-                               )}
+                                )}
+                                {filteredOptions.length === 0 && inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
+                                    <CommandItem key="no-results-found" disabled>No results for "{inputValue}"</CommandItem>
+                                )}
                             </CommandGroup>
                         </CommandList>
                     </div>

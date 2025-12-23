@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTheme } from 'next-themes';
 import { ProjectTrackingProgress, Task, Project } from '@/lib/types';
 import {
   Select,
@@ -87,7 +88,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   const [pendingChanges, setPendingChanges] = useState<TaskChange[]>([]);
 
   // 🚀 Enhanced caching with better structure
-  const [projectsCache, setProjectsCache] = useState<Map<string, string>>(new Map());
+  const [projectsCache, setProjectsCache] = useState<Map<string, Project>>(new Map());
   const [allTasksCache, setAllTasksCache] = useState<Task[]>([]);
   const [trackingCache, setTrackingCache] = useState<Map<string, ExtendedProjectTrackingProgress[]>>(new Map());
   const [cacheInitialized, setCacheInitialized] = useState<boolean>(false);
@@ -106,24 +107,19 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
       const tasksRef = collection(db, 'tasks');
       const projectsRef = collection(db, 'projects');
-      const trackingRef = collection(db, 'projectTrackingProgress');
-
-      // Fetch all data in parallel with better error handling
+      // Fetch tasks and projects (Tracking is now fetched on demand)
       const results = await Promise.allSettled([
         getDocs(tasksRef),
-        getDocs(projectsRef),
-        getDocs(trackingRef)
+        getDocs(projectsRef)
       ]);
 
-      const [tasksResult, projectsResult, trackingResult] = results;
+      const [tasksResult, projectsResult] = results;
 
       if (tasksResult.status === 'rejected') console.error('Error fetching tasks for cache:', tasksResult.reason);
       if (projectsResult.status === 'rejected') console.error('Error fetching projects for cache:', projectsResult.reason);
-      if (trackingResult.status === 'rejected') console.error('Error fetching tracking for cache:', trackingResult.reason);
 
       const allTasksSnapshot = tasksResult.status === 'fulfilled' ? tasksResult.value : (({ forEach: () => { } }) as any);
       const allProjectsSnapshot = projectsResult.status === 'fulfilled' ? projectsResult.value : (({ forEach: () => { } }) as any);
-      const allTrackingSnapshot = trackingResult.status === 'fulfilled' ? trackingResult.value : (({ forEach: () => { } }) as any);
 
       // Cache tasks
       const fetchedTasks: Task[] = [];
@@ -136,22 +132,16 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
       setAllTasksCache(fetchedTasks);
 
       // Cache projects
-      const projectsMap = new Map<string, string>();
+      const projectsMap = new Map<string, Project>();
       allProjectsSnapshot.forEach((doc) => {
-        const project = doc.data() as Project;
-        projectsMap.set(doc.id, project.name);
+        const data = doc.data();
+        const project = { id: doc.id, ...data } as Project;
+        projectsMap.set(doc.id, project);
       });
       setProjectsCache(projectsMap);
 
-      // 🚀 Cache all tracking data by taskId
+      // Tracking cache initialized as empty map, will be populated on demand
       const trackingMap = new Map<string, ExtendedProjectTrackingProgress[]>();
-      allTrackingSnapshot.forEach((doc) => {
-        const track = doc.data() as ExtendedProjectTrackingProgress;
-        if (!trackingMap.has(track.taskId)) {
-          trackingMap.set(track.taskId, []);
-        }
-        trackingMap.get(track.taskId)!.push(track);
-      });
       setTrackingCache(trackingMap);
 
       setCacheInitialized(true);
@@ -168,15 +158,34 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
     }
   }, [cacheInitialized]);
 
-  // Fetch assignees on mount
+  // 🚀 Added: OS Customer Filtering
+  const { theme } = useTheme();
+  const [osCustomers, setOsCustomers] = useState<Set<string>>(new Set());
+
+  // Fetch assignees and customers on mount
   useEffect(() => {
-    const fetchAssignees = async () => {
+    const fetchAssigneesAndCustomers = async () => {
       try {
         const tasksRef = collection(db, 'tasks');
-        const querySnapshot = await getDocs(tasksRef);
-        const uniqueAssignees = new Set<string>();
+        const customersRef = collection(db, 'customers');
 
-        querySnapshot.forEach((doc) => {
+        const [tasksSnapshot, customersSnapshot] = await Promise.all([
+          getDocs(tasksRef),
+          getDocs(customersRef)
+        ]);
+
+        // Process Customers to find OS ones
+        const osSet = new Set<string>();
+        customersSnapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.isDarkModeOnly && data.name) {
+            osSet.add(data.name.trim());
+          }
+        });
+        setOsCustomers(osSet);
+
+        const uniqueAssignees = new Set<string>();
+        tasksSnapshot.forEach((doc) => {
           const data = doc.data();
           const assigneeString = data.Assignee as string;
           if (assigneeString) {
@@ -196,12 +205,26 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           initializeCache();
         }
       } catch (error) {
-        console.error('Error fetching assignees:', error);
+        console.error('Error fetching assignees/customers:', error);
       }
     };
 
-    fetchAssignees();
+    fetchAssigneesAndCustomers();
   }, [initializeCache, cacheInitialized]);
+
+  // Filter Assignees based on Theme (OS Logic)
+  const filteredAssignees = useMemo(() => {
+    return assignees.filter(name => {
+      if (osCustomers.has(name)) {
+        // If name is an OS customer:
+        // - Light Mode: Hide
+        // - Dark Mode: Show
+        return theme === 'dark';
+      }
+      // Standard Employees/Customers: Always show
+      return true;
+    });
+  }, [assignees, osCustomers, theme]);
 
   // 🚀 Lightning fast tracking data processing from cache
   const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string, tasksSource: Task[], trackingSource: Map<string, ExtendedProjectTrackingProgress[]>) => {
@@ -276,11 +299,25 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           .filter(task => {
             if (!task.Assignee) return false;
             const assignees = task.Assignee.split(',').map(name => name.trim());
-            return assignees.includes(assigneeName);
+
+            // 1. Assignee Filter
+            if (!assignees.includes(assigneeName)) return false;
+
+            // 2. OS Project Logic Filter
+            const project = projectsSource.get(task.projectId);
+            if (!project) return true; // Keep tasks with missing projects (safe default)
+
+            if (theme === 'dark') {
+              // Dark Mode: Show Only OS Projects
+              return !!project.isDarkModeOnly;
+            } else {
+              // Light Mode: Show Only Standard Projects
+              return !project.isDarkModeOnly;
+            }
           })
           .map(task => ({
             ...task,
-            projectName: projectsSource.get(task.projectId) || 'Unknown Project',
+            projectName: projectsSource.get(task.projectId)?.name || 'Unknown Project',
           }));
 
         setTasks(tasksWithProjectName);
@@ -293,7 +330,42 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
         // Process tracking data
         const taskIds = tasksWithProjectName.map(task => task.id);
-        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate, tasksSource, trackingSource);
+
+        // 🚀 Optimized: Fetch ALL tracking data for this assignee
+        // This is more efficient than fetching by task chunks (avoids 'in' query limits and index issues)
+        // and allows us to calculate "Total Hours" correctly for this user.
+        const trackingRef = collection(db, 'projectTrackingProgress');
+
+        // Single simple query - cleaner and likely satisfies security rules better
+        const trackingSnapshot = await getDocs(query(
+          trackingRef,
+          where('trackerName', '==', assigneeName)
+        ));
+
+        // Update local tracking source map
+        // We create a fresh map for this user because we have their FULL history now.
+        // Merging isn't strictly necessary if strict 'trackerName' filter is used, 
+        // but let's be safe and just map what we got.
+        const newTrackingSource = new Map(trackingSource);
+
+        trackingSnapshot.forEach(doc => {
+          const track = doc.data() as ExtendedProjectTrackingProgress;
+          // Only add if it relates to one of our relevant projects/tasks? 
+          // Creating a map by TaskID effectively filters it to relevant tasks later.
+
+          if (!newTrackingSource.has(track.taskId)) {
+            newTrackingSource.set(track.taskId, []);
+          }
+
+          const existing = newTrackingSource.get(track.taskId) || [];
+          if (!existing.some(e => e.id === track.id)) {
+            existing.push(track);
+          }
+          newTrackingSource.set(track.taskId, existing);
+        });
+
+
+        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate, tasksSource, newTrackingSource);
 
         setTrackingData(currentTrackingData);
         setOriginalTrackingData({ ...currentTrackingData });
@@ -303,9 +375,10 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         if (error instanceof Error && error.name !== 'AbortError') {
           console.error('Error fetching data:', error);
           toast({
-            title: 'Error',
-            description: 'Failed to fetch tasks or tracking data.',
+            title: 'Error Fetching Data',
+            description: error.message || 'Failed to fetch tasks or tracking data.',
             variant: 'destructive',
+            duration: 5000
           });
         }
       } finally {
@@ -596,7 +669,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
               <SelectValue placeholder="Select an assignee" />
             </SelectTrigger>
             <SelectContent>
-              {assignees.map((assignee) => (
+              {filteredAssignees.map((assignee) => (
                 <SelectItem key={assignee} value={assignee}>
                   {assignee}
                 </SelectItem>

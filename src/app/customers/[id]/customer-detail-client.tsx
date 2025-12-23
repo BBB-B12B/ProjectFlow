@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
-import { doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, onSnapshot, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, addDoc, updateDoc, onSnapshot, orderBy, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Customer, CustomerRating, Project, CustomerActivityLog } from '@/lib/types';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { Button } from '@/components/ui/button';
 import { LoadingButton } from '@/components/ui/loading-button';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import { Mail, Phone, Building, MapPin, Calendar, Activity, Star, ChevronLeft, P
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
+import { Switch } from '@/components/ui/switch';
 
 interface CustomerDetailClientProps {
     params: Promise<{ id: string }>;
@@ -47,6 +48,20 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
     const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
     const [editForm, setEditForm] = useState<Partial<Customer>>({});
 
+    // When the rate dialog opens, pre-fill with the latest rating if available
+    useEffect(() => {
+        if (isRateOpen && ratings.length > 0) {
+            // Get the latest rating (assuming the array is chronological or we just take the last one)
+            const latestRating = ratings[ratings.length - 1];
+            setNewRating({
+                payer: latestRating.payer,
+                visioner: latestRating.visioner,
+                harder: latestRating.harder,
+                niceGuy: latestRating.niceGuy,
+            });
+        }
+    }, [isRateOpen, ratings]);
+
     useEffect(() => {
         if (!id) return;
 
@@ -56,7 +71,9 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                 if (docSnap.exists()) {
                     const data = { id: docSnap.id, ...docSnap.data() } as Customer;
                     setCustomer(data);
-                    setEditForm(data); // Initialize edit form
+                    setEditForm(data);
+                    // Fix: Sync ratings when customer data arrives
+                    setRatings((data as any).ratings || []);
                 } else {
                     toast({
                         title: "Error",
@@ -81,21 +98,11 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                 console.error("Error fetching projects:", error);
             });
 
-            // 3. Fetch Ratings
-            const qRatings = query(collection(db, 'customer_ratings'), where('customerId', '==', id));
-            const ratingsUnsub = onSnapshot(qRatings, (snapshot) => {
-                setRatings(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CustomerRating)));
-            }, (error) => {
-                console.error("Error fetching ratings:", error);
-                // Do not block UI if ratings fail (might be a new collection issue)
-            });
-
             setLoading(false);
 
             return () => {
                 customerUnsub();
                 projectsUnsub();
-                ratingsUnsub();
             };
         };
 
@@ -130,42 +137,50 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
     const handleSaveRating = async () => {
         setIsSubmittingRating(true);
         try {
-            console.log("Attempting to add rating to customer_ratings...");
-            await addDoc(collection(db, 'customer_ratings'), {
+            toast({ title: "Debug", description: "Step 1: Updating customer doc with new rating..." });
+
+            const newRatingEntry = {
+                id: crypto.randomUUID(), // Generate a client-side ID
                 customerId: id,
-                raterId: 'user-123', // TODO: Get actual user ID
+                raterId: 'user-123',
                 ...newRating,
                 updatedAt: new Date().toISOString(),
-            });
-            console.log("Rating added successfully.");
-            setIsRateOpen(false);
+            };
 
             // Recalculate Health Score
-            const allRatings = [...ratings, { ...newRating, id: 'temp', customerId: id, raterId: 'me', updatedAt: '' }];
-            const avgPayer = allRatings.reduce((sum, r) => sum + r.payer, 0) / allRatings.length;
-            const avgVisioner = allRatings.reduce((sum, r) => sum + r.visioner, 0) / allRatings.length;
-            const avgNiceGuy = allRatings.reduce((sum, r) => sum + r.niceGuy, 0) / allRatings.length;
-            const avgHarder = allRatings.reduce((sum, r) => sum + r.harder, 0) / allRatings.length;
+            const currentRatings = (customer as any)?.ratings || [];
+            const allRatings = [...currentRatings, newRatingEntry];
+
+            const avgPayer = allRatings.reduce((sum: number, r: any) => sum + r.payer, 0) / allRatings.length;
+            const avgVisioner = allRatings.reduce((sum: number, r: any) => sum + r.visioner, 0) / allRatings.length;
+            const avgNiceGuy = allRatings.reduce((sum: number, r: any) => sum + r.niceGuy, 0) / allRatings.length;
+            const avgHarder = allRatings.reduce((sum: number, r: any) => sum + r.harder, 0) / allRatings.length;
 
             const healthScore = ((avgPayer + avgVisioner + avgNiceGuy + (10 - avgHarder)) / 40) * 100;
 
-            console.log("Attempting to update customer health score...");
             await updateDoc(doc(db, 'customers', id), {
+                ratings: arrayUnion(newRatingEntry),
                 healthScore: Math.round(healthScore),
             });
-            console.log("Customer health score updated successfully.");
 
             toast({
-                title: "Rated!",
+                title: "Rated Successfully!",
                 description: "Customer health score updated.",
+                variant: "default"
             });
 
-        } catch (error) {
+            // Manually update local state to reflect change immediately if snapshot is slow
+            setRatings(allRatings);
+            setCustomer(prev => prev ? { ...prev, healthScore: Math.round(healthScore) } : null);
+            setIsRateOpen(false);
+
+        } catch (error: any) {
             console.error("Error saving rating:", error);
             toast({
-                title: "Error",
-                description: "Failed to save rating or update health score. Check permissions.",
+                title: "Permission Error Debug",
+                description: `Failed at ${error.message || error}`,
                 variant: "destructive",
+                duration: 10000,
             });
         } finally {
             setIsSubmittingRating(false);
@@ -185,11 +200,12 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
     }
 
     // Prepare Radar Chart Data
+    // Prepare Radar Chart Data with separate Display vs Plot values
     const chartData = [
-        { subject: 'Payer', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.payer, 0) / ratings.length : 0, fullMark: 10 },
-        { subject: 'Visioner', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.visioner, 0) / ratings.length : 0, fullMark: 10 },
-        { subject: 'Nice Guy', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.niceGuy, 0) / ratings.length : 0, fullMark: 10 },
-        { subject: 'Harder', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.harder, 0) / ratings.length : 0, fullMark: 10 },
+        { subject: 'Payer', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.payer, 0) / ratings.length : 0, fullMark: 10, displayValue: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.payer, 0) / ratings.length : 0 },
+        { subject: 'Visioner', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.visioner, 0) / ratings.length : 0, fullMark: 10, displayValue: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.visioner, 0) / ratings.length : 0 },
+        { subject: 'Nice Guy', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.niceGuy, 0) / ratings.length : 0, fullMark: 10, displayValue: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.niceGuy, 0) / ratings.length : 0 },
+        { subject: 'Harder', A: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.harder, 0) / ratings.length : 0, fullMark: 10, displayValue: ratings.length > 0 ? ratings.reduce((sum, r) => sum + r.harder, 0) / ratings.length : 0 },
     ];
 
     return (
@@ -318,6 +334,19 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                                         </select>
                                     </div>
                                 </div>
+                                <div className="grid grid-cols-4 items-center gap-4">
+                                    <Label htmlFor="edit-os-customer" className="text-right">OS Customer</Label>
+                                    <div className="col-span-3 flex items-center space-x-2">
+                                        <Switch
+                                            id="edit-os-customer"
+                                            checked={editForm.isDarkModeOnly || false}
+                                            onCheckedChange={(checked) => setEditForm({ ...editForm, isDarkModeOnly: checked })}
+                                        />
+                                        <Label htmlFor="edit-os-customer" className="font-normal text-muted-foreground">
+                                            (Visible in Dark Mode only)
+                                        </Label>
+                                    </div>
+                                </div>
                             </div>
                             <DialogFooter>
                                 <LoadingButton onClick={handleUpdateCustomer} loading={isSubmittingEdit}>
@@ -337,18 +366,45 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                             <CardTitle>Relationship Health</CardTitle>
                             <CardDescription>Based on {ratings.length} ratings</CardDescription>
                         </CardHeader>
-                        <CardContent className="h-[300px]">
+                        <CardContent className="h-[300px] relative">
+                            {ratings.length === 0 && (
+                                <div className="absolute inset-0 flex items-center justify-center z-10 bg-background/50 backdrop-blur-[1px]">
+                                    <p className="text-muted-foreground font-medium">No Ratings Yet</p>
+                                </div>
+                            )}
                             <ResponsiveContainer width="100%" height="100%">
                                 <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
-                                    <PolarGrid />
-                                    <PolarAngleAxis dataKey="subject" />
-                                    <PolarRadiusAxis angle={30} domain={[0, 10]} />
+                                    <PolarGrid stroke="hsl(var(--foreground))" strokeOpacity={0.1} />
+                                    <PolarAngleAxis dataKey="subject" tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }} />
+                                    <PolarRadiusAxis angle={30} domain={[0, 10]} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} stroke="hsl(var(--foreground))" strokeOpacity={0.1} />
+                                    <Tooltip
+                                        content={({ active, payload }) => {
+                                            if (active && payload && payload.length) {
+                                                const data = payload[0].payload;
+                                                return (
+                                                    <div className="rounded-lg border bg-background p-2 shadow-sm">
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[0.70rem] uppercase text-muted-foreground">
+                                                                    {data.subject}
+                                                                </span>
+                                                                <span className="font-bold text-muted-foreground">
+                                                                    {Number(data.displayValue).toFixed(1)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+                                            return null;
+                                        }}
+                                    />
                                     <Radar
                                         name="Rating"
                                         dataKey="A"
-                                        stroke="#8884d8"
-                                        fill="#8884d8"
-                                        fillOpacity={0.6}
+                                        stroke="hsl(var(--primary))"
+                                        fill="hsl(var(--primary))"
+                                        fillOpacity={0.5}
                                     />
                                 </RadarChart>
                             </ResponsiveContainer>

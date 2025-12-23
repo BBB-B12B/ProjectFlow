@@ -31,7 +31,10 @@ async function getProjects(): Promise<Project[]> {
                     team: data.team,
                     completedTasks,
                     totalTasks,
-                    isDarkModeOnly: data.isDarkModeOnly || false, 
+                    totalTasks,
+                    isDarkModeOnly: data.isDarkModeOnly || false,
+                    customerId: data.customerId,
+                    owner: data.owner,
                 } as Project;
             })
             .filter(project => project.status !== 'Archived');
@@ -47,7 +50,7 @@ async function getProjects(): Promise<Project[]> {
 export default async function ProjectsPage() {
     const projects = await getProjects();
     const osTeamPassword = process.env.OS_TEAM_PASSWORD; // This line might be vestigial if not used later
-    
+
     if (projects.length === 0) {
         try {
             const allProjectsSnapshot = await getDocs(collection(db, 'projects'));

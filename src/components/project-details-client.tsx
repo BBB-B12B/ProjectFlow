@@ -262,7 +262,10 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                 <div className="flex items-center gap-4">
                     <BackButton />
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-bold tracking-tight">{project.name}</h1>
+                            {project.owner && <Badge variant="secondary" className="text-xs">Owner: {project.owner}</Badge>}
+                        </div>
                         <p className="text-muted-foreground">{project.description}</p>
                     </div>
                 </div>

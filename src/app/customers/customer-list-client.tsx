@@ -28,16 +28,25 @@ import {
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Switch } from '@/components/ui/switch';
+import { useTheme } from 'next-themes';
+import { AddCustomerDialog } from '@/components/add-customer-dialog';
+import { useDataCache } from '@/context/data-cache-context';
 
 export default function CustomerListClient() {
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [projects, setProjects] = useState<Project[]>([]);
-    const [loading, setLoading] = useState(true);
-    // Search & Pagination State
+    const { customers: cachedCustomers, refreshCustomers: refreshCache, isCustomersLoaded } = useDataCache();
+    const [searchResults, setSearchResults] = useState<Customer[]>([]);
+
+    // Derived state: What to show?
     const [searchTerm, setSearchTerm] = useState('');
+    const customers = searchTerm ? searchResults : cachedCustomers;
+
+    const [loading, setLoading] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+
+    // Pagination for Search Results (Optional/Simplified)
     const [lastVisible, setLastVisible] = useState<any>(null);
     const [hasMore, setHasMore] = useState(true);
-    const [isSearching, setIsSearching] = useState(false);
 
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -47,39 +56,37 @@ export default function CustomerListClient() {
         phone: '',
         company: '',
         status: 'Lead',
+        isDarkModeOnly: false,
     });
     const router = useRouter();
+    const { theme } = useTheme();
 
-    const ITEMS_PER_PAGE = 12;
+    const ITEMS_PER_PAGE = 50;
 
-    // Fetch Customers Function
+    // Fetch Customers Function (Used for SEARCH primarily now)
     const fetchCustomers = async (isNewSearch = false) => {
         try {
-            setLoading(true);
+            if (!searchTerm) {
+                // If clearing search, ensure cache is loaded
+                if (!isCustomersLoaded) {
+                    setLoading(true);
+                    await refreshCache();
+                    setLoading(false);
+                }
+                setIsSearching(false);
+                return;
+            }
 
+            setLoading(true);
             let q = query(collection(db, 'customers'));
 
-            // Search Logic (Order by name for prefix search)
-            if (searchTerm) {
-                // Note: Firestore Require Exact Case for this simple prefix search
-                // For advanced search, we need a 3rd party service or computed 'name_lower' field
-                q = query(q,
-                    orderBy('name'),
-                    startAt(searchTerm),
-                    endAt(searchTerm + '\uf8ff'),
-                    limit(ITEMS_PER_PAGE)
-                );
-            } else {
-                // Default View: Order by updatedAt desc
-                q = query(q, orderBy('updatedAt', 'desc'), limit(ITEMS_PER_PAGE));
-            }
-
-            // Pagination Logic
-            if (!isNewSearch && lastVisible && !searchTerm) {
-                // For now, simple pagination only supported on default view to avoid complex query cursors with search
-                // If searching, we just load the first page of matches (or implement more complex scroll later)
-                q = query(q, startAfter(lastVisible));
-            }
+            // Search Logic
+            q = query(q,
+                orderBy('name'),
+                startAt(searchTerm),
+                endAt(searchTerm + '\uf8ff'),
+                limit(ITEMS_PER_PAGE)
+            );
 
             const snapshot = await getDocs(q);
             const customerData = snapshot.docs.map((doc) => ({
@@ -88,9 +95,9 @@ export default function CustomerListClient() {
             })) as Customer[];
 
             if (isNewSearch) {
-                setCustomers(customerData);
+                setSearchResults(customerData);
             } else {
-                setCustomers(prev => [...prev, ...customerData]);
+                setSearchResults(prev => [...prev, ...customerData]);
             }
 
             setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
@@ -106,27 +113,22 @@ export default function CustomerListClient() {
 
     // Initial Load & Search Effect
     useEffect(() => {
+        if (!searchTerm) {
+            setIsSearching(false);
+            if (!isCustomersLoaded) {
+                setLoading(true);
+                refreshCache().finally(() => setLoading(false));
+            }
+            return;
+        }
+
         const timeoutId = setTimeout(() => {
             setIsSearching(true);
             fetchCustomers(true);
-        }, 500); // 500ms debounce
+        }, 500);
 
         return () => clearTimeout(timeoutId);
-    }, [searchTerm]);
-
-    // Fetch Projects for Stats (Keep real-time for now, or optimize later)
-    useEffect(() => {
-        const qProjects = query(collection(db, 'projects'));
-        const unsubProjects = onSnapshot(qProjects, (snapshot) => {
-            const projectData = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as Project[];
-            setProjects(projectData);
-        });
-
-        return () => unsubProjects();
-    }, []);
+    }, [searchTerm, isCustomersLoaded, refreshCache]);
 
     const handleAddCustomer = async () => {
         if (!newCustomer.name) return;
@@ -139,9 +141,11 @@ export default function CustomerListClient() {
                 updatedAt: new Date().toISOString(),
             });
             setIsAddOpen(false);
-            setNewCustomer({ name: '', email: '', phone: '', company: '', status: 'Lead' });
-            // Refresh list to show new item
-            fetchCustomers(true);
+            setNewCustomer({ name: '', email: '', phone: '', company: '', status: 'Lead', isDarkModeOnly: false });
+
+            // Refresh Global Cache
+            await refreshCache();
+            setSearchTerm(''); // Clear search to show new item
         } catch (error) {
             console.error("Error adding customer:", error);
         } finally {
@@ -149,11 +153,11 @@ export default function CustomerListClient() {
         }
     };
 
-    const getCustomerStats = (customerId: string) => {
-        const customerProjects = projects.filter(p => p.customerId === customerId);
-        const total = customerProjects.length;
-        const completed = customerProjects.filter(p => p.status === 'เสร็จสิ้น').length;
-        return { total, completed };
+    const getCustomerStats = (customer: Customer) => {
+        return {
+            total: customer.totalProjects !== undefined ? customer.totalProjects : '-',
+            completed: customer.completedProjects !== undefined ? customer.completedProjects : '-'
+        };
     };
 
     return (
@@ -174,37 +178,12 @@ export default function CustomerListClient() {
                             <Plus className="mr-2 h-4 w-4" /> Add Customer
                         </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[425px]">
-                        {/* ... Dialog Content (Same as before) ... */}
-                        <DialogHeader>
-                            <DialogTitle>Add Customer</DialogTitle>
-                            <DialogDescription>
-                                Add a new customer to your CRM. Click save when you're done.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="name" className="text-right">Name</Label>
-                                <Input id="name" value={newCustomer.name} onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })} className="col-span-3" placeholder="John Doe" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="company" className="text-right">Company</Label>
-                                <Input id="company" value={newCustomer.company} onChange={(e) => setNewCustomer({ ...newCustomer, company: e.target.value })} className="col-span-3" placeholder="Acme Inc." />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="email" className="text-right">Email</Label>
-                                <Input id="email" type="email" value={newCustomer.email} onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })} className="col-span-3" placeholder="john@example.com" />
-                            </div>
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="phone" className="text-right">Phone</Label>
-                                <Input id="phone" value={newCustomer.phone} onChange={(e) => setNewCustomer({ ...newCustomer, phone: e.target.value })} className="col-span-3" placeholder="+1 234 567 890" />
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <LoadingButton onClick={handleAddCustomer} loading={isSubmitting}>Save changes</LoadingButton>
-                        </DialogFooter>
-                    </DialogContent>
                 </Dialog>
+                <AddCustomerDialog
+                    isOpen={isAddOpen}
+                    onOpenChange={setIsAddOpen}
+                    onSuccess={() => fetchCustomers(true)}
+                />
             </div>
 
             {/* Loading Indicator for Search */}
@@ -214,28 +193,34 @@ export default function CustomerListClient() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {!isSearching && customers.length === 0 ? (
                     <div className="col-span-full h-24 flex items-center justify-center text-muted-foreground border border-dashed rounded-lg">
                         {searchTerm ? "No customers found matching your search." : "No customers found. Click \"Add Customer\" to create one."}
                     </div>
                 ) : (
-                    customers.map((customer) => {
-                        const stats = getCustomerStats(customer.id);
+                    customers.filter(customer => {
+                        if (theme === 'dark') {
+                            return customer.isDarkModeOnly;
+                        } else {
+                            return !customer.isDarkModeOnly;
+                        }
+                    }).map((customer) => {
+                        const stats = getCustomerStats(customer);
                         return (
-                            <div key={customer.id} className="group relative flex flex-col gap-3 rounded-lg border bg-card p-5 shadow-sm transition-all hover:shadow-md cursor-pointer" onClick={() => router.push(`/customers/${customer.id}`)}>
+                            <div key={customer.id} className="group relative flex flex-col gap-2 rounded-lg border bg-card p-4 shadow-sm transition-all hover:shadow-md cursor-pointer" onClick={() => router.push(`/customers/${customer.id}`)}>
                                 {/* Header */}
                                 <div className="flex items-start justify-between">
                                     <div className="flex items-center gap-3">
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-bold">
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
                                             {customer.name?.substring(0, 2).toUpperCase() || "??"}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <h3 className="font-semibold truncate" title={customer.name}>
+                                            <h3 className="font-semibold text-sm truncate" title={customer.name}>
                                                 {customer.name}
                                             </h3>
                                             {customer.company && (
-                                                <p className="text-xs text-muted-foreground flex items-center gap-1 truncate">
+                                                <p className="text-[11px] text-muted-foreground flex items-center gap-1 truncate">
                                                     <Building className="h-3 w-3" /> {customer.company}
                                                 </p>
                                             )}
@@ -243,7 +228,7 @@ export default function CustomerListClient() {
                                     </div>
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                            <Button variant="ghost" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
@@ -256,25 +241,25 @@ export default function CustomerListClient() {
                                 </div>
 
                                 {/* Body */}
-                                <div className="flex flex-col gap-2 text-sm mt-1">
+                                <div className="flex flex-col gap-1 text-xs mt-1">
                                     {customer.email ? (
                                         <div className="flex items-center gap-2 text-muted-foreground truncate" title={customer.email}>
-                                            <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                                            <Mail className="h-3 w-3 flex-shrink-0" />
                                             <span className="truncate">{customer.email}</span>
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-2 text-muted-foreground/50">
-                                            <Mail className="h-3.5 w-3.5" /> <span>No email</span>
+                                            <Mail className="h-3 w-3" /> <span>No email</span>
                                         </div>
                                     )}
                                     {customer.phone ? (
                                         <div className="flex items-center gap-2 text-muted-foreground" title={customer.phone}>
-                                            <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                                            <Phone className="h-3 w-3 flex-shrink-0" />
                                             <span>{customer.phone}</span>
                                         </div>
                                     ) : (
                                         <div className="flex items-center gap-2 text-muted-foreground/50">
-                                            <Phone className="h-3.5 w-3.5" /> <span>No phone</span>
+                                            <Phone className="h-3 w-3" /> <span>No phone</span>
                                         </div>
                                     )}
                                 </div>

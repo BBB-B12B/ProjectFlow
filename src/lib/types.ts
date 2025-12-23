@@ -7,6 +7,7 @@ export interface Project {
   endDate: string;
   status: 'กำลังดำเนินการ' | 'เสร็จสิ้น' | 'วางแผน' | 'Archived';
   team?: string;
+  owner?: string;
   completedTasks: number;
   totalTasks: number;
   isDarkModeOnly?: boolean;
@@ -28,6 +29,9 @@ export interface Customer {
   healthScore?: number; // 0-100 calculated from ratings
   createdAt?: string;
   updatedAt?: string;
+  isDarkModeOnly?: boolean; // True if this customer belongs to OS (Dark Mode)
+  totalProjects?: number;
+  completedProjects?: number;
 }
 
 export interface CustomerRating {
@@ -66,7 +70,7 @@ export interface Task {
   Progress?: number;
   ProjectType?: 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
   Category?: string;
-  Owner?: string;
+  Owner?: string; // Represents "Customer Group" (e.g., SME, Enterprise), NOT a specific person.
   Want?: string;
 }
 
@@ -86,30 +90,7 @@ export interface CalendarEvent {
   isDarkModeOnly?: boolean;
 }
 
-export interface Customer {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  company?: string;
-  businessType?: string;
-  tags?: string[]; // VIP, Prospect, etc.
-  status?: 'Lead' | 'Active' | 'Churn' | 'Inactive';
-  lastContactDate?: string; // ISO Date
-  createdAt?: string;
-  updatedAt?: string;
-}
 
-export interface CustomerActivityLog {
-  id: string;
-  customerId: string;
-  type: 'Call' | 'Meeting' | 'Email' | 'Note' | 'Event' | 'TaskUpdate';
-  description: string;
-  date: string; // ISO Date
-  relatedId?: string; // ID of the related CalendarEvent or Task
-  performedBy?: string; // User who performed the action
-}
 
 export interface ProjectTrackingProgress {
   id: string;

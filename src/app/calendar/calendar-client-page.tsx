@@ -12,7 +12,7 @@ import type { CalendarEvent } from '@/app/calendar/actions';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
 import type { Presence, Editor } from '@/lib/types';
 import {
   Tooltip,
@@ -99,6 +99,33 @@ export default function CalendarClientPage({ initialEvents, members, locations }
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const { theme } = useTheme();
 
+  // Local state for members and locations (since server props might be empty)
+  // We utilize the structure from data-fetcher strictly
+  const [localMembers, setLocalMembers] = useState<{ name: string, type: 'Employee' | 'Customer', isDarkModeOnly?: boolean }[]>([]);
+  const [localLocations, setLocalLocations] = useState<string[]>(locations);
+
+  useEffect(() => {
+    // Fetch members and locations on client mount to bypass server-side permission issues
+    import('@/app/calendar/data-fetcher').then(({ fetchMembersAndLocations }) => {
+      fetchMembersAndLocations().then(data => {
+        setLocalMembers(data.members);
+        setLocalLocations(data.locations);
+      });
+    });
+  }, []);
+
+  const filteredMemberNames = useMemo(() => {
+    return localMembers
+      .filter(member => {
+        if (member.type === 'Customer' && member.isDarkModeOnly) {
+          // Show "OS" (Dark Mode Only) customers ONLY in Dark Mode
+          return theme === 'dark';
+        }
+        return true;
+      })
+      .map(member => member.name); // Just return the name, no suffixes
+  }, [localMembers, theme]);
+
   // Handle Range Change from Calendar
   const handleRangeChange = (range: Date[] | { start: Date; end: Date }) => {
     let start: Date, end: Date;
@@ -122,7 +149,9 @@ export default function CalendarClientPage({ initialEvents, members, locations }
     const q = query(
       collection(db, 'events'),
       where('start', '>=', currentRange.start),
-      where('start', '<=', currentRange.end)
+      where('start', '<=', currentRange.end),
+      orderBy('start', 'asc'), // Ensure ordering matches range filter
+      limit(500) // Limit results to avoid quota issues or "too broad" queries
     );
 
     const unsubscribeEvents = onSnapshot(q, (snapshot) => {
@@ -144,23 +173,25 @@ export default function CalendarClientPage({ initialEvents, members, locations }
       setEvents(updatedEvents);
     }, (error) => {
       console.error("Error fetching events:", error);
+      // If permission denied, we might be hitting a rule that forbids "list all".
+      // But for now, we just log it. The server-side fetch helps show *something* initially.
     });
 
-    const presenceQuery = query(collection(db, 'presence'));
-    const unsubscribePresence = onSnapshot(presenceQuery, (snapshot) => {
-      const presences: Record<string, Presence> = {};
-      snapshot.forEach((doc) => {
-        const data = doc.data() as Presence;
-        if (data.editors && Object.keys(data.editors).length > 0) {
-          presences[doc.id] = data;
-        }
-      });
-      setPresenceData(presences);
-    });
+    // const presenceQuery = query(collection(db, 'presence'));
+    // const unsubscribePresence = onSnapshot(presenceQuery, (snapshot) => {
+    //   const presences: Record<string, Presence> = {};
+    //   snapshot.forEach((doc) => {
+    //     const data = doc.data() as Presence;
+    //     if (data.editors && Object.keys(data.editors).length > 0) {
+    //       presences[doc.id] = data;
+    //     }
+    //   });
+    //   setPresenceData(presences);
+    // });
 
     return () => {
       unsubscribeEvents();
-      unsubscribePresence();
+      // unsubscribePresence();
     };
   }, [currentRange]); // Re-subscribe when range changes
 
@@ -228,16 +259,16 @@ export default function CalendarClientPage({ initialEvents, members, locations }
         isOpen={isNewEventDialogOpen}
         onOpenChange={setIsNewEventDialogOpen}
         defaultDate={selectedDate}
-        members={members}
-        locations={locations}
+        members={filteredMemberNames}
+        locations={localLocations}
       />
 
       <EditEventDialog
         isOpen={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         event={selectedEvent}
-        members={members}
-        locations={locations}
+        members={filteredMemberNames}
+        locations={localLocations}
       />
     </div>
   );

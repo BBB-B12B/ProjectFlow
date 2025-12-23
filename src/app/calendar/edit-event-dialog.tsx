@@ -217,7 +217,9 @@ export function EditEventDialog({
       formData.delete("isDarkModeOnly");
     }
 
-    formAction(formData);
+    startTransition(() => {
+      formAction(formData);
+    });
   };
 
   return (

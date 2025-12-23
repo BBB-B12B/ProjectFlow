@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from "firebase/app";
 import { getFirestore, Firestore } from "firebase/firestore";
+import { getAuth, Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,12 +14,11 @@ const firebaseConfig = {
 
 let app!: FirebaseApp;
 let db!: Firestore;
+let auth!: Auth;
 
 // Check if firebaseConfig has necessary values, especially projectId
 if (!firebaseConfig.projectId) {
   console.error("Firebase: Environment variables (e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID) are not properly set.");
-  // It's crucial to handle this, as initializeApp will fail without it.
-  // For now, we proceed but expect a failure later if not set.
 }
 
 if (!getApps().length) {
@@ -35,9 +35,10 @@ if (!getApps().length) {
 
 if (app) {
   db = getFirestore(app);
-  console.log("Firebase: Firestore instance obtained (server-side).");
+  auth = getAuth(app);
+  console.log("Firebase: Firestore and Auth instances obtained (server-side).");
 } else {
-  console.error("Firebase: Firebase app is undefined, cannot get Firestore instance.");
+  console.error("Firebase: Firebase app is undefined, cannot get instances.");
 }
 
-export { app, db };
+export { app, db, auth };

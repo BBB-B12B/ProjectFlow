@@ -1,15 +1,19 @@
 "use client";
 
-// --- (1) IMPORT useEffect and useTheme ---
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useMemo } from 'react'; // Add useMemo
 import type { Project } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, MoreHorizontal, Archive, Loader2 } from 'lucide-react'; // Import Loader2
-import { ProjectGanttChart } from '@/components/project-gantt-chart';
 import { NewProjectDialog } from '@/components/new-project-dialog';
 import { EditProjectDialog } from '@/components/edit-project-dialog';
 import { ArchivedProjectsDialog } from '@/components/archived-projects-dialog';
+import dynamic from 'next/dynamic';
+
+const ProjectGanttChart = dynamic(() => import('@/components/project-gantt-chart').then(mod => mod.ProjectGanttChart), {
+    loading: () => <div className="h-64 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>,
+    ssr: false
+});
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LayoutGrid, GanttChart as GanttChartIcon } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -38,11 +42,11 @@ import { useTheme } from "next-themes"; // Import useTheme
 
 // --- (2) IMPORT firebase/firestore ---
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, limit, orderBy } from 'firebase/firestore';
 
 export function ProjectsClientPage({ projects: initialProjects }: { projects: Project[] }) {
     // --- (3) SETUP STATE FOR REAL-TIME UPDATES ---
-    const [projects, setProjects] = useState(initialProjects);
+    const [allProjects, setAllProjects] = useState(initialProjects);
     const { theme } = useTheme(); // Get current theme
     const [isLoading, setIsLoading] = useState(true); // Add isLoading state
 
@@ -61,7 +65,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
     useEffect(() => {
         setIsLoading(true); // Set loading to true when starting to fetch/filter
         // Query for projects, limited to 100 recent (Filtering Archived client-side to avoid permission issues)
-        const q = query(collection(db, 'projects'), orderBy('createdAt', 'desc'), limit(100));
+        const q = query(collection(db, 'projects'), limit(100));
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
             const projectsFromFirestore = querySnapshot.docs.map(doc => {
@@ -84,22 +88,38 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                     // Use initial task counts, default to 0 if it's a brand new project not in the initial list
                     completedTasks: initialProjectData?.completedTasks || 0,
                     totalTasks: initialProjectData?.totalTasks || 0,
-                    isDarkModeOnly: data.isDarkModeOnly || false, // Ensure this field is included
+                    isDarkModeOnly: data.isDarkModeOnly || false,
+                    customerId: data.customerId, // Add customerId
+                    owner: data.owner, // Add owner
                 } as Project;
-            }).filter(project => { // Modified filter logic
-                if (theme === "dark") {
-                    return project.isDarkModeOnly; // In dark mode, show only if isDarkModeOnly is true
-                } else {
-                    return !project.isDarkModeOnly; // In light mode, hide if isDarkModeOnly is true
-                }
             });
-            setProjects(projectsFromFirestore);
+            setAllProjects(projectsFromFirestore);
             setIsLoading(false); // Set loading to false after projects are set
         });
 
         // Cleanup function to unsubscribe when the component unmounts
         return () => unsubscribe();
-    }, [initialProjects, theme]); // Add theme to dependency array
+    }, [initialProjects]); // Remove theme from dependency array
+
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
+    // Memoize filtered projects
+    const projects = useMemo(() => {
+        // Prevent hydration mismatch: Render all projects on server/initial render
+        if (!mounted) return allProjects;
+
+        return allProjects.filter(project => {
+            if (theme === "dark") {
+                return project.isDarkModeOnly; // In dark mode, show only if isDarkModeOnly is true
+            } else {
+                return !project.isDarkModeOnly; // In light mode, hide if isDarkModeOnly is true
+            }
+        });
+    }, [allProjects, theme, mounted]);
 
     const handleActionClick = (project: Project, action: 'edit' | 'delete' | 'archive') => {
         setSelectedProject(project);
@@ -217,9 +237,16 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                                         </CardContent>
                                     </div>
                                     <CardFooter className="flex justify-between items-center">
-                                        {project.team && (
-                                            <Badge variant="outline">{project.team}</Badge>
-                                        )}
+                                        <div className="flex gap-2">
+                                            {project.team && (
+                                                <Badge variant="outline">{project.team}</Badge>
+                                            )}
+                                            {project.owner && (
+                                                <Badge variant="secondary" className="truncate max-w-[150px]" title={project.owner}>
+                                                    {project.owner}
+                                                </Badge>
+                                            )}
+                                        </div>
                                         <p className="text-xs text-muted-foreground">
                                             Complete {project.completedTasks}/{project.totalTasks}
                                         </p>

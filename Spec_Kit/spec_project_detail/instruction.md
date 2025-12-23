@@ -1,6 +1,15 @@
 # คำแนะนำและมาตรฐานการพัฒนา (Instruction & Standards)
 
-## เทคโนโลยีที่ใช้ (Tech Stack)
+## System Architecture
+### 1. Real-time Collaboration (Presence System) - **[New]**
+- **Concept**: ใช้ Firestore Collection `presence` เพื่อเก็บสถานะว่าใครกำลังเปิดดู/แก้ไขข้อมู (Active Editors)
+- **Mechanism**:
+  - เมื่อ User เปิด Dialog/Card -> เขียนชื่อและ timestamp ลงใน `presence/{documentId}`
+  - เมื่อ User ปิด -> ลบชื่อออก
+  - หน้าจอหลัก (Kanban/Calendar) Listen `presence` แบบ Real-time เพื่อแสดง Avatar คนที่กำลังทำงาน
+- **Related Files**: `project-details-client.tsx`, `calendar-client-page.tsx`, `edit-event-dialog.tsx`
+
+### 2. เทคโนโลยีที่ใช้ (Tech Stack)
 
 ### แกนหลัก (Core)
 - **Framework**: Next.js 15.3.3 (App Router)
@@ -81,3 +90,6 @@ src/
 1. **Type Safety**: ห้ามใช้ `any` ต้องกำหนด Interface ที่ชัดเจนใน `types.ts` เสมอ
 2. **UI Consistency**: ให้ใช้ Component จาก `components/ui` (Shadcn) แทนการเขียน HTML/CSS ดิบ เพื่อความสวยงามที่สม่ำเสมอ
 3. **Environment**: ห้าม Commit ไฟล์ `.env` ที่มี Key ความลับขึ้น Git เด็ดขาด
+4. **Dark Mode = OS Mode**: ระบบใช้ Dark Mode ในการแยกแสดงข้อมูลสำหรับทีม OS (Internal) ให้ใช้ `useTheme` + `isDarkModeOnly` ในการกรองข้อมูล Projects และ Customers เสมอ
+5. **Cost Awareness**: ระบบต้องมีกลไกตัดการทำงานเมื่อ User ไม่ Active (Auto-Logout > 4:30m) และไม่ควร Poll ข้อมูลถี่เกินความจำเป็น (Cache Refresh > 5m)
+

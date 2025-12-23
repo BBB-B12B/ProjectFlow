@@ -12,16 +12,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-  } from "@/components/ui/alert-dialog"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,23 +46,23 @@ interface TaskDialogProps {
 }
 
 const initialFormData = {
-    TaskName: '',
-    Category: '',
-    StartDate: new Date().toISOString().split('T')[0],
-    EndDate: new Date().toISOString().split('T')[0],
-    Progress: 0,
-    Effect: 5,
-    Effort: 5,
-    Status: 'ยังไม่ได้เริ่ม',
-    ProjectType: 'Main' as ProjectType,
-    Assignee: '',
-    Owner: '',
-    Want: '',
+  TaskName: '',
+  Category: '',
+  StartDate: new Date().toISOString().split('T')[0],
+  EndDate: new Date().toISOString().split('T')[0],
+  Progress: 0,
+  Effect: 5,
+  Effort: 5,
+  Status: 'ยังไม่ได้เริ่ม',
+  ProjectType: 'Main' as ProjectType,
+  Assignee: '',
+  Owner: '',
+  Want: '',
 };
 
 function SubmitButton({ isEditMode }: { isEditMode: boolean }) {
-    const { pending } = useFormStatus();
-    return <Button type="submit" disabled={pending}>{pending ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save changes" : "Create Task")}</Button>;
+  const { pending } = useFormStatus();
+  return <Button type="submit" disabled={pending}>{pending ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save changes" : "Create Task")}</Button>;
 }
 
 export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignees }: TaskDialogProps) {
@@ -83,29 +83,29 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
     const presenceRef = doc(db, 'presence', task.id);
 
     const cleanupPresence = () => {
-        console.log(`[Presence Cleanup] Removing user ${currentUser.id} from task ${task.id}`);
-        updateDoc(presenceRef, {
-            [`editors.${currentUser.id}`]: deleteField()
-        }).catch(console.error);
+      console.log(`[Presence Cleanup] Removing user ${currentUser.id} from task ${task.id}`);
+      updateDoc(presenceRef, {
+        [`editors.${currentUser.id}`]: deleteField()
+      }).catch(console.error);
     };
 
     if (isOpen) {
-        console.log(`[Presence] Setting user ${currentUser.id} as editor for task ${task.id}`);
-        const editorData = {
-            userName: currentUser.name,
-            avatarUrl: currentUser.avatarUrl,
-            lastSeen: serverTimestamp(),
-        };
-        setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
-            .catch(console.error);
-        
-        // Add beforeunload listener to handle tab closing
-        window.addEventListener('beforeunload', cleanupPresence);
+      console.log(`[Presence] Setting user ${currentUser.id} as editor for task ${task.id}`);
+      const editorData = {
+        userName: currentUser.name,
+        avatarUrl: currentUser.avatarUrl,
+        lastSeen: serverTimestamp(),
+      };
+      setDoc(presenceRef, { editors: { [currentUser.id]: editorData } }, { merge: true })
+        .catch(console.error);
 
-        return () => {
-            cleanupPresence(); // Standard cleanup
-            window.removeEventListener('beforeunload', cleanupPresence); // Remove listener
-        };
+      // Add beforeunload listener to handle tab closing
+      window.addEventListener('beforeunload', cleanupPresence);
+
+      return () => {
+        cleanupPresence(); // Standard cleanup
+        window.removeEventListener('beforeunload', cleanupPresence); // Remove listener
+      };
     }
   }, [isOpen, task, isEditMode, currentUser]);
 
@@ -117,36 +117,36 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
     if (!isHighEffect && isHighEffort) return 'Thankless';
     return 'Fillin';
   }, [formData.Effort, formData.Effect]);
-  
+
   // Effect hook for initializing formData when the dialog opens or task changes
   useEffect(() => {
     if (isOpen) {
-        setIsDirty(false); // Reset dirty state when opening
-        if (task) {
-          setFormData({
-            TaskName: task.TaskName ?? '',
-            Category: task.Category ?? '',
-            StartDate: task.StartDate ?? '',
-            EndDate: task.EndDate ?? '',
-            Progress: task.Progress ?? 0,
-            Effect: task.Effect ?? 5,
-            Effort: task.Effort ?? 5,
-            Status: task.Status ?? 'ยังไม่ได้เริ่ม',
-            ProjectType: task.ProjectType ?? 'Main',
-            Assignee: task.Assignee ?? '',
-            Owner: task.Owner ?? '',
-            Want: task.Want ?? '',
-          });
-        } else {
-          setFormData(initialFormData); // Initial state for new tasks
-        }
+      setIsDirty(false); // Reset dirty state when opening
+      if (task) {
+        setFormData({
+          TaskName: task.TaskName ?? '',
+          Category: task.Category ?? '',
+          StartDate: task.StartDate ?? '',
+          EndDate: task.EndDate ?? '',
+          Progress: task.Progress ?? 0,
+          Effect: task.Effect ?? 5,
+          Effort: task.Effort ?? 5,
+          Status: task.Status ?? 'ยังไม่ได้เริ่ม',
+          ProjectType: task.ProjectType ?? 'Main',
+          Assignee: task.Assignee ?? '',
+          Owner: task.Owner ?? '',
+          Want: task.Want ?? '',
+        });
+      } else {
+        setFormData(initialFormData); // Initial state for new tasks
+      }
     }
   }, [task, isOpen]);
 
   // Effect hook for automatically setting ProjectType based on suggestedType for both new and existing tasks
   useEffect(() => {
     if (isOpen) {
-        setFormData(prev => ({...prev, ProjectType: suggestedType}));
+      setFormData(prev => ({ ...prev, ProjectType: suggestedType }));
     }
   }, [suggestedType, isOpen]);
 
@@ -165,7 +165,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
     setFormData(prev => ({ ...prev, [name]: value as ProjectType | 'ยังไม่ได้เริ่ม' | 'กำลังดำเนินการ' | 'จบงานแล้ว' | 'หยุดงาน' }));
     setIsDirty(true);
   };
-  
+
   const handleMultiSelectChange = (value: string) => {
     setFormData(prev => ({ ...prev, Assignee: value }));
     setIsDirty(true);
@@ -174,9 +174,9 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newStartDate = e.target.value;
     setFormData(prev => ({
-        ...prev,
-        StartDate: newStartDate,
-        EndDate: (newStartDate && prev.EndDate && newStartDate > prev.EndDate) ? newStartDate : prev.EndDate,
+      ...prev,
+      StartDate: newStartDate,
+      EndDate: (newStartDate && prev.EndDate && newStartDate > prev.EndDate) ? newStartDate : prev.EndDate,
     }));
     setIsDirty(true);
   };
@@ -194,23 +194,23 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   const handleDelete = async () => {
     if (!task) return;
     startDeleteTransition(async () => {
-        const result = await deleteTask(task.id, projectId);
-        if (result.success) {
-            toast({ title: "Success!", description: result.message });
-            onOpenChange(false);
-        } else {
-            toast({ variant: "destructive", title: "Deletion Failed", description: result.message });
-        }
+      const result = await deleteTask(task.id, projectId);
+      if (result.success) {
+        toast({ title: "Success!", description: result.message });
+        onOpenChange(false);
+      } else {
+        toast({ variant: "destructive", title: "Deletion Failed", description: result.message });
+      }
     });
   };
 
   const handleCloseAttempt = (open: boolean) => {
     if (!open) { // Dialog is attempting to close
       if (isDirty) {
-          setIsConfirmCloseOpen(true);
+        setIsConfirmCloseOpen(true);
       } else {
-          setFormData(initialFormData); // Reset form data when closing without unsaved changes
-          onOpenChange(false);
+        setFormData(initialFormData); // Reset form data when closing without unsaved changes
+        onOpenChange(false);
       }
     }
   };
@@ -238,92 +238,92 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
             <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
               <div className="space-y-2">
                 <Label htmlFor="TaskName">Task Name</Label>
-                <Input id="TaskName" name="TaskName" value={formData.TaskName} onChange={handleInputChange} placeholder="e.g. Design new homepage mockups" required/>
+                <Input id="TaskName" name="TaskName" value={formData.TaskName} onChange={handleInputChange} placeholder="e.g. Design new homepage mockups" required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="Category">Category</Label>
                 <Input id="Category" name="Category" value={formData.Category} onChange={handleInputChange} placeholder="e.g. Design" />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <Label htmlFor="StartDate">Start Date</Label>
-                      <Input id="StartDate" name="StartDate" type="date" value={formData.StartDate} onChange={handleStartDateChange} required/>
-                  </div>
-                  <div className="space-y-2">
-                      <Label htmlFor="EndDate">End Date</Label>
-                      <Input id="EndDate" name="EndDate" type="date" value={formData.EndDate} onChange={handleInputChange} min={formData.StartDate} required/>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="StartDate">Start Date</Label>
+                  <Input id="StartDate" name="StartDate" type="date" value={formData.StartDate} onChange={handleStartDateChange} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="EndDate">End Date</Label>
+                  <Input id="EndDate" name="EndDate" type="date" value={formData.EndDate} onChange={handleInputChange} min={formData.StartDate} required />
+                </div>
               </div>
               <div className="space-y-2">
-                  <div className="flex justify-between">
+                <div className="flex justify-between">
                   <Label htmlFor="Progress">Progress</Label>
                   <span className="text-sm text-muted-foreground">{formData.Progress}%</span>
-                  </div>
-                  <Slider id="Progress" name="Progress" value={[formData.Progress]} max={100} step={1} onValueChange={handleSliderChange('Progress')} />
+                </div>
+                <Slider id="Progress" name="Progress" value={[formData.Progress]} max={100} step={1} onValueChange={handleSliderChange('Progress')} />
               </div>
-               <div className="space-y-2">
+              <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label htmlFor="Effect">Effect Score</Label>
                   <span className="text-sm text-muted-foreground">{formData.Effect} / 10</span>
                 </div>
-                <Slider id="Effect" name="Effect" value={[formData.Effect]} max={10} step={1} onValueChange={handleSliderChange('Effect')}/>
+                <Slider id="Effect" name="Effect" value={[formData.Effect]} max={10} step={1} onValueChange={handleSliderChange('Effect')} />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <Label htmlFor="Effort">Effort Score</Label>
                   <span className="text-sm text-muted-foreground">{formData.Effort} / 10</span>
                 </div>
-                <Slider id="Effort" name="Effort" value={[formData.Effort]} max={10} step={1} onValueChange={handleSliderChange('Effort')}/>
+                <Slider id="Effort" name="Effort" value={[formData.Effort]} max={10} step={1} onValueChange={handleSliderChange('Effort')} />
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <Label htmlFor="Status">Status</Label>
-                      <Select name="Status" value={formData.Status} onValueChange={handleSelectChange('Status')}>
-                          <SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="ยังไม่ได้เริ่ม">To Do</SelectItem>
-                              <SelectItem value="กำลังดำเนินการ">In Progress</SelectItem>
-                              <SelectItem value="จบงานแล้ว">Done</SelectItem>
-                              <SelectItem value="หยุดงาน">Blocked</SelectItem>
-                          </SelectContent>
-                      </Select>
-                  </div>
-                  <div className="space-y-2">
-                      <Label htmlFor="ProjectType">Project Type</Label>
-                      <Select name="ProjectType" value={formData.ProjectType} onValueChange={handleSelectChange('ProjectType')}>
-                          <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
-                          <SelectContent>
-                              <SelectItem value="Main">Main</SelectItem>
-                              <SelectItem value="QuickWin">Quick Win</SelectItem>
-                              <SelectItem value="Fillin">Fill-in</SelectItem>
-                              <SelectItem value="Thankless">Thankless</SelectItem>
-                          </SelectContent>
-                      </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="Status">Status</Label>
+                  <Select name="Status" value={formData.Status} onValueChange={handleSelectChange('Status')}>
+                    <SelectTrigger><SelectValue placeholder="Select a status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ยังไม่ได้เริ่ม">To Do</SelectItem>
+                      <SelectItem value="กำลังดำเนินการ">In Progress</SelectItem>
+                      <SelectItem value="จบงานแล้ว">Done</SelectItem>
+                      <SelectItem value="หยุดงาน">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ProjectType">Project Type</Label>
+                  <Select name="ProjectType" value={formData.ProjectType} onValueChange={handleSelectChange('ProjectType')}>
+                    <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Main">Main</SelectItem>
+                      <SelectItem value="QuickWin">Quick Win</SelectItem>
+                      <SelectItem value="Fillin">Fill-in</SelectItem>
+                      <SelectItem value="Thankless">Thankless</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                      <Label>Assignee</Label>
-                      <MultiSelectAutocomplete 
-                          options={assignees} 
-                          initialValue={formData.Assignee}
-                          name="Assignee"
-                          onValueChange={handleMultiSelectChange}
-                      />
-                  </div>
-                  <div className="space-y-2">
-                      <Label htmlFor="Owner">Owner</Label>
-                      <Input 
-                          id="Owner" 
-                          name="Owner" 
-                          value={formData.Owner} 
-                          onChange={handleInputChange}
-                          placeholder="e.g. Project Manager" 
-                          onKeyDown={(e) => {
-                              if (e.key === 'Enter') e.preventDefault();
-                          }}
-                      />
-                  </div>
+                <div className="space-y-2">
+                  <Label>Assignee</Label>
+                  <MultiSelectAutocomplete
+                    options={assignees}
+                    initialValue={formData.Assignee}
+                    name="Assignee"
+                    onValueChange={handleMultiSelectChange}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="Owner">Owner</Label>
+                  <Input
+                    id="Owner"
+                    name="Owner"
+                    value={formData.Owner}
+                    onChange={handleInputChange}
+                    placeholder="Customer Group (e.g. SME)"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') e.preventDefault();
+                    }}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="Want">Description / Want</Label>
@@ -332,51 +332,51 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
             </div>
             <DialogFooter className="mt-4 sm:justify-between">
               <div>
-                  {isEditMode && (
-                      <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                              <Button type="button" variant="destructive" size="icon" disabled={isDeletePending}>
-                                  <Trash2 className="h-4 w-4" />
-                              </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                              <AlertDialogHeader>
-                              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                  This action cannot be undone. This will permanently delete this task.
-                              </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleDelete} disabled={isDeletePending}>
-                                  {isDeletePending ? "Deleting..." : "Continue"}
-                              </AlertDialogAction>
-                              </AlertDialogFooter>
-                          </AlertDialogContent>
-                      </AlertDialog>
-                  )}
+                {isEditMode && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button type="button" variant="destructive" size="icon" disabled={isDeletePending}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete this task.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} disabled={isDeletePending}>
+                          {isDeletePending ? "Deleting..." : "Continue"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
               </div>
               <div className="flex gap-2 justify-end">
-                  <Button type="button" variant="ghost" onClick={() => handleCloseAttempt(false)}>Cancel</Button>
-                  <SubmitButton isEditMode={isEditMode} />
+                <Button type="button" variant="ghost" onClick={() => handleCloseAttempt(false)}>Cancel</Button>
+                <SubmitButton isEditMode={isEditMode} />
               </div>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
       <AlertDialog open={isConfirmCloseOpen} onOpenChange={setIsConfirmCloseOpen}>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Discard changes?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      You have unsaved changes. Are you sure you want to discard them?
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Stay</AlertDialogCancel>
-                  <AlertDialogAction onClick={confirmClose}>Discard</AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You have unsaved changes. Are you sure you want to discard them?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Stay</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
       </AlertDialog>
     </>
   );
