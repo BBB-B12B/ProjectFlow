@@ -11,7 +11,9 @@
 | **[F-007]** | ผู้ช่วย AI (AI Assistant) | [T-040] | `src/ai/dev.ts` | **Planned** |
 | **[F-008]** | ระบบบริหารความสัมพันธ์ลูกค้า (CRM) & 360 View | [T-025], [T-026], [T-027], [T-029], [T-066], [T-016], [T-070] | `src/app/customers/*` (`page.tsx`, `customer-list-client.tsx`, `customer-detail-client.tsx`), `src/components/add-customer-dialog.tsx`, `src/lib/types.ts` (Customer, Rating) | **Active** |
 | **[F-009]** | การปรับปรุงประสิทธิภาพและลดค่าใช้จ่าย (Performance Optimization) | [T-070], [T-071], [T-072], [T-073], [T-074], [T-084] | `src/app/customers/customer-list-client.tsx`, `src/app/tracking/tracking-client.tsx`, `src/lib/firebase.ts`, `src/components/session-timeout.tsx` | **Active** |
-| **[F-010]** | ระบบวิเคราะห์ข้อมูล (Analytics Dashboard) | [T-022] | `src/app/analytics/*`, `src/components/ui/tabs.tsx` | **Planned** (Split View: Overview vs Workload) |
+| **[F-010]** | ระบบวิเคราะห์ข้อมูล (Analytics Dashboard) | [T-022] | `src/app/analytics/*`, `src/components/charts/filtered-tasks-table.tsx` | **Active** (Features: Sorting, Global Filters (Project/Status/Assignee/Date), Metric Cards, Personalized Columns, Split Columns) |
+| **[F-011]** | การจำค่าสถานะ (UI State Persistence) | [T-086] | `src/hooks/use-local-storage.ts`, `src/app/analytics/*`, `src/app/tracking/*` | **Planned** |
+| **[F-012]** | การนำขึ้นระบบ (Deployment) | [T-090] | `package.json`, `Cloudflare Pages` | **Planned** |
 
 ## โครงข่ายตัวแปรและแหล่งข้อมูล (Data/Variable Traceability)
 

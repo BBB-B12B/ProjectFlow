@@ -66,7 +66,23 @@
          - **Performance Table**: ตารางรายละเอียดงานพร้อม Hours Worked สะสม
   - **Interactivity**:
     - **Global Filtering**: ระบบกรองข้อมูลกลาง (Header) ส่งผลต่อกราฟในทุก Tabs
+      - **Slicers**: Project, Status, Assignee, Date Range.
+      - **Metric Cards**: Showing Filtered Projects Count, Employee Total, and Filtered Hours.
+    - **State Persistence**:
+      - **Behavior**: Remembers Filter/Selection state across navigation sessions using `localStorage`.
+      - **Scope**: Analytics Filters, Tracking Slicers.
     - **Deep Dive**: คลิกที่กราฟเพื่อ Drill-down ข้อมูลเฉพาะส่วนนั้นๆ
+    - **Sorting**: Tables must support column-based sorting (Ascending/Descending) by clicking on headers.
+    - **Column Structure**: Separate 'Progress' and 'Due Date' columns for better readability (No combined 'Details' column).
+    - **Scrollable**: Fixed height with internal scrolling.
+
+### 4. Deployment Architecture
+- **Platform**: Cloudflare Pages
+- **Runtime**: Edge (via `@cloudflare/next-on-pages`)
+- **Cost Strategy**: Zero Cost (leverage Free Tier for Pages & Workers)
+- **CI/CD**: Automatic deployment via Cloudflare-GitHub Integration.
+
+### 5. Future Scalability
 
 ### ระบบ AI (AI Integration)
 - **[F-007] ผู้ช่วย AI (Genkit)**

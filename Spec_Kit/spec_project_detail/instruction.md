@@ -27,6 +27,7 @@
 - **BaaS**: Firebase 11.10 (Firestore, Auth)
 - **AI Engine**: Google Genkit 1.14 (`@genkit-ai/*`)
 - **Validation**: Zod + React Hook Form
+- **Deployment**: Cloudflare Pages (`@cloudflare/next-on-pages`)
 
 ### ไลบรารีสำคัญ (Key Libraries)
 - `date-fns`: การจัดการวันที่และเวลา
@@ -92,4 +93,5 @@ src/
 3. **Environment**: ห้าม Commit ไฟล์ `.env` ที่มี Key ความลับขึ้น Git เด็ดขาด
 4. **Dark Mode = OS Mode**: ระบบใช้ Dark Mode ในการแยกแสดงข้อมูลสำหรับทีม OS (Internal) ให้ใช้ `useTheme` + `isDarkModeOnly` ในการกรองข้อมูล Projects และ Customers เสมอ
 5. **Cost Awareness**: ระบบต้องมีกลไกตัดการทำงานเมื่อ User ไม่ Active (Auto-Logout > 4:30m) และไม่ควร Poll ข้อมูลถี่เกินความจำเป็น (Cache Refresh > 5m)
+6. **State Persistence**: หน้าที่มีการกรองข้อมูล (Filter/Selection) ควรจดจำค่าล่าสุดไว้ใน `localStorage` เพื่อความต่อเนื่องในการใช้งาน (UX Continuity)
 

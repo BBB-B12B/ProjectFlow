@@ -28,10 +28,18 @@
         - **UI Architecture**: ใช้ `Tabs` component ของ shadcn/ui แยก View ออกเป็น:
             1. **Task Overview**: เน้น Management (Status, Assignee, Burndown)
             2. **Workload Analysis**: เน้น Performance (Hours Ranking, Trends)
-        - **Unified State Management**: ใช้ State กลาง (`filters`, `filteredTasks`) ที่ระดับ Parent (`AnalyticsClient`) เพื่อให้ Global Filter (Header) ส่งผลต่อทั้ง 2 Tabs
+        - **Global Filter Bar (Slicers)**: แถบเครื่องมือกรองข้อมูลด้านบนสุด (ใช้ `Select`, `Popover`, `Calendar` Components) ประกอบด้วย:
+            - **Project Filter**: เพิ่มตัวกรอง Project เพื่อเลือกดูงานเฉพาะโปรเจกต์ที่รับผิดชอบได้ (Show only projects with active tasks) (Searchable Dropdown) [Fixed Z-Index]
+            - **Date Range Picker**: เลือกช่วงเวลา (Start - End)
+            - **Employee Selector**: เลือกพนักงาน (Assignee)
+            - **Status Selector**: เลือกสถานะงาน (Status)
+            - **Metric Cards**: เพิ่ม Cards แสดง "Filtered Projects" และ "Employee Total" ใน Header
+        - **Unified State Management**: ใช้ State กลาง (`filters`, `filteredTasks`) ที่ระดับ Parent (`AnalyticsClient`) เพื่อให้ทั้ง Slicers และ Chart-Clicks ส่งผลต่อข้อมูลชุดเดียวกัน
         - **Table UI Refinements**:
             - **Scrollable View**: กำหนด Fixed Height ให้แสดงประมาณ 10 แถว และมี Scroll Bar ภายใน (`max-h-[xyz] overflow-y-auto`)
             - **Sticky Header**: หัวตารางต้องค้างอยู่ด้านบนเมื่อเลื่อนดูข้อมูล (`sticky top-0 bg-background z-10`)
+            - **Sortable Columns**: สามารถกดที่หัวตารางเพื่อเรียงลำดับข้อมูล (Sort Asc/Desc) ได้
+            - **Column Separation**: แยก Field `Details` เดิมออกเป็น Column `Progress` (%) และ `Due Date` ให้ชัดเจน
             - **Assignee Labels**: แสดงชื่อผู้รับผิดชอบเป็น Label (Badge) แยกรายบุคคล ไม่รวมเป็น text ยาวๆ
         - **Data Fetching**:
             - **Tasks**: ข้อมูลดิบสำหรับการวางแผน
@@ -47,6 +55,7 @@
         - **Employee Workload Ranking**: Bar Chart จัดอันดับคนที่ลงเวลาทำงานสูงสุด
         - **Work Hours Trend**: แนวโน้มชั่วโมงทำงานรายสัปดาห์ (Weekly ISO) หรือรายเดือน
         - **Task Performance Table**: ตารางเจาะลึกที่แสดง "Total Hours Worked" ของแต่ละงาน
+            - **Personalized View**: หากเลือกกรอง "Assignee" ให้แสดงเฉพาะชื่อผู้นั้นและชั่วโมงงานของผู้นั้นเท่านั้น (Personal Contribution) แต่หากไม่เลือกให้แสดงทุกคนและเวลารวม (Team Contribution)
 
 ### ระบบบริหารความสัมพันธ์ลูกค้า (CRM)
 - [x] [T-025] ออกแบบ Data Model สำหรับ Customer และ Activity Logs (`src/lib/types.ts`)
@@ -89,6 +98,10 @@
         - เมื่อกด "Save All Changes" -> ระบบจะสร้าง `projectTrackingProgress` (Log)
         - **และ** ทำการ update `Progress` field ใน Collection `tasks` ทันที
         - ส่งผลให้หน้า Dashboard/Project Detail เห็น % ความคืบหน้าล่าสุดตรงกันแบบ Real-time ✅
+- [ ] [T-086] **UI State Persistence**: พัฒนาระบบจำค่า Filter/Selection เมื่อเปลี่ยนหน้า
+    - **Concept**: Short-term Memory. ผู้ใช้ไม่ควรต้องเลือก Filter ใหม่ทุกครั้งที่สลับ Tab ไปมา
+    - **Mechanism**: ใช้ `localStorage` เก็บ State ของหน้า Analytics (Filters) และ Tracking (Assignee/Project/Date)
+    - **Scope**: `AnalyticsClient` (filters), `TrackingClient` (selection)
 
 ## Phase 3: ฟีเจอร์ขั้นสูง (Advanced Features)
 - [ ] [T-030] พัฒนา "Party Mode" (ระบบ Presence แสดงสถานะออนไลน์แบบ Real-time)

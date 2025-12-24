@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTheme } from 'next-themes';
 import { ProjectTrackingProgress, Task, Project } from '@/lib/types';
+import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   Select,
   SelectContent,
@@ -74,8 +75,9 @@ interface TaskChange {
 
 const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   const [assignees, setAssignees] = useState<string[]>(initialAssignees);
-  const [selectedAssignee, setSelectedAssignee] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedAssignee, setSelectedAssignee] = useLocalStorage<string>('tracking_assignee', '');
+  const [selectedProjectId, setSelectedProjectId] = useLocalStorage<string>('tracking_project', 'all');
+  const [selectedDate, setSelectedDate] = useLocalStorage<string>('tracking_date', new Date().toISOString().split('T')[0]);
   const [tasks, setTasks] = useState<TaskWithProjectName[]>([]);
   const [trackingData, setTrackingData] = useState<
     Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }>
@@ -603,8 +605,21 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
     tasksWithHours: Object.values(trackingData).filter(data => data.hoursWorked > 0).length,
     totalTasks: tasks.length,
     changedTasksCount: changedTasks.length,
-    totalHoursToSave: changedTasks.reduce((total, change) => total + change.hoursWorked, 0)
-  }), [trackingData, tasks.length, changedTasks]);
+    totalHoursToSave: changedTasks.reduce((total, change) => total + change.hoursWorked, 0),
+    uniqueProjects: Array.from(new Set(tasks.filter(t => (t.Progress || 0) < 100).map(t => t.projectId))).map(id => projectsCache.get(id)).filter(Boolean) as Project[]
+  }), [trackingData, tasks, changedTasks, projectsCache]);
+
+  const filteredTasks = useMemo(() => {
+    return tasks.filter(task => {
+      // 1. Hide 100% Completed Tasks
+      if ((task.Progress || 0) === 100) return false;
+
+      // 2. Filter by Project
+      if (selectedProjectId && selectedProjectId !== 'all' && task.projectId !== selectedProjectId) return false;
+
+      return true;
+    });
+  }, [tasks, selectedProjectId]);
 
   return (
     <div className="container mx-auto p-4">
@@ -679,6 +694,25 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         </div>
 
         <div>
+          <Label htmlFor="project-select" className="mb-2 block">
+            Filter by Project:
+          </Label>
+          <Select onValueChange={setSelectedProjectId} value={selectedProjectId}>
+            <SelectTrigger className="w-[280px]">
+              <SelectValue placeholder="All Projects" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {summary.uniqueProjects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div>
           <Label htmlFor="date-select" className="mb-2 block">
             Date to Track:
           </Label>
@@ -731,7 +765,14 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tasks.map((task) => {
+              {filteredTasks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                    No active tasks found (100% completed tasks are hidden).
+                  </TableCell>
+                </TableRow>
+              )}
+              {filteredTasks.map((task) => {
                 const currentTracking = trackingData[task.id] || {
                   hoursWorked: 0,
                   progressPercentage: task.Progress || 0,

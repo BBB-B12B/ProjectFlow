@@ -1,5 +1,5 @@
-"use client"
-
+import { useState } from "react"
+import { ArrowUpDown } from "lucide-react"
 import {
     Table,
     TableBody,
@@ -24,7 +24,38 @@ interface PerformanceTableProps {
     description?: string
 }
 
+type SortKey = 'TaskName' | 'projectName' | 'Assignee' | 'Status' | 'Progress' | 'totalHours';
+type SortDirection = 'asc' | 'desc';
+
 export function TaskPerformanceTable({ tasks, title = "Task Performance", description = "Detailed breakdown of hours worked per task." }: PerformanceTableProps) {
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection } | null>({ key: 'totalHours', direction: 'desc' });
+
+    const handleSort = (key: SortKey) => {
+        let direction: SortDirection = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedTasks = [...tasks].sort((a, b) => {
+        if (!sortConfig) return 0;
+        const { key, direction } = sortConfig;
+
+        let aValue: any = a[key] || '';
+        let bValue: any = b[key] || '';
+
+        // Handle string comparison nicely
+        if (typeof aValue === 'string') {
+            aValue = aValue.toLowerCase();
+            bValue = bValue.toLowerCase();
+        }
+
+        if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     // Helper to render assignees as separate badges
     const renderAssignees = (assigneeString?: string) => {
         if (!assigneeString) return <span className="text-muted-foreground">-</span>;
@@ -38,6 +69,18 @@ export function TaskPerformanceTable({ tasks, title = "Task Performance", descri
         );
     };
 
+    const renderHeader = (label: string, key: SortKey, alignRight = false) => (
+        <TableHead
+            className={`bg-secondary text-secondary-foreground font-semibold cursor-pointer hover:bg-secondary/80 transition-colors ${alignRight ? 'text-right' : ''}`}
+            onClick={() => handleSort(key)}
+        >
+            <div className={`flex items-center gap-1 ${alignRight ? 'justify-end' : ''}`}>
+                {label}
+                <ArrowUpDown className="h-3 w-3" />
+            </div>
+        </TableHead>
+    );
+
     return (
         <Card>
             <CardHeader>
@@ -49,23 +92,23 @@ export function TaskPerformanceTable({ tasks, title = "Task Performance", descri
                     <table className="w-full caption-bottom text-sm">
                         <TableHeader className="sticky top-0 bg-secondary z-10 shadow-sm">
                             <TableRow className="hover:bg-transparent border-none">
-                                <TableHead className="w-[300px] bg-secondary text-secondary-foreground font-semibold">Task Name</TableHead>
-                                <TableHead className="bg-secondary text-secondary-foreground font-semibold">Project</TableHead>
-                                <TableHead className="bg-secondary text-secondary-foreground font-semibold">Assignee</TableHead>
-                                <TableHead className="bg-secondary text-secondary-foreground font-semibold">Status</TableHead>
-                                <TableHead className="bg-secondary text-secondary-foreground font-semibold">Progress</TableHead>
-                                <TableHead className="text-right bg-secondary text-secondary-foreground font-semibold">Total Hours</TableHead>
+                                {renderHeader("Task Name", "TaskName")}
+                                {renderHeader("Project", "projectName")}
+                                {renderHeader("Assignee", "Assignee")}
+                                {renderHeader("Status", "Status")}
+                                {renderHeader("Progress", "Progress")}
+                                {renderHeader("Total Hours", "totalHours", true)}
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {tasks.length === 0 ? (
+                            {sortedTasks.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
                                         No tasks found for the selected criteria.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                tasks.map((task) => (
+                                sortedTasks.map((task) => (
                                     <TableRow key={task.id}>
                                         <TableCell className="font-medium">{task.TaskName}</TableCell>
                                         <TableCell>{task.projectName || "Unknown Project"}</TableCell>

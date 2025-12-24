@@ -1,9 +1,7 @@
-'use client';
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Edit, Calendar, User, Briefcase, ListTodo, Sliders } from 'lucide-react';
+import { Edit, Calendar, User, Briefcase, ListTodo, Sliders, ArrowUpDown } from 'lucide-react';
 import { useDarkMode } from './use-dark-mode';
 import { Task } from './types';
 import { format } from 'date-fns';
@@ -17,6 +15,9 @@ interface FilterState {
     progressRange: { min: number; max: number };
 }
 
+type SortKey = 'TaskName' | 'Status' | 'Assignee' | 'projectName' | 'Progress' | 'EndDate';
+type SortDirection = 'asc' | 'desc';
+
 export function FilteredTasksTable({
     tasks,
     projectNamesMap,
@@ -29,10 +30,51 @@ export function FilteredTasksTable({
     onTaskClick?: (task: Task) => void
 }) {
     const isDark = useDarkMode();
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection } | null>(null);
+
+    const handleSort = (key: SortKey) => {
+        let direction: SortDirection = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const sortedTasks = [...tasks].sort((a, b) => {
+        if (!sortConfig) return 0;
+        const { key, direction } = sortConfig;
+
+        let aValue: any = '';
+        let bValue: any = '';
+
+        if (key === 'projectName') {
+            aValue = projectNamesMap?.get(a.projectId || '') || a.projectId || '';
+            bValue = projectNamesMap?.get(b.projectId || '') || b.projectId || '';
+        } else if (key === 'Progress') {
+            aValue = a.Progress || 0;
+            bValue = b.Progress || 0;
+        } else if (key === 'EndDate') {
+            aValue = a.EndDate ? new Date(a.EndDate).getTime() : 0;
+            bValue = b.EndDate ? new Date(b.EndDate).getTime() : 0;
+        } else {
+            aValue = (a[key as keyof Task] as string) || '';
+            bValue = (b[key as keyof Task] as string) || '';
+        }
+
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+            aValue = aValue.toLowerCase();
+            bValue = bValue.toLowerCase();
+        }
+
+        if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+
     // Helper function for status colors
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'ยังไม่ได้เริ่ม': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+            case 'ยังไม่เริ่ม': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
             case 'กำลังดำเนินการ': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
             case 'ติดปัญหา': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
             case 'จบงานแล้ว': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
@@ -64,6 +106,18 @@ export function FilteredTasksTable({
         );
     };
 
+    const renderHeader = (label: string, key?: SortKey, className = "") => (
+        <th
+            className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'} ${key ? 'cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors' : ''} ${className}`}
+            onClick={() => key && handleSort(key)}
+        >
+            <div className="flex items-center gap-1">
+                {label}
+                {key && <ArrowUpDown className="w-3 h-3 text-gray-400" />}
+            </div>
+        </th>
+    );
+
     return (
         <Card className={`${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-xl border shadow-sm transition-all duration-200 hover:shadow-md mt-6 w-full`}>
             <CardHeader className="border-b border-gray-100 dark:border-gray-700 pb-4">
@@ -82,18 +136,19 @@ export function FilteredTasksTable({
                     <table className="w-full text-left border-collapse caption-bottom text-sm">
                         <thead className="sticky top-0 z-10 shadow-sm">
                             <tr className={`${isDark ? 'bg-gray-700 text-gray-300' : 'bg-gray-50 text-gray-600'} text-xs uppercase tracking-wider`}>
-                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Task Name</th>
-                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Status</th>
-                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Priority</th>
-                                <th className={`p-4 font-semibold hidden md:table-cell ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Details</th>
-                                <th className={`p-4 font-semibold hidden lg:table-cell ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Assignee</th>
-                                <th className={`p-4 font-semibold hidden xl:table-cell ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Project</th>
-                                <th className={`p-4 font-semibold ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>Action</th>
+                                {renderHeader("Task Name", "TaskName")}
+                                {renderHeader("Status", "Status")}
+                                {renderHeader("Priority", undefined, "hidden sm:table-cell")}
+                                {renderHeader("Progress", "Progress", "hidden md:table-cell")}
+                                {renderHeader("Due Date", "EndDate", "hidden md:table-cell")}
+                                {renderHeader("Assignee", "Assignee", "hidden lg:table-cell")}
+                                {renderHeader("Project", "projectName", "hidden xl:table-cell")}
+                                {renderHeader("Action")}
                             </tr>
                         </thead>
                         <tbody className={`divide-y ${isDark ? 'divide-gray-700' : 'divide-gray-100'}`}>
-                            {tasks.length > 0 ? (
-                                tasks.map((task) => {
+                            {sortedTasks.length > 0 ? (
+                                sortedTasks.map((task) => {
                                     const quadrant = getQuadrantInfo(task.Effort || 0, task.Effect || 0);
                                     const projectName = projectNamesMap?.get(task.projectId || '') || task.projectId || 'Unknown Project';
 
@@ -103,15 +158,21 @@ export function FilteredTasksTable({
                                                 <div className="font-medium text-sm md:text-base line-clamp-2" title={task.TaskName}>{task.TaskName}</div>
                                                 {/* Mobile-only details */}
                                                 <div className="md:hidden mt-2 space-y-1">
-                                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
                                                         <Briefcase className="w-3 h-3" /> {projectName}
                                                     </div>
-                                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
                                                         <User className="w-3 h-3" /> {task.Assignee || 'Unassigned'}
                                                     </div>
-                                                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                    <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
                                                         <Sliders className="w-3 h-3" /> {task.Progress}%
                                                     </div>
+                                                    {(task.StartDate || task.EndDate) && (
+                                                        <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'} flex items-center gap-1`}>
+                                                            <Calendar className="w-3 h-3" />
+                                                            {task.EndDate ? format(new Date(task.EndDate), 'MMM d, yyyy') : format(new Date(task.StartDate), 'MMM d, yyyy')}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </td>
                                             <td className="p-4 align-top">
@@ -119,35 +180,31 @@ export function FilteredTasksTable({
                                                     {task.Status}
                                                 </span>
                                             </td>
-                                            <td className="p-4 align-top">
+                                            <td className="p-4 align-top hidden sm:table-cell">
                                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${quadrant.color} border border-transparent`}>
                                                     {quadrant.label}
                                                 </span>
                                             </td>
                                             <td className="p-4 align-top hidden md:table-cell">
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-xs">
-                                                        <span className="text-gray-500 w-16">Progress:</span>
-                                                        <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
-                                                            <div
-                                                                className="bg-purple-500 h-2 rounded-full"
-                                                                style={{ width: `${task.Progress || 0}%` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-xs text-gray-500">{task.Progress}%</span>
-                                                    </div>
-
-                                                    {(task.StartDate || task.EndDate) && (
-                                                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                                                            <Calendar className="w-3 h-3 text-gray-400" />
-                                                            {task.EndDate ? (
-                                                                <span>Due: {format(new Date(task.EndDate), 'MMM d, yyyy')}</span>
-                                                            ) : (
-                                                                <span>Start: {format(new Date(task.StartDate), 'MMM d, yyyy')}</span>
-                                                            )}
-                                                        </div>
-                                                    )}
+                                                <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden mb-1">
+                                                    <div
+                                                        className="bg-purple-500 h-2 rounded-full"
+                                                        style={{ width: `${task.Progress || 0}%` }}
+                                                    ></div>
                                                 </div>
+                                                <span className="text-xs text-gray-500">{task.Progress}%</span>
+                                            </td>
+                                            <td className="p-4 align-top hidden md:table-cell">
+                                                {(task.StartDate || task.EndDate) ? (
+                                                    <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                        <Calendar className="w-3 h-3 text-gray-400" />
+                                                        {task.EndDate ? (
+                                                            <span>{format(new Date(task.EndDate), 'MMM d, yyyy')}</span>
+                                                        ) : (
+                                                            <span>Start: {format(new Date(task.StartDate), 'MMM d, yyyy')}</span>
+                                                        )}
+                                                    </div>
+                                                ) : <span className="text-xs text-gray-400">-</span>}
                                             </td>
                                             <td className="p-4 align-top hidden lg:table-cell">
                                                 {renderAssignees(task.Assignee)}
@@ -173,7 +230,7 @@ export function FilteredTasksTable({
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={7} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                    <td colSpan={8} className="p-8 text-center text-gray-500 dark:text-gray-400">
                                         <div className="flex flex-col items-center justify-center gap-2">
                                             <ListTodo className="w-8 h-8 opacity-20" />
                                             <p>No tasks match the selected filters.</p>

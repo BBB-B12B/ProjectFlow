@@ -59,7 +59,7 @@ export interface CustomerActivityLog {
 export interface Task {
   id: string;
   projectId: string;
-  TaskName?: string;
+  TaskName: string;
   Description?: string; // Added Description field matching Task.description
   Assignee?: string; // Changed Assignee to be a string directly
   StartDate: string;

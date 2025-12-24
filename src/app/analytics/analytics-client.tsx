@@ -5,6 +5,7 @@ import { useTheme } from "next-themes"
 import { collection, query, getDocs, orderBy } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { normalizeAssigneeName, formatAssigneeDisplayName } from "@/lib/utils"
+import { useLocalStorage } from "@/hooks/use-local-storage"
 import {
   TaskStatusChart,
   TaskAssigneeChart,
@@ -19,38 +20,17 @@ import { TaskPerformanceTable } from "@/components/analytics/task-performance-ta
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EditTaskDialog } from "@/components/edit-task-dialog"
-import { Loader2, FilterX } from "lucide-react"
+import { Loader2, FilterX, CalendarIcon } from "lucide-react"
 import { format, getISOWeek, getYear } from "date-fns"
-import { ProjectTrackingProgress } from "@/lib/types"
+import { ProjectTrackingProgress, Task, Project } from "@/lib/types"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Button } from "@/components/ui/button"
+import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete"
+import { cn } from "@/lib/utils"
 
-// Type definitions
-interface Task {
-  id: string
-  TaskName: string
-  Status: string
-  Progress: number
-  Assignee: string
-  ProjectType: string
-  projectId: string
-  StartDate: string
-  EndDate: string
-  Effort: number;
-  Effect: number;
-  title?: string;
-  projectTitle?: string; // For table display
-  priority?: string;
-  totalHours?: number;
-  projectName?: string;
-}
-
-interface Project {
-  id: string
-  name: string
-  description?: string
-  status?: string
-  team?: string;
-  isDarkModeOnly?: boolean
-}
+// Type definitions removed (Imported)
 
 interface AnalyticsClientProps {
   initialTasks: Task[]
@@ -76,7 +56,7 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
   const [logs, setLogs] = useState<ProjectTrackingProgress[]>([])
   const [loadingLogs, setLoadingLogs] = useState(true)
 
-  const [filters, setFilters] = useState<FilterState>({
+  const [filters, setFilters] = useLocalStorage<FilterState>('analytics_filters', {
     status: null,
     assignee: null,
     projectId: null,
@@ -184,6 +164,25 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
         return names.includes(filters.assignee!)
       })
     }
+
+    if (filters.dateRange.start || filters.dateRange.end) {
+      resultTasks = resultTasks.filter(t => {
+        const taskDate = t.EndDate || t.StartDate;
+        if (!taskDate) return false;
+        const date = new Date(taskDate);
+        if (filters.dateRange.start) {
+          const start = new Date(filters.dateRange.start);
+          start.setHours(0, 0, 0, 0); // Reset time part for accurate comparison
+          if (date < start) return false;
+        }
+        if (filters.dateRange.end) {
+          const end = new Date(filters.dateRange.end);
+          end.setHours(23, 59, 59, 999); // Include full day
+          if (date > end) return false;
+        }
+        return true;
+      });
+    }
     // Date & Progress Range logic omitted for brevity (Keep existing if needed, but for now simple)
 
     setFilteredProjects(validProjects)
@@ -245,10 +244,12 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
 
     return filteredTasks.map(t => ({
       ...t,
+      // If filtering by Assignee, show only that name in the table to avoid confusion
+      Assignee: filters.assignee ? filters.assignee : t.Assignee,
       projectName: initialProjects.find(p => p.id === t.projectId)?.name || "Unknown",
       totalHours: hoursMap.get(t.id) || 0
     })).sort((a, b) => b.totalHours - a.totalHours) as any // Casting to avoid strict literal type check on Status
-  }, [filteredTasks, filteredLogs, initialProjects])
+  }, [filteredTasks, filteredLogs, initialProjects, filters.assignee])
 
   const totalHours = useMemo(() => filteredLogs.reduce((acc, l) => acc + l.hoursWorked, 0), [filteredLogs])
   const projectNamesMap = new Map(filteredProjects.map(p => [p.id, p.name]))
@@ -268,6 +269,15 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
   }
   const hasActiveFilters = () => Object.values(filters).some(v => v && (typeof v === 'object' ? (v.start || v.min > 0 || v.max < 100) : true))
 
+  // Metrics for Cards
+  const activeProjectCount = useMemo(() => {
+    return new Set(filteredTasks.map(t => t.projectId)).size
+  }, [filteredTasks])
+
+  const activeEmployeeCount = useMemo(() => {
+    return new Set(filteredTasks.flatMap(t => t.Assignee?.split(',').map(s => s.trim()).filter(Boolean) || [])).size
+  }, [filteredTasks])
+
   return (
     <div className="min-h-screen bg-transparent p-6 relative">
       <div className="max-w-7xl mx-auto space-y-6 relative z-10">
@@ -278,26 +288,148 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
             <h1 className="text-3xl font-bold tracking-tight">Analytics Dashboard</h1>
             <p className="text-gray-600 dark:text-gray-300">Insights for <span className="font-semibold text-primary">{filteredProjects.length} Projects</span></p>
           </div>
-          <Card className="p-4 bg-background/60 backdrop-blur border shadow-sm">
-            <div className="text-xs font-semibold text-muted-foreground uppercase">Filtered Hours</div>
-            <div className="text-2xl font-bold text-primary flex items-center gap-2">
-              {loadingLogs ? <Loader2 className="animate-spin w-4 h-4" /> : totalHours.toFixed(1)}h
-            </div>
-          </Card>
+          <div className="flex flex-wrap items-center gap-4">
+            <Card className="p-4 bg-background/60 backdrop-blur border shadow-sm">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Filtered Projects</div>
+              <div className="text-2xl font-bold text-primary flex items-center gap-2">
+                {activeProjectCount}
+              </div>
+            </Card>
+            <Card className="p-4 bg-background/60 backdrop-blur border shadow-sm">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Employee Total</div>
+              <div className="text-2xl font-bold text-primary flex items-center gap-2">
+                {activeEmployeeCount}
+              </div>
+            </Card>
+            <Card className="p-4 bg-background/60 backdrop-blur border shadow-sm">
+              <div className="text-xs font-semibold text-muted-foreground uppercase">Filtered Hours</div>
+              <div className="text-2xl font-bold text-primary flex items-center gap-2">
+                {loadingLogs ? <Loader2 className="animate-spin w-4 h-4" /> : totalHours.toFixed(1)}h
+              </div>
+            </Card>
+          </div>
         </div>
 
-        {/* Global Filters (Active) */}
-        {hasActiveFilters() && (
-          <div className="flex flex-wrap items-center gap-2 p-4 bg-background/60 backdrop-blur rounded-lg shadow-sm border">
-            <span className="text-sm font-medium">Active Filters:</span>
-            {filters.projectId && <span className={getFilterBadgeColor("progress-chart")}>Project: {projectNamesMap.get(filters.projectId) || filters.projectId}</span>}
-            {filters.assignee && <span className={getFilterBadgeColor("assignee-chart")}>Assignee: {filters.assignee}</span>}
-            {filters.status && <span className={getFilterBadgeColor("status-chart")}>Status: {filters.status}</span>}
-            <button onClick={handleClearFilters} className="ml-auto text-xs text-red-600 hover:underline flex items-center gap-1">
-              <FilterX className="w-3 h-3" /> Clear All
-            </button>
-          </div>
-        )}
+        {/* Global Filters (Active) w/ Manual Slicers */}
+        <Card className="bg-white/50 dark:bg-gray-800/50 backdrop-blur border-0 shadow-sm mb-6 relative z-50 overflow-visible">
+          <CardContent className="p-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center gap-4">
+                {/* Project Filter */}
+                <div className="w-full sm:w-[200px]">
+                  <label className="text-xs font-medium mb-1 block text-gray-500">Project</label>
+                  <SingleSelectAutocomplete
+                    options={initialProjects.map(p => ({ value: p.id, label: p.name }))}
+                    value={filters.projectId || ""}
+                    onValueChange={(val) => updateFilter("projectId", val || null, "manual-slicer")}
+                    placeholder="All Projects"
+                  />
+                </div>
+
+                {/* Status Filter */}
+                <div className="w-full sm:w-[150px]">
+                  <label className="text-xs font-medium mb-1 block text-gray-500">Status</label>
+                  <Select
+                    value={filters.status || "all"}
+                    onValueChange={(val) => updateFilter("status", val === "all" ? null : val, "manual-slicer")}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="All Statuses" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Statuses</SelectItem>
+                      <SelectItem value="ยังไม่เริ่ม">ยังไม่ได้เริ่ม</SelectItem>
+                      <SelectItem value="กำลังดำเนินการ">กำลังดำเนินการ</SelectItem>
+                      <SelectItem value="ติดปัญหา">ติดปัญหา</SelectItem>
+                      <SelectItem value="จบงานแล้ว">จบงานแล้ว</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Assignee Filter */}
+                <div className="w-full sm:w-[180px]">
+                  <label className="text-xs font-medium mb-1 block text-gray-500">Assignee</label>
+                  <Select
+                    value={filters.assignee || "all"}
+                    onValueChange={(val) => updateFilter("assignee", val === "all" ? null : val, "manual-slicer")}
+                  >
+                    <SelectTrigger className="h-10">
+                      <SelectValue placeholder="All Assignees" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Assignees</SelectItem>
+                      <SelectItem value="Unassigned">Unassigned</SelectItem>
+                      {assignees.map(a => (
+                        <SelectItem key={a} value={a}>{a}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date Range Filter */}
+                <div className="w-full sm:w-auto">
+                  <label className="text-xs font-medium mb-1 block text-gray-500">Date Range</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        className={cn(
+                          "w-[240px] justify-start text-left font-normal h-10",
+                          !filters.dateRange?.start && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filters.dateRange?.start ? (
+                          filters.dateRange.end ? (
+                            <>
+                              {format(filters.dateRange.start, "LLL dd, y")} -{" "}
+                              {format(filters.dateRange.end, "LLL dd, y")}
+                            </>
+                          ) : (
+                            format(filters.dateRange.start, "LLL dd, y")
+                          )
+                        ) : (
+                          <span>Pick a date range</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={filters.dateRange?.start || new Date()}
+                        selected={{
+                          from: filters.dateRange?.start || undefined,
+                          to: filters.dateRange?.end || undefined,
+                        }}
+                        onSelect={(range) => updateFilter("dateRange", { start: range?.from || null, end: range?.to || null }, "manual-slicer")}
+                        numberOfMonths={2}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                {/* Clear Filters Button */}
+                {hasActiveFilters() && (
+                  <div className="mt-5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearFilters}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <FilterX className="w-4 h-4 mr-2" />
+                      Clear
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Global Filters (Active) - OLD - REMOVE IF NEEDED OR KEEP AS BADGES */}
+        {/* Keeping only Badges for feedback if desired, or replacing fully. I'll replace the old badge block with this new slicer block which already has the Clear button. */}
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full space-y-6">
@@ -370,7 +502,6 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
                 data={employeeRankingData}
                 title="Top Employee Workload"
                 description="Total hours logged per person"
-                color="#f97316"
                 selectedId={filters.assignee}
                 onBarClick={(d) => handleEmployeeWorkloadClick(d as any)}
               />
