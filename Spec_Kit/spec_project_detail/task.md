@@ -405,6 +405,6 @@
     - **Concept**: User experience improvement for long analytics pages.
     - **Implementation**: Apply `sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60` to the filter container in `analytics-client.tsx`.
 
-- [ ] [T-103] **Refine Analytics UI Interactivity**: ปรับตำแหน่ง Sticky และแก้ Chart Label ทับกัน
+- [x] [T-103] **Refine Analytics UI Interactivity**: ปรับตำแหน่ง Sticky และแก้ Chart Label ทับกัน
     - **Sticky Filter**: Increase `top` offset (e.g., `top-20`) to avoid navbar collision.
     - **Assignee Chart**: Fix overlap between legend badges and total stats footer.
