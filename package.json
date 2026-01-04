@@ -6,11 +6,11 @@
     "dev": "npx kill-port 9003 && next dev -p 9003",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
-    "build": "next build",
+    "build": "next build && find . -type f -name '._*' -delete",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "pages:build": "npx @cloudflare/next-on-pages"
+    "pages:build": "npx @cloudflare/next-on-pages && find .vercel -type f -name '._*' -delete"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.14.1",

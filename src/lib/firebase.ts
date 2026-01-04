@@ -21,24 +21,29 @@ if (!firebaseConfig.projectId) {
   console.error("Firebase: Environment variables (e.g., NEXT_PUBLIC_FIREBASE_PROJECT_ID) are not properly set.");
 }
 
-if (!getApps().length) {
-  try {
-    app = initializeApp(firebaseConfig);
-    console.log("Firebase: New app initialized (server-side).");
-  } catch (e) {
-    console.error("Firebase: Error initializing new Firebase app (server-side):", e);
+// Ensure we are in the browser before initializing the FULL SDK (incompatible with Edge)
+if (typeof window !== 'undefined') {
+  if (!getApps().length) {
+    try {
+      app = initializeApp(firebaseConfig);
+      console.log("Firebase: New app initialized (client-side).");
+    } catch (e) {
+      console.error("Firebase: Error initializing new Firebase app (client-side):", e);
+    }
+  } else {
+    app = getApp();
+    console.log("Firebase: Using existing Firebase app (client-side).");
+  }
+
+  if (app) {
+    db = getFirestore(app);
+    auth = getAuth(app);
+    console.log("Firebase: Firestore and Auth instances obtained (client-side).");
+  } else {
+    console.error("Firebase: Firebase app is undefined, cannot get instances.");
   }
 } else {
-  app = getApp();
-  console.log("Firebase: Using existing Firebase app (server-side).");
-}
-
-if (app) {
-  db = getFirestore(app);
-  auth = getAuth(app);
-  console.log("Firebase: Firestore and Auth instances obtained (server-side).");
-} else {
-  console.error("Firebase: Firebase app is undefined, cannot get instances.");
+  console.log("Firebase: Skipping Full SDK initialization on Server/Edge.");
 }
 
 export { app, db, auth };

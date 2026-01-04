@@ -1,13 +1,13 @@
-# AI Collaboration Workflow Template (The "Paystub" Model)
+# AI Collaboration Protocol (The "Spec-First" Model)
 
-เอกสารนี้สรุปขั้นตอน (Best Practices) ในการเริ่มโปรเจกต์ใหม่ร่วมกับ AI ให้ได้โครงสร้างที่เป็นระเบียบ ตรวจสอบได้ และทำงานได้จริงเหมือนโปรเจกต์ Paystub
+เอกสารนี้สรุปขั้นตอนมาตรฐาน (Standard Operating Procedure) สำหรับการเริ่มและดำเนินโปรเจกต์ร่วมกับ AI เพื่อให้ได้โครงสร้างที่เป็นระเบียบ ตรวจสอบได้ และลดข้อผิดพลาด (Traceability & Maintainability)
 
 ---
 
 ## Phase 1: Preparation (Context Setting)
-**Goal**: เตรียมพื้นที่สมอง (Brain) ให้ AI เข้าใจขอบเขตงานก่อนเริ่มเขียน Code
+**Goal**: เตรียมพื้นที่สมอง (Brain) ให้ AI เข้าใจขอบเขตงานและโครงสร้างมาตรฐานก่อนเริ่มเขียน Code
 
-**คำสั่งแรก (Prompt) ให้ AI:**
+**คำสั่งเริ่มโปรเจกต์ (Initial Prompt):**
 > "เราจะเริ่มโปรเจกต์ใหม่ชื่อ **[Project Name]** โดยเน้นความเป็นระเบียบและ Traceability สูง
 > ขอให้ช่วยสร้าง Folder `spec_project_detail/` และสร้างไฟล์เปล่า 3 ไฟล์รอไว้ก่อน:
 > 1. `spec.md` (Functional Spec)
@@ -18,87 +18,117 @@
 ---
 
 ## Phase 2: The 3 Pillars (Documentation First)
-**Goal**: สร้าง Single Source of Truth
+**Goal**: สร้าง Single Source of Truth ที่ AI และ User ยึดถือร่วมกัน
 
 ### Step 2.1: Functional Spec (`spec.md`)
-**สิ่งที่ต้องบอก AI:**
+**Prompt Guidance:**
 > "เริ่มร่าง `spec.md` กันครับ ในนี้ขอให้ระบุ:
-> 1. **System Features**: ฟีเจอร์หลัก (เช่น Auth, CRUD, Report) พร้อมใส่ ID **[F-XXX]** กำกับ
+> 1. **System Features**: ฟีเจอร์หลัก พร้อมใส่ ID **[F-XXX]** กำกับ (เช่น F-001 Authentication)
 > 2. **Data Models**: ตาราง Database และความสัมพันธ์ (ER Diagram/Schemas)
-> 3. **User Flows**: ขั้นตอนการใช้งาน (Text list)
+> 3. **User Flows**: ขั้นตอนการใช้งาน (Text list หรือ Mermaid Sequence Diagram)
 > 4. **Architecture**: โครงสร้างระบบ (Frontend -> API -> DB)
-> 5. **System Structure Tree**: ขอแผนผัง Sitemap (Mermaid Diagram) เพื่อให้เห็นภาพรวมหน้าจอทั้งหมด"
+> 5. **System Structure Tree**: แผนผัง Sitemap (Mermaid Diagram) เพื่อให้เห็นภาพรวมหน้าจอทั้งหมด"
 
 ### Step 2.2: Instruction & Standards (`instruction.md`)
-**สิ่งที่ต้องบอก AI:**
+**Prompt Guidance:**
 > "ต่อไปร่าง `instruction.md` ครับ ระบุ:
-> 1. **Tech Stack**: ภาษา, Framework, Library หลักที่จะใช้
-> 2. **Folder Structure**: ระบุโครงสร้างทั้ง **Root Level** (รวม folder เอกสาร/Config) และ **Source Code Level** เพื่อให้เห็นภาพรวมทั้งโปรเจกต์
-> 3. **Conventions**: กฎการตั้งชื่อ (Naming), การจัดการ State, หรือกฎห้ามทำ (Strict Rules)"
+> 1. **Tech Stack**: ภาษา, Framework, Library หลักที่จะใช้ (Version ถ้าจำเป็น)
+> 2. **Folder Structure**: ระบุโครงสร้างทั้ง **Root Level** (รวม folder เอกสาร/Config) และ **Source Code Level**
+> 3. **Conventions**: กฎการตั้งชื่อ (Naming), การจัดการ State (State Management), หรือกฎห้ามทำ (Strict Rules)"
 
 ### Step 2.3: Task Roadmap (`task.md`)
-**สิ่งที่ต้องบอก AI:**
-> "สุดท้ายร่าง `task.md` ครับ:
-> 1. แบ่งงานเป็น **Phases** (Setup, Core Features, UI, Polish, Deploy)
-> 2. แตกงานย่อยเป็น Checklist `[ ]`
-> 3. ใส่ ID **[T-XXX]** หน้าแต่ละ Task เพื่อใช้ทำ Traceability ทีหลัง"
+**Prompt Guidance:**
+> "สุดท้ายร่าง `task.md` ครับ โดยแบ่งงานเป็น Phases และใช้ **Rich Task Schema** สำหรับงานที่มีความซับซ้อน:
+>
+> **Task Schema Structure:**
+> - [ ] **[T-XXX] Task Name**
+>     - **Concept/Goal**: เป้าหมายหลักของงานนี้คืออะไร
+>     - **Principles**: หลักการออกแบบ (เช่น Separation of Concerns, Performance First)
+>     - **Implementation Details**:
+>         - **UI/UX**: รายละเอียด Component, Interaction
+>         - **Logic/State**: การจัดการ State, Context, Library ที่เกี่ยวข้อง
+>         - **Data**: Query อะไร, Cache อย่างไร
+>     - **Confirmed Behavior**: พฤติกรรมที่ต้องทดสอบ (Acceptance Criteria)
+>     - **Sub-tasks**:
+>         - [ ] Sub-task 1"
 
 ---
 
 ## Phase 3: Traceability (The Matrix)
-**Goal**: เชื่อมโยงทุกอย่างเข้าด้วยกัน (Feature -> Task -> Code)
+**Goal**: เชื่อมโยงความสัมพันธ์ระหว่าง Requirement, Task และ Code เพื่อให้ตรวจสอบผลกระทบได้ง่าย (Impact Analysis)
 
-**คำสั่งเมื่อเริ่มเห็นภาพรวม:**
-> "สร้างไฟล์ `traceability.md` เพื่อทำ Requirement Traceability Matrix (RTM)
-> โดยสร้างตาราง Map ระหว่าง:
-> | Feature ID [F-XXX] | Spec Header | Tasks [T-XXX] | Key Code Files | Status |"
-
----
-
-## Phase 4: Implementation (Agentic Loop)
-**Goal**: เริ่มเขียน Code ตามแผนที่วางไว้
-
-**วิธีการทำงาน:**
-1.  **Select Task**: "เริ่มทำ Phase 1 ข้อ [T-001] และ [T-002] ตาม `task.md`"
-2.  **Update Docs**: "ถ้ามีการเปลี่ยน Logic หรือเพิ่มไฟล์ใหม่ อย่าลืมอัปเดต `spec.md` และ `instruction.md` ด้วย"
-3.  **Checklist**: "เมื่อทำเสร็จแล้ว ให้ไปขีดถูก `[x]` ใน `task.md`"
+**Prompt Guidance:**
+> "สร้างไฟล์ `spec_project_detail/traceability.md` เพื่อทำ Requirement Traceability Matrix (RTM) ประกอบด้วย 2 ตารางหลัก:
+>
+> **1. Requirement Traceability Matrix (RTM)**
+> Map ระหว่าง Feature -> Task -> File
+> | Feature ID [F-XXX] | Spec Feature Name | Tasks [T-XXX] | Key Code Files | Status |
+>
+> **2. Data/Variable Traceability**
+> Map ระหว่าง Entity -> Code Variables
+> | ข้อมูลหลัก (Entity) | ชื่อ Interface/Type | ตัวแปร State หลัก (Key State Variables) | ไฟล์ที่เกี่ยวข้อง (Related Files) | หมายเหตุ (Notes) |"
 
 ---
 
-## Phase 5: Deployment & Operations
-**Goal**: ทำให้โปรเจกต์ Live และ Maintain ง่าย
+## Phase 4: Implementation Protocol
+**Goal**: ควบคุมทิศทางการเขียน Code ด้วยเอกสาร (Navigator)
 
-1.  **Deployment Script**:
-    > "ช่วยเขียน Script `deploy_prod.sh` รวมคำสั่ง Build และ Deploy ทั้งหมดไว้ในไฟล์เดียว"
-2.  **README**:
-    > "เขียน `README.md` สรุปวิธีรัน (Dev) วิธี Deploy (Prod) และแปะ Link ไปยัง `spec_project_detail` ทั้งหมด"
+### 1. Inception (รับโจทย์ใหม่)
+ทุกครั้งที่มีโจทย์ใหม่ ห้ามแก้ Code ทันที ให้ทำตาม Step:
+1.  **Analyze**: วิเคราะห์ผลกระทบ
+2.  **Update `task.md`**: สร้าง Task ใหม่ [T-XXX] พร้อมรายละเอียด Principles/Implementation
+3.  **Update `spec.md`**: เพิ่ม [F-XXX] หากเป็นฟีเจอร์ใหม่
+4.  **Update `traceability.md`**: เพิ่มความเชื่อมโยง (Status: Planned)
+
+### 2. Execution (เขียน Code)
+-   **Checklist Driven**: ทำงานทีละข้อย่อยใน `task.md`
+-   **Living Docs**: หากต้องเปลี่ยน Logic ให้แก้ `instruction.md` หรือ `spec.md` ให้ตรงกับความจริงเสมอ
+-   **Error Logging**: หากเจอ Error ให้บันทึกลง `task.md`:
+    ```markdown
+    - **Error Encountered**: ...
+    - **Root Cause**: ...
+    - **Solution**: ...
+    ```
+
+### 3. Closure (จบงาน)
+-   [x] Mark Complete ใน `task.md`
+-   อัปเดตสถานะใน `traceability.md` (Active/Beta)
+-   อัปเดต **Key Code Files** ใน `traceability.md`
 
 ---
 
-## Phase 6: Handoff Protocol (Continuing Work)
-**Goal**: ส่งงานให้ AI ตัวถัดไป (New Chat) เข้าใจงานทันทีโดยไม่ต้องอธิบายใหม่
+## Phase 5: Deployment & Handoff
+**Goal**: ส่งมอบงานอย่างสมบูรณ์และพร้อมสานต่อ
 
-**คำสั่งแรกสำหรับ Chat ใหม่ (The "Rehydration" Prompt):**
+### Deployment
+-   สร้าง Script `deploy.sh` หรือ CI/CD Pipeline
+-   เขียน `README.md` สรุปวิธี Run/Build/Test
+
+### Handoff Protocol (Continuing Work)
+คำสั่งสำหรับเริ่ม Session ใหม่ เพื่อให้ AI เข้าใจบริบทเดิมทันที:
+
+**Rehydration Prompt:**
 > "สวัสดี เรากำลังทำโปรเจกต์ **[Project Name]** ต่อจากเดิม
 > งานทั้งหมดถูก Document ไว้อย่างละเอียดแล้ว
 >
-> **คำสั่งของคุณ (Mission):**
+> **Mission:**
 > 1.  เข้าไปอ่านโฟลเดอร์ `spec_project_detail/`
-> 2.  อ่านเรียงลำดับดังนี้ เพื่อ Re-contextualize ตัวเอง:
->     -   `instruction.md` (เข้าใจ Tech Stack & Structure)
->     -   `spec.md` (เข้าใจ Flow & Features)
->     -   `traceability.md` (เข้าใจความเชื่อมโยง F-XXX กับ Code)
->     -   `task.md` (ดูว่าทำถึงตรงไหนแล้ว)
-> 3.  สรุปสถานะปัจจุบันให้ผมฟังว่า 'งานล่าสุดที่ทำเสร็จคืออะไร' และ 'Next Step คืออะไร'
-> 4.  **ห้าม** แก้ไข Code จนกว่าจะทำความเข้าใจเอกสารครบถ้วน"
+> 2.  อ่าน (Contextualize) ตามลำดับ:
+>     -   `instruction.md` (Tech Stack)
+>     -   `spec.md` (Features)
+>     -   `traceability.md` (Links)
+>     -   `task.md` (Progress)
+> 3.  สรุปสถานะปัจจุบันว่า 'ล่าสุดทำอะไรเสร็จ' และ 'Next Step คืออะไร'
+> 4.  **ห้าม** แก้ไข Code จนกว่าจะเข้าใจเอกสารครบถ้วน"
 
 ---
 
 ## Summary Checklist for New Project
 - [ ] Folder `spec_project_detail/` created
-- [ ] `spec.md` with [F-XXX] and **Sitemap**
-- [ ] `instruction.md` with Tech Stack defined
-- [ ] `task.md` with [T-XXX] defined
-- [ ] `traceability.md` initialized
-- [ ] **Handoff Prompt** ready for next session
+- [ ] `spec.md` defined with [F-XXX]
+- [ ] `instruction.md` defined
+- [ ] `task.md` initialized with [T-XXX]
+- [ ] `traceability.md` initialized with RTM & Data Tables
+- [ ] **Handoff Prompt** ready
+
 

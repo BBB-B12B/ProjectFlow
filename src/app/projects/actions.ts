@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "@/lib/firebase";
-import { collection, addDoc, writeBatch, doc, query, where, getDocs, updateDoc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase-lite";
+import { collection, addDoc, writeBatch, doc, query, where, getDocs, updateDoc, getDoc } from "firebase/firestore/lite";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Project, Task } from "@/lib/types";
@@ -188,7 +188,8 @@ export async function getCustomers(): Promise<{ value: string; label: string; }[
             .filter(c => c.name)
             .map(c => ({
                 value: c.id,
-                label: c.name
+                label: c.name,
+                isDarkModeOnly: (c as any).isDarkModeOnly || false
             }))
             .sort((a, b) => a.label.localeCompare(b.label));
     } catch (error) {

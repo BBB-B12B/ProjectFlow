@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "@/lib/firebase";
-import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, query, where, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase-lite";
+import { collection, getDocs, doc, updateDoc, addDoc, deleteDoc, query, where, getDoc } from "firebase/firestore/lite";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 

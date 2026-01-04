@@ -1,6 +1,6 @@
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore/lite';
 import { redirect } from 'next/navigation';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase-lite';
 import { seedData } from './seed/actions';
 
 export default async function HomePage() {
@@ -11,7 +11,7 @@ export default async function HomePage() {
   if (projectSnapshot.empty) {
     await seedData();
     // Redirecting to the same page to force a refetch after seeding
-    redirect('/'); 
+    redirect('/');
   }
 
   // Otherwise, if projects exist, redirect to the main projects dashboard.

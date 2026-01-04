@@ -6,6 +6,13 @@
 - **[F-001] การยืนยันตัวตน (User Authentication)**
   - เข้าสู่ระบบ/สมัครสมาชิกผ่าน Firebase Auth
   - การจัดการโปรไฟล์ผู้ใช้
+- **[F-013] ระบบเอกสารสัญญา (Legal Agreements)**
+  - รองรับการแสดงผลและยอมรับสัญญาหลายฉบับในหน้าเดียว
+  - **Reusable Component**: ใช้ `LegalAgreement` ([C-010]) ที่รองรับ Scrollable content และ Checkbox
+  - **Default Agreements**:
+    - Transport Service Agreement
+    - Guarantor Agreement
+  - **Validation**: ต้องยอมรับครบทุกสัญญาถึงจะกด Submit ได้
 
 ### การบริหารจัดการโปรเจกต์ (Project Management)
 - **[F-002] แดชบอร์ดโปรเจกต์ (Project Dashboard)**
@@ -76,11 +83,19 @@
     - **Column Structure**: Separate 'Progress' and 'Due Date' columns for better readability (No combined 'Details' column).
     - **Scrollable**: Fixed height with internal scrolling.
 
-### 4. Deployment Architecture
-- **Platform**: Cloudflare Pages
-- **Runtime**: Edge (via `@cloudflare/next-on-pages`)
-- **Cost Strategy**: Zero Cost (leverage Free Tier for Pages & Workers)
-- **CI/CD**: Automatic deployment via Cloudflare-GitHub Integration.
+### ระบบเสริม (Auxiliary Systems)
+- **[F-011] การจำค่าสถานะ (UI State Persistence)**
+  - **Concept**: Short-term Memory สำหรับ User Experience
+  - **Mechanism**: ใช้ `localStorage` เก็บค่า Filter/Selection
+  - **Scope**:
+    - **Analytics**: Project, Date, Assignee, Status, Priority filters
+    - **Tracking**: Tracking Person, Project, Date selections
+
+- **[F-012] การนำขึ้นระบบ (Deployment)**
+  - **Platform**: Cloudflare Pages
+  - **Runtime**: Edge (via `@cloudflare/next-on-pages`)
+  - **Cost Strategy**: Zero Cost (leverage Free Tier for Pages & Workers)
+  - **CI/CD**: Automatic deployment via Cloudflare-GitHub Integration.
 
 ### 5. Future Scalability
 

@@ -1,7 +1,7 @@
 "use server";
 
-import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, Timestamp, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase-lite";
+import { collection, addDoc, getDocs, Timestamp, doc, updateDoc, deleteDoc } from "firebase/firestore/lite";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Task, Project } from "@/lib/types";
@@ -268,14 +268,17 @@ export async function getAllTasksWithProjectDetails(): Promise<TaskWithProjectDe
       const task = { id: taskDoc.id, ...taskDoc.data() } as Task;
       const project = projectsMap.get(task.projectId);
 
-      if (project) {
-        tasksWithDetails.push({
-          ...task,
-          projectName: project.name,
-          projectIsDarkModeOnly: project.isDarkModeOnly || false,
-        });
-      }
+      // If project not found, still include task but mark as Unknown
+      // This ensures "All Tasks" are shown even if data integrity is imperfect
+      tasksWithDetails.push({
+        ...task,
+        projectName: project ? project.name : "Unknown Project",
+        projectIsDarkModeOnly: project ? (project.isDarkModeOnly || false) : false,
+      });
     });
+
+    console.log(`[getAllTasksWithProjectDetails] Fetched ${tasksSnapshot.size} tasks, ${projectsSnapshot.size} projects. Returning ${tasksWithDetails.length} items.`);
+
     return tasksWithDetails;
   } catch (error) {
     console.error("Error fetching tasks with project details:", error);

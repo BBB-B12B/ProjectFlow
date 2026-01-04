@@ -1,14 +1,15 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, startTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import { useToast } from "@/hooks/use-toast";
-import { createEvent, getAllTasksWithProjectDetails, TaskWithProjectDetails } from './actions';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -29,8 +30,31 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from '@/components/ui/textarea';
 import { MultiSelectAutocomplete } from '@/components/ui/multi-select-autocomplete';
 import { SingleSelectAutocomplete } from '@/components/ui/single-select-autocomplete';
+import { db } from "@/lib/firebase";
+import { collection, addDoc, getDocs, Timestamp } from "firebase/firestore";
+import type { Task, Project } from "@/lib/types";
 
-const initialState = { success: false, message: "", errors: undefined };
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  allDay: boolean;
+  description?: string;
+  members?: string[];
+  location?: string;
+  relatedTask?: {
+    id: string;
+    name: string;
+    projectId: string;
+  };
+  isDarkModeOnly?: boolean;
+}
+
+interface TaskWithProjectDetails extends Task {
+  projectName: string;
+  projectIsDarkModeOnly: boolean;
+}
 
 interface NewEventDialogProps {
   isOpen: boolean;
@@ -47,7 +71,6 @@ export function NewEventDialog({
   members,
   locations,
 }: NewEventDialogProps) {
-  const [state, formAction, isPending] = useActionState(createEvent, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
@@ -55,38 +78,55 @@ export function NewEventDialog({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [tasks, setTasks] = useState<TaskWithProjectDetails[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskWithProjectDetails | null>(null);
-  const [selectedLocation, setSelectedLocation] = useState<string>(""); // State for location
-
-  useEffect(() => {
-    if (state.success) {
-      toast({ title: "Success", description: state.message });
-      router.refresh();
-      onOpenChange(false);
-    } else if (state.message && !state.errors) {
-      toast({ title: "Error", description: state.message, variant: "destructive" });
-    }
-  }, [state, toast, onOpenChange, router]);
+  const [selectedLocation, setSelectedLocation] = useState<string>("");
+  const { theme } = useTheme();
+  const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
     if (!isOpen) {
       formRef.current?.reset();
       setIsDirty(false);
-      setSelectedTask(null); // Reset selected task when dialog closes
-      setSelectedLocation(""); // Reset selected location
+      setSelectedTask(null);
+      setSelectedLocation("");
     }
   }, [isOpen]);
 
+  // Fetch tasks client-side to avoid Edge/SES issues
   useEffect(() => {
     if (isOpen) {
-      const fetchTasks = async () => {
-        const fetchedTasks = await getAllTasksWithProjectDetails();
-        setTasks(fetchedTasks);
-      };
-      fetchTasks();
-    }
-  }, [isOpen]);
+      const fetchTasksAndProjects = async () => {
+        try {
+          const [tasksSnapshot, projectsSnapshot] = await Promise.all([
+            getDocs(collection(db, "tasks")),
+            getDocs(collection(db, "projects"))
+          ]);
 
-  // Formats date to 'YYYY-MM-DD' for date input type in local time
+          const projectsMap = new Map<string, Project>();
+          projectsSnapshot.docs.forEach(doc => {
+            projectsMap.set(doc.id, doc.data() as Project);
+          });
+
+          const tasksWithDetails: TaskWithProjectDetails[] = [];
+          tasksSnapshot.docs.forEach(taskDoc => {
+            const task = { id: taskDoc.id, ...taskDoc.data() } as Task;
+            const project = projectsMap.get(task.projectId);
+
+            tasksWithDetails.push({
+              ...task,
+              projectName: project ? project.name : "Unknown Project",
+              projectIsDarkModeOnly: project ? (project.isDarkModeOnly || false) : false,
+            });
+          });
+          setTasks(tasksWithDetails);
+        } catch (error) {
+          console.error("Error fetching tasks for dropdown:", error);
+          toast({ title: "Error", description: "Failed to load tasks.", variant: "destructive" });
+        }
+      };
+      fetchTasksAndProjects();
+    }
+  }, [isOpen, toast]);
+
   const formatDateToYYYYMMDD = (date: Date | null) => {
     if (!date) return '';
     const d = new Date(date);
@@ -96,7 +136,6 @@ export function NewEventDialog({
     return `${year}-${month}-${day}`;
   };
 
-  // Formats time to 'HH:mm' for time input type in local time
   const formatTimeToHHMM = (date: Date | null) => {
     if (!date) return '';
     const d = new Date(date);
@@ -129,39 +168,67 @@ export function NewEventDialog({
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
+    // Manual Validation & Extraction
+    const title = formData.get("title") as string;
+    const description = formData.get("description") as string;
+    const selectedMembers = formData.get("members") ? (formData.get("members") as string).split(",") : [];
+    const location = formData.get("location") as string;
+    const allDay = formData.get("allDay") === "true";
+
     const startDate = formData.get('startDate') as string;
     const startTime = formData.get('startTime') as string;
     const endDate = formData.get('endDate') as string;
     const endTime = formData.get('endTime') as string;
 
-    // Combine date and time, treating them as local inputs
-    // Then convert to UTC for consistent storage.
+    if (!title || !startDate || !endDate) {
+      toast({ title: "Error", description: "Title and dates are required.", variant: "destructive" });
+      return;
+    }
+
+    // Date construction
+    let start: Date, end: Date;
     if (startDate && startTime) {
-      const startDateTimeLocalString = `${startDate}T${startTime}`;
-      const startDateTimeLocal = new Date(startDateTimeLocalString); // Interpreted in local timezone
-      formData.set('start', startDateTimeLocal.toISOString()); // Convert to UTC ISO string
-    }
-    if (endDate && endTime) {
-      const endDateTimeLocalString = `${endDate}T${endTime}`;
-      const endDateTimeLocal = new Date(endDateTimeLocalString); // Interpreted in local timezone
-      formData.set('end', endDateTimeLocal.toISOString()); // Convert to UTC ISO string
-    }
-
-    if (selectedTask) {
-      formData.set("relatedTaskId", selectedTask.id);
-      formData.set("relatedTaskName", selectedTask.TaskName || "");
-      formData.set("relatedTaskProjectId", selectedTask.projectId);
-      formData.set("isDarkModeOnly", String(selectedTask.projectIsDarkModeOnly));
+      start = new Date(`${startDate}T${startTime}`);
     } else {
-      // Ensure these are explicitly cleared if no task is selected
-      formData.delete("relatedTaskId");
-      formData.delete("relatedTaskName");
-      formData.delete("relatedTaskProjectId");
-      formData.delete("isDarkModeOnly");
+      start = new Date(startDate); // Fallback
     }
 
-    startTransition(() => {
-      formAction(formData);
+    if (endDate && endTime) {
+      end = new Date(`${endDate}T${endTime}`);
+    } else {
+      end = new Date(endDate); // Fallback
+    }
+
+    startTransition(async () => {
+      try {
+        const eventData: any = {
+          title,
+          description,
+          members: selectedMembers,
+          location,
+          allDay,
+          start: Timestamp.fromDate(start),
+          end: Timestamp.fromDate(end),
+        };
+
+        if (selectedTask) {
+          eventData.relatedTask = {
+            id: selectedTask.id,
+            name: selectedTask.TaskName,
+            projectId: selectedTask.projectId,
+          };
+          eventData.isDarkModeOnly = selectedTask.projectIsDarkModeOnly;
+        }
+
+        await addDoc(collection(db, "events"), eventData);
+
+        toast({ title: "Success", description: "Event created successfully." });
+        onOpenChange(false);
+        router.refresh(); // Refresh mainly for other things, but onSnapshot in parent handles the view
+      } catch (error) {
+        console.error("Error creating event:", error);
+        toast({ title: "Error", description: "Failed to create event." + error, variant: "destructive" });
+      }
     });
   };
 
@@ -171,13 +238,15 @@ export function NewEventDialog({
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Create New Event</DialogTitle>
+            <DialogDescription>
+              Fill in the details below to schedule a new event.
+            </DialogDescription>
           </DialogHeader>
           <form ref={formRef} onSubmit={handleSubmit} onChange={handleFormChange} className="space-y-4">
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Event Title</Label>
                 <Input id="title" name="title" required />
-                {state.errors?.title && <p className="text-red-500 text-sm">{state.errors.title[0]}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
@@ -186,10 +255,12 @@ export function NewEventDialog({
               <div className="space-y-2">
                 <Label htmlFor="relatedTask">Related Task (Optional)</Label>
                 <SingleSelectAutocomplete
-                  options={tasks.map(task => ({
-                    value: task.id,
-                    label: `${task.TaskName} (Project: ${task.projectName})` // Show both in dropdown
-                  }))}
+                  options={tasks
+                    .filter(task => theme === 'dark' ? task.projectIsDarkModeOnly : !task.projectIsDarkModeOnly)
+                    .map(task => ({
+                      value: task.id,
+                      label: `${task.TaskName} (Project: ${task.projectName})`
+                    }))}
                   placeholder="Select a related task..."
                   name="relatedTaskId_display"
                   onValueChange={(taskId) => {
@@ -208,14 +279,6 @@ export function NewEventDialog({
                   <div className="text-sm text-muted-foreground mt-1">
                     Project: {selectedTask.projectName}
                   </div>
-                )}
-                {selectedTask && (
-                  <>
-                    <input type="hidden" name="relatedTaskId" value={selectedTask.id} />
-                    <input type="hidden" name="relatedTaskName" value={selectedTask.TaskName || ""} />
-                    <input type="hidden" name="relatedTaskProjectId" value={selectedTask.projectId} />
-                    <input type="hidden" name="isDarkModeOnly" value={String(selectedTask.projectIsDarkModeOnly)} />
-                  </>
                 )}
               </div>
               <div className="space-y-2">
@@ -243,7 +306,6 @@ export function NewEventDialog({
                 <div className="space-y-2">
                   <Label htmlFor="startDate">Start Date</Label>
                   <Input id="startDate" name="startDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
-                  {state.errors?.start && <p className="text-red-500 text-sm">{state.errors.start[0]}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="startTime">Start Time</Label>
@@ -254,7 +316,6 @@ export function NewEventDialog({
                 <div className="space-y-2">
                   <Label htmlFor="endDate">End Date</Label>
                   <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
-                  {state.errors?.end && <p className="text-red-500 text-sm">{state.errors.end[0]}</p>}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="endTime">End Time</Label>

@@ -1,9 +1,11 @@
 import type { Task, Project } from '@/lib/types';
 import { notFound, redirect } from 'next/navigation';
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore/lite';
+import { db } from '@/lib/firebase-lite';
 import { getUniqueAssignees } from './actions';
 import { ProjectDetailsClient } from '@/components/project-details-client';
+
+export const runtime = 'edge';
 
 async function getProject(id: string): Promise<Project | null> {
   const projectDocRef = doc(db, 'projects', id);

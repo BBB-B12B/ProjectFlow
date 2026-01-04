@@ -48,6 +48,10 @@ function SubmitButton() {
   );
 }
 
+import { useTheme } from "next-themes";
+
+// ... (existing imports)
+
 export function NewProjectDialog({
   isOpen,
   onOpenChange,
@@ -57,9 +61,10 @@ export function NewProjectDialog({
 }) {
   const [state, formAction] = useActionState(createProject, initialState);
   const { toast } = useToast();
+  const { resolvedTheme } = useTheme(); // Use resolvedTheme to handle 'system' correctly
   const formRef = useRef<HTMLFormElement>(null);
   const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
-  const [customers, setCustomers] = useState<{ value: string; label: string; }[]>([]);
+  const [allCustomers, setAllCustomers] = useState<{ value: string; label: string; isDarkModeOnly: boolean }[]>([]);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -69,7 +74,7 @@ export function NewProjectDialog({
   useEffect(() => {
     if (isOpen) {
       getTeams().then(setTeams);
-      getCustomers().then(setCustomers);
+      getCustomers().then((data) => setAllCustomers(data as any)); // Type assertion just in case, actions ts update propagated
       const today = new Date().toISOString().split('T')[0];
       setStartDate(today);
       setEndDate(today);
@@ -77,9 +82,20 @@ export function NewProjectDialog({
     }
   }, [isOpen]);
 
+  // Derived state for filtered customers based on theme
+  const customers = allCustomers.filter(c => {
+    // T-075 Logic: Dark = OS (isDarkModeOnly=true), Light = Standard (isDarkModeOnly=false)
+    if (resolvedTheme === 'dark') {
+      return c.isDarkModeOnly === true;
+    } else {
+      // Light (or other) -> Standard
+      return !c.isDarkModeOnly;
+    }
+  });
+
   const refreshCustomers = async () => {
     const updatedCustomers = await getCustomers();
-    setCustomers(updatedCustomers);
+    setAllCustomers(updatedCustomers as any);
   };
 
   const handleStartDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {

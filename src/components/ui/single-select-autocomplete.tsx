@@ -1,17 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { X as RemoveIcon } from "lucide-react";
+import { X as RemoveIcon, Check, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SingleSelectAutocompleteProps {
     options: { value: string; label: string; }[];
     initialValue?: string;
     placeholder?: string;
     name?: string;
-    value?: string; // Controlled prop for the selected value (ID)
-    onValueChange?: (value: string) => void; // Callback for when the value (ID) changes
-    // New prop: A formatter function for how the selected option's label is displayed in the input
+    value?: string;
+    onValueChange?: (value: string) => void;
     displayFormatter?: (option: { value: string; label: string }) => string;
 }
 
@@ -22,167 +21,199 @@ export function SingleSelectAutocomplete({
     name,
     value,
     onValueChange,
-    displayFormatter, // Destructure the new prop
+    displayFormatter,
 }: SingleSelectAutocompleteProps) {
     const [open, setOpen] = React.useState(false);
+    const [inputValue, setInputValue] = React.useState("");
+    // Internal value stores the selected ID
     const [internalValue, setInternalValue] = React.useState(value || initialValue || "");
-    const [inputValue, setInputValue] = React.useState(() => {
-        const initialOption = options.find(opt => opt.value === (value || initialValue));
-        // Use displayFormatter if available, otherwise default to label
-        return initialOption ? (displayFormatter ? displayFormatter(initialOption) : initialOption.label) : (value || initialValue || "");
-    });
-    const [highlightedValue, setHighlightedValue] = React.useState("");
+    const [highlightedIndex, setHighlightedIndex] = React.useState(0);
+    const inputRef = React.useRef<HTMLInputElement>(null);
+    const listRef = React.useRef<HTMLDivElement>(null);
 
+    // Sync state with props
     React.useEffect(() => {
-        const currentSelectedId = value !== undefined ? value : (internalValue || initialValue); // Prioritize controlled value, then internal, then initial
-        const option = options.find(opt => opt.value === currentSelectedId);
+        const currentId = value !== undefined ? value : (internalValue || initialValue);
+        const selectedOption = options.find(opt => opt.value === currentId);
 
-        if (option) {
-            // Use displayFormatter for inputValue if provided
-            setInputValue(displayFormatter ? displayFormatter(option) : option.label);
-            setInternalValue(option.value); // Sync internal value to found option
+        if (selectedOption) {
+            setInputValue(displayFormatter ? displayFormatter(selectedOption) : selectedOption.label);
+            setInternalValue(selectedOption.value);
         } else if ((value === "" || value === null) && value !== undefined) {
-            // Explicit clear from parent
             setInputValue("");
             setInternalValue("");
-        } else if (currentSelectedId && !option) {
-            // Case: We have an ID (initial or value) but options aren't loaded yet OR it's a custom value (legacy name)
-            // If it's a custom value (name), we want to show it. If it's an ID without option, we can't show label yet.
-            // But since we support "create", we usually treat unknown values as the label itself?
-            // Problem: If ID is "123" and option not loaded, showing "123" is bad. 
-            // Better strategy: Wait for options? Or keep showing what we have? 
-            // In EditProjectDialog, we pass (customerId || ownerName).
-            // If it's customerId "123", we don't want to show "123".
-            // If it's ownerName "John", we do want to show "John".
-
-            // Heuristic cleanup: If options are empty, do nothing (wait). 
-            // If options are populated and we still don't find it, maybe treat as label?
-            if (options.length > 0) {
-                // Options loaded but not found. Likely a legacy name or custom value.
-                // Just show it as is.
-                setInputValue(currentSelectedId);
-                setInternalValue(currentSelectedId);
-            }
+        } else if (currentId && !selectedOption && options.length > 0) {
+            // Option not found but we have an ID/Value (e.g. legacy name). Show as is.
+            setInputValue(currentId);
+            setInternalValue(currentId);
         }
-    }, [value, options, displayFormatter, initialValue]); // Add initialValue to dependencies
+    }, [value, options, displayFormatter, initialValue, internalValue]);
 
     const filteredOptions = React.useMemo(() => {
-        if (!inputValue) {
-            return options;
-        }
-        const lowercasedInput = inputValue.toLowerCase();
-        return options.filter(option =>
-            option.label.toLowerCase().includes(lowercasedInput)
-        );
+        if (!inputValue) return options;
+        // If the input matches the currently selected label exactly, show all options (user likely just clicked to open)
+        // BUT only if not actively typing... actually standard behavior is to filter.
+        // Let's filter case-insensitively.
+        const lowerInput = inputValue.toLowerCase();
+        // Check if input matches the *current selected* label. If so, maybe show all?
+        // Simpler: Just filter.
+        return options.filter(opt => opt.label.toLowerCase().includes(lowerInput));
     }, [options, inputValue]);
 
-    const handleSelect = (selectedLabel: string) => {
-        const selectedOption = options.find(opt => opt.label === selectedLabel);
-        if (selectedOption) {
-            setInternalValue(selectedOption.value);
-            // Use displayFormatter for inputValue here too
-            setInputValue(displayFormatter ? displayFormatter(selectedOption) : selectedOption.label);
-            onValueChange?.(selectedOption.value);
-        } else {
-            setInternalValue(selectedLabel);
-            setInputValue(selectedLabel);
-            onValueChange?.(selectedLabel);
+    const showCreateOption = inputValue &&
+        !options.some(opt => opt.label.toLowerCase() === inputValue.toLowerCase()) &&
+        !options.some(opt => opt.value === inputValue); // Check values too just in case
+
+    const allDisplayOptions = React.useMemo(() => {
+        const opts = [...filteredOptions];
+        if (showCreateOption) {
+            opts.push({ value: inputValue, label: inputValue, isCreate: true } as any);
         }
+        return opts;
+    }, [filteredOptions, showCreateOption, inputValue]);
+
+    // Reset highlighted index when options change
+    React.useEffect(() => {
+        setHighlightedIndex(0);
+    }, [allDisplayOptions.length]);
+
+    const handleSelect = (option: { value: string; label: string; isCreate?: boolean }) => {
+        const finalValue = option.isCreate ? option.value : option.value;
+        const finalLabel = option.isCreate ? option.value : (displayFormatter ? displayFormatter(option) : option.label);
+
+        setInternalValue(finalValue);
+        setInputValue(finalLabel);
+        onValueChange?.(finalValue);
         setOpen(false);
-        setHighlightedValue("");
+        setHighlightedIndex(0);
     };
 
-    const handleCreate = (newValue: string) => {
-        setInternalValue(newValue);
-        setInputValue(newValue);
-        onValueChange?.(newValue);
-        setOpen(false);
-        setHighlightedValue("");
-    };
-
-    const handleInputChange = (newInputValue: string) => {
-        setInputValue(newInputValue);
-        const matchedOption = options.find(opt => opt.label === newInputValue);
-        if (!matchedOption && internalValue) {
-            setInternalValue("");
-            onValueChange?.("");
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (!open) {
+            if (e.key === 'ArrowDown' || e.key === 'Enter') {
+                e.preventDefault();
+                setOpen(true);
+                setHighlightedIndex(0);
+            }
+            return;
         }
-        setOpen(true);
-        setHighlightedValue("");
+
+        switch (e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                setHighlightedIndex(prev => (prev + 1) % allDisplayOptions.length);
+                // Scroll into view logic could be added here
+                break;
+            case 'ArrowUp':
+                e.preventDefault();
+                setHighlightedIndex(prev => (prev - 1 + allDisplayOptions.length) % allDisplayOptions.length);
+                break;
+            case 'Enter':
+                e.preventDefault();
+                if (allDisplayOptions[highlightedIndex]) {
+                    handleSelect(allDisplayOptions[highlightedIndex]);
+                }
+                break;
+            case 'Escape':
+                e.preventDefault();
+                setOpen(false);
+                break;
+            case 'Tab':
+                if (allDisplayOptions[highlightedIndex]) {
+                    e.preventDefault();
+                    handleSelect(allDisplayOptions[highlightedIndex]);
+                }
+                break;
+        }
     };
 
-    const handleRemove = () => {
-        setInternalValue("");
-        setInputValue("");
-        onValueChange?.("");
-        setOpen(false);
-    }
+    const handleBlur = (e: React.FocusEvent) => {
+        // Delay hide to allow click
+        setTimeout(() => {
+            if (!inputRef.current?.contains(document.activeElement)) {
+                setOpen(false);
+                // If input value doesn't match selected, revert?
+                // Or leave as create? SingleSelect typically enforces selection or valid create.
+                // We'll leave purely controlled by user action for now.
+            }
+        }, 200);
+    };
 
     return (
-        <Command
-            value={highlightedValue}
-            onValueChange={setHighlightedValue}
-            loop
-            className="overflow-visible"
-        >
+        <div className="relative w-full">
             <input type="hidden" name={name} value={internalValue} />
-            <div className="group w-full rounded-md border border-input text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                <div className="flex items-center gap-1.5 px-3 py-2">
-                    <CommandInput
+            <div className="relative group w-full rounded-md border border-input bg-transparent text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                <div className="flex items-center px-3 py-2">
+                    <input
+                        ref={inputRef}
+                        type="text"
                         value={inputValue}
-                        onValueChange={handleInputChange}
+                        onChange={(e) => {
+                            setInputValue(e.target.value);
+                            setOpen(true);
+                        }}
                         onFocus={() => setOpen(true)}
-                        onBlur={() => setTimeout(() => setOpen(false), 150)}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
                         placeholder={placeholder || "Select or create..."}
-                        className="flex-1 bg-transparent p-0 text-sm placeholder:text-muted-foreground focus:outline-none border-none focus:ring-0"
+                        className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                        autoComplete="off"
                     />
-                    {internalValue && (
+                    {internalValue ? (
                         <button
                             type="button"
-                            aria-label={`Remove ${inputValue}`}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={handleRemove}
-                            className="ml-1 rounded-full p-0.5 outline-none ring-offset-background hover:bg-background focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleSelect({ value: "", label: "" }); // Clear
+                            }}
+                            className="ml-2 text-muted-foreground hover:text-foreground outline-none"
                         >
-                            <RemoveIcon className="h-3 w-3" />
+                            <RemoveIcon className="h-4 w-4" />
                         </button>
+                    ) : (
+                        <ChevronDown className="ml-2 h-4 w-4 opacity-50" />
                     )}
                 </div>
             </div>
-            <div className="relative mt-2">
-                {open && (
-                    <div className="absolute top-0 z-50 w-full rounded-md border bg-popover text-popover-foreground shadow-md outline-none animate-in">
-                        <CommandList>
-                            <CommandGroup className="max-h-64 overflow-auto">
-                                {filteredOptions.map((option, index) => (
-                                    <CommandItem
-                                        key={`${option.value}-${index}`}
-                                        value={option.label}
-                                        onSelect={handleSelect}
-                                    >
-                                        {option.label}
-                                    </CommandItem>
-                                ))}
-                                {inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
-                                    <CommandItem
-                                        key="create-new-option"
-                                        value={inputValue}
-                                        onSelect={handleCreate}
-                                    >
-                                        Create "{inputValue}"
-                                    </CommandItem>
-                                )}
-                                {filteredOptions.length === 0 && !inputValue && (
-                                    <CommandItem key="no-options-available" disabled>No options available.</CommandItem>
-                                )}
-                                {filteredOptions.length === 0 && inputValue && !options.some(o => o.label.toLowerCase() === inputValue.toLowerCase()) && (
-                                    <CommandItem key="no-results-found" disabled>No results for "{inputValue}"</CommandItem>
-                                )}
-                            </CommandGroup>
-                        </CommandList>
+
+            {open && allDisplayOptions.length > 0 && (
+                <div className="absolute top-full mt-1 z-50 w-full rounded-md border bg-popover text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95">
+                    <div ref={listRef} className="max-h-60 overflow-y-auto p-1">
+                        {allDisplayOptions.map((option, index) => {
+                            const isSelected = option.value === internalValue;
+                            const isHighlighted = index === highlightedIndex;
+                            const isCreate = (option as any).isCreate;
+
+                            return (
+                                <div
+                                    key={`${option.value}-${index}`}
+                                    className={cn(
+                                        "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
+                                        isHighlighted ? "bg-accent text-accent-foreground" : "text-popover-foreground",
+                                        isSelected && "bg-accent/50"
+                                    )}
+                                    onClick={() => handleSelect(option as any)}
+                                    onMouseEnter={() => setHighlightedIndex(index)}
+                                >
+                                    {isCreate ? (
+                                        <span className="font-medium text-blue-500">Create "{option.label}"</span>
+                                    ) : (
+                                        <span>{option.label}</span>
+                                    )}
+                                    {isSelected && !isCreate && (
+                                        <Check className="ml-auto h-4 w-4" />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                )}
-            </div>
-        </Command>
+                </div>
+            )}
+            {open && allDisplayOptions.length === 0 && (
+                <div className="absolute top-full mt-1 z-50 w-full rounded-md border bg-popover text-popover-foreground shadow-md p-2 text-sm text-muted-foreground">
+                    No results found.
+                </div>
+            )}
+        </div>
     );
 }

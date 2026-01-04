@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
@@ -228,6 +229,9 @@ export function EditEventDialog({
         <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Event</DialogTitle>
+            <DialogDescription>
+              Make changes to your event details here.
+            </DialogDescription>
           </DialogHeader>
           <form ref={formRef} onSubmit={handleSubmit} onChange={handleFormChange}>
             <input type="hidden" name="id" value={event.id} />

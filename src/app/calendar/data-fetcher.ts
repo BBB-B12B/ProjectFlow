@@ -1,5 +1,5 @@
-import { db, auth } from "@/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase-lite";
+import { collection, getDocs } from "firebase/firestore/lite";
 import type { Task, Customer } from "@/lib/types";
 
 // Define a structured Member type for UI consumption
@@ -11,11 +11,7 @@ export interface CalendarMember {
 
 export async function fetchMembersAndLocations() {
     try {
-        console.log("Fetching members/locations. Current User:", auth.currentUser?.uid);
-
-        if (!auth.currentUser) {
-            console.warn("User is not authenticated. Fetching might fail due to security rules.");
-        }
+        console.log("Fetching members/locations.");
 
         const [taskSnapshot, eventSnapshot, customerSnapshot] = await Promise.all([
             getDocs(collection(db, "tasks")).catch(e => {

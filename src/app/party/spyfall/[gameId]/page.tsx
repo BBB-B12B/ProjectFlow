@@ -24,6 +24,8 @@ import { requestVote, tallyVotes, requestEndGameVote, castEndGameVote, endSpyfal
 import VoteDialog from '../vote-dialog';
 import GameEndDialog from '../game-end-dialog';
 
+export const runtime = 'edge';
+
 // Define interfaces
 interface Player {
   id: string;
@@ -41,7 +43,7 @@ interface GameState {
   spyId: string;
   status: 'in-progress' | 'voting' | 'finished' | 'spy-guessing'; // Added 'spy-guessing'
   timerEndsAt: Timestamp;
-  allLocations: string[]; 
+  allLocations: string[];
   vote?: {
     requesters: string[];
     votes: { [voterId: string]: string };
@@ -127,15 +129,15 @@ export default function SpyfallGamePage() {
     const savedUser = localStorage.getItem('spyfallUser');
     console.log("LoadUserEffect: savedUser from localStorage:", savedUser); // New debug log
     if (savedUser) {
-        const parsedUser: Player = JSON.parse(savedUser);
-        setCurrentUser(parsedUser);
-        console.log("LoadUserEffect: parsedUser:", parsedUser); // New debug log
-        console.log("currentUser loaded from localStorage:", parsedUser.name);
+      const parsedUser: Player = JSON.parse(savedUser);
+      setCurrentUser(parsedUser);
+      console.log("LoadUserEffect: parsedUser:", parsedUser); // New debug log
+      console.log("currentUser loaded from localStorage:", parsedUser.name);
     } else {
-        console.error("No spyfallUser found in localStorage. Redirecting.");
-        toast({ title: "Error", description: "You are not logged in. Redirecting to lobby.", variant: "destructive" });
-        setHasRedirected(true);
-        router.replace('/party/spyfall');
+      console.error("No spyfallUser found in localStorage. Redirecting.");
+      toast({ title: "Error", description: "You are not logged in. Redirecting to lobby.", variant: "destructive" });
+      setHasRedirected(true);
+      router.replace('/party/spyfall');
     }
   }, [toast, router, hasRedirected]); // Depend on hasRedirected to re-evaluate if needed
 
@@ -146,16 +148,16 @@ export default function SpyfallGamePage() {
     if (hasRedirected) return; // Important: Stop if redirect already set
 
     if (!gameId) {
-        console.error("gameId is missing. Setting isLoading(false) and redirecting.");
-        setIsLoading(false);
-        toast({ title: "Error", description: "Invalid game ID. Redirecting to lobby.", variant: "destructive" });
-        setHasRedirected(true);
-        router.replace('/party/spyfall');
-        return;
+      console.error("gameId is missing. Setting isLoading(false) and redirecting.");
+      setIsLoading(false);
+      toast({ title: "Error", description: "Invalid game ID. Redirecting to lobby.", variant: "destructive" });
+      setHasRedirected(true);
+      router.replace('/party/spyfall');
+      return;
     }
     if (!currentUser) {
-        console.log("currentUser is null, waiting for it to load.");
-        return; // Wait for currentUser to be loaded by the other effect
+      console.log("currentUser is null, waiting for it to load.");
+      return; // Wait for currentUser to be loaded by the other effect
     }
 
     const gameRef = doc(db, 'spyfall_games', gameId);
@@ -185,21 +187,21 @@ export default function SpyfallGamePage() {
         console.log("GameStateListener: userAssignment result:", assignment); // New debug log
 
         if (!assignment) {
-            console.error("onSnapshot: User not found in game players. Redirecting.");
-            toast({ title: "Error", description: "You are not a player in this game. Redirecting to lobby.", variant: "destructive" });
-            setHasRedirected(true);
-            router.replace('/party/spyfall');
-            return;
+          console.error("onSnapshot: User not found in game players. Redirecting.");
+          toast({ title: "Error", description: "You are not a player in this game. Redirecting to lobby.", variant: "destructive" });
+          setHasRedirected(true);
+          router.replace('/party/spyfall');
+          return;
         }
         console.log("onSnapshot: User assignment found:", assignment);
         console.log("onSnapshot: Setting isLoading to false (game data and assignment ready).");
         setIsLoading(false);
       } else {
         console.warn("onSnapshot: Game not found in Firestore. Waiting for 2 seconds before redirecting.");
-        
-        if (!redirectTimeoutRef.current) { 
+
+        if (!redirectTimeoutRef.current) {
           redirectTimeoutRef.current = setTimeout(() => {
-            if (!hasRedirected) { 
+            if (!hasRedirected) {
               console.error("onSnapshot: Game data still not found after delay. Redirecting.");
               toast({ title: "Error", description: "Game not found. Redirecting to lobby.", variant: "destructive" });
               setHasRedirected(true);
@@ -209,25 +211,25 @@ export default function SpyfallGamePage() {
         }
       }
     }, (error) => {
-        console.error("onSnapshot: Error fetching game state from Firestore:", error);
-        toast({ title: "Error", description: "Failed to load game. Redirecting to lobby.", variant: "destructive" });
-        setIsLoading(false);
-        setHasRedirected(true);
-        router.replace('/party/spyfall');
+      console.error("onSnapshot: Error fetching game state from Firestore:", error);
+      toast({ title: "Error", description: "Failed to load game. Redirecting to lobby.", variant: "destructive" });
+      setIsLoading(false);
+      setHasRedirected(true);
+      router.replace('/party/spyfall');
     });
-    
+
     unsubscribeRef.current = unsubscribe; // Store the unsubscribe function
 
     return () => {
-        console.log("Cleaning up onSnapshot for gameRef:", gameId);
-        if (redirectTimeoutRef.current) {
-          clearTimeout(redirectTimeoutRef.current);
-          redirectTimeoutRef.current = null;
-        }
-        if (unsubscribeRef.current) {
-          unsubscribeRef.current(); // Unsubscribe when component unmounts or dependencies change
-          unsubscribeRef.current = null; // Clear the ref
-        }
+      console.log("Cleaning up onSnapshot for gameRef:", gameId);
+      if (redirectTimeoutRef.current) {
+        clearTimeout(redirectTimeoutRef.current);
+        redirectTimeoutRef.current = null;
+      }
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current(); // Unsubscribe when component unmounts or dependencies change
+        unsubscribeRef.current = null; // Clear the ref
+      }
     };
   }, [gameId, currentUser, toast, router, hasRedirected, isLoading]); // Depend on hasRedirected, isLoading
 
@@ -246,7 +248,7 @@ export default function SpyfallGamePage() {
     if (gameState?.status === 'voting' && gameState.vote?.timerEndsAt) {
       const voteEndTime = gameState.vote.timerEndsAt.toMillis();
       const now = Date.now();
-      
+
       if (now > voteEndTime) {
         if (currentUser?.id === gameState.players[0].playerId) {
           console.log("Vote timer ended, tallying votes.");
@@ -263,20 +265,20 @@ export default function SpyfallGamePage() {
       }
     }
   }, [gameState, currentUser, gameId]);
-  
+
   const handleRequestVote = async () => {
-      if (!currentUser) {
-        console.warn("handleRequestVote called with no currentUser.");
-        return;
-      }
-      const result = await requestVote(gameId, currentUser.id);
-      if (result.success) {
-          toast({ title: "Vote Requested!", icon: <ShieldCheck className="h-5 w-5 text-green-500" /> });
-          console.log("Vote requested successfully.");
-      } else {
-          toast({ title: "Error", description: result.message, variant: 'destructive' });
-          console.error("Failed to request vote:", result.message);
-      }
+    if (!currentUser) {
+      console.warn("handleRequestVote called with no currentUser.");
+      return;
+    }
+    const result = await requestVote(gameId, currentUser.id);
+    if (result.success) {
+      toast({ title: "Vote Requested!", icon: <ShieldCheck className="h-5 w-5 text-green-500" /> });
+      console.log("Vote requested successfully.");
+    } else {
+      toast({ title: "Error", description: result.message, variant: 'destructive' });
+      console.error("Failed to request vote:", result.message);
+    }
   }
 
   const handleRequestEndGameVote = async () => {
@@ -357,7 +359,7 @@ export default function SpyfallGamePage() {
       </div>
     );
   }
-  
+
   console.log("All data loaded. Displaying game page.");
   return (
     <TooltipProvider>
@@ -372,22 +374,22 @@ export default function SpyfallGamePage() {
             <CardHeader><CardTitle className="flex items-center gap-2"><Users /> Players</CardTitle></CardHeader>
             <CardContent>
               <ul className="space-y-3">
-                  {gameState.players.map(p => (
-                      <li key={p.playerId} className="flex items-center gap-3">
-                          <User className="text-muted-foreground" /> 
-                          <span className="font-medium">{p.name}</span>
-                          {voteRequesters.includes(p.playerId) && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Vote className="text-blue-500 ml-auto" />
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                <p>{p.name} wants to vote</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          )}
-                      </li>
-                  ))}
+                {gameState.players.map(p => (
+                  <li key={p.playerId} className="flex items-center gap-3">
+                    <User className="text-muted-foreground" />
+                    <span className="font-medium">{p.name}</span>
+                    {voteRequesters.includes(p.playerId) && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Vote className="text-blue-500 ml-auto" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{p.name} wants to vote</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </li>
+                ))}
               </ul>
               {voteRequesters.length > 0 && <div className="text-center text-sm text-muted-foreground mt-4 pt-4 border-t">({voteRequesters.length}/{requiredVotes}) players have requested to vote.</div>}
             </CardContent>
@@ -429,14 +431,14 @@ export default function SpyfallGamePage() {
               )}
             </CardContent>
             <CardFooter className="flex flex-col gap-4 pt-6">
-              <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" className="w-full"><HelpCircle className="mr-2 h-4 w-4"/> {isSpy ? "All Possible Locations" : "Game Rules"}</Button></AlertDialogTrigger>
+              <AlertDialog><AlertDialogTrigger asChild><Button variant="outline" className="w-full"><HelpCircle className="mr-2 h-4 w-4" /> {isSpy ? "All Possible Locations" : "Game Rules"}</Button></AlertDialogTrigger>
                 <AlertDialogContent>
-                    <AlertDialogHeader><AlertDialogTitle>{isSpy ? "Possible Locations" : "How to Play"}</AlertDialogTitle></AlertDialogHeader>
-                    <AlertDialogDescription>
-                        {isSpy ? (<ul className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm max-h-60 overflow-y-auto">{gameState.allLocations.map(loc => <li key={loc}>{loc}</li>)}</ul>) 
-                        : (<div><p><strong>Goal:</strong> Find the Spy! Ask subtle questions to find who doesn't know the location. The Spy wins if they guess the location or if the players vote out an innocent person.</p></div>)}
-                    </AlertDialogDescription>
-                    <AlertDialogFooter><AlertDialogAction>Got it!</AlertDialogAction></AlertDialogFooter>
+                  <AlertDialogHeader><AlertDialogTitle>{isSpy ? "Possible Locations" : "How to Play"}</AlertDialogTitle></AlertDialogHeader>
+                  <AlertDialogDescription>
+                    {isSpy ? (<ul className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 text-sm max-h-60 overflow-y-auto">{gameState.allLocations.map(loc => <li key={loc}>{loc}</li>)}</ul>)
+                      : (<div><p><strong>Goal:</strong> Find the Spy! Ask subtle questions to find who doesn't know the location. The Spy wins if they guess the location or if the players vote out an innocent person.</p></div>)}
+                  </AlertDialogDescription>
+                  <AlertDialogFooter><AlertDialogAction>Got it!</AlertDialogAction></AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
               {gameState.status === 'in-progress' && ( // Only show regular vote button if game is in progress
@@ -448,7 +450,7 @@ export default function SpyfallGamePage() {
               {/* New End Game Buttons */}
               {gameState.status === 'in-progress' && currentUser && ( // Only show if game is in progress and user is present
                 !isEndGameVoteActive ? ( // If no end game vote is active
-                  <Button className="w-full" size="lg" variant="outline" onClick={handleRequestEndGameVote} disabled={hasRequestedEndGame}> 
+                  <Button className="w-full" size="lg" variant="outline" onClick={handleRequestEndGameVote} disabled={hasRequestedEndGame}>
                     <DoorOpen className="mr-2 h-4 w-4" /> {hasRequestedEndGame ? "End Game Vote Proposed" : "Propose End Game"}
                   </Button>
                 ) : ( // If an end game vote is active
@@ -464,7 +466,7 @@ export default function SpyfallGamePage() {
           </Card>
         </div>
       </div>
-      
+
       {gameState.status === 'voting' && gameState.vote && gameState.vote.status === 'active' &&
         <VoteDialog open={true} gameId={gameId} currentUser={{ playerId: currentUser.id, name: currentUser.name }} players={gameState.players} voteState={gameState.vote} />
       }

@@ -12,6 +12,8 @@ import type { CalendarEvent } from '@/app/calendar/actions';
 import { Button } from '@/components/ui/button';
 import { PlusCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 import { collection, onSnapshot, query, where, orderBy, limit } from 'firebase/firestore';
 import type { Presence, Editor } from '@/lib/types';
 import {
@@ -86,7 +88,7 @@ interface CalendarClientPageProps {
 
 export default function CalendarClientPage({ initialEvents, members, locations }: CalendarClientPageProps) {
   const [currentRange, setCurrentRange] = useState<{ start: Date; end: Date }>({
-    start: startOfWeek(new Date()),
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Start of current month
     end: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0) // End of current month
   });
 
@@ -145,6 +147,8 @@ export default function CalendarClientPage({ initialEvents, members, locations }
   };
 
   useEffect(() => {
+    if (!db) return; // Skip if db is missing
+
     // Optimized Query: Fetch only events in current range
     const q = query(
       collection(db, 'events'),
@@ -229,47 +233,61 @@ export default function CalendarClientPage({ initialEvents, members, locations }
 
   return (
     <div className="h-[calc(100vh-100px)]">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
-          <p className="text-muted-foreground">
-            Manage your events and schedule.
-          </p>
+      {!db ? (
+        <div className="p-8 flex flex-col items-center justify-center h-full">
+          <Alert variant="destructive" className="max-w-md">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Configuration Error</AlertTitle>
+            <AlertDescription>
+              Cannot connect to the database. This usually means environment variables (API Keys) are missing in the deployment.
+            </AlertDescription>
+          </Alert>
         </div>
-        <Button onClick={handleOpenDialog}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Event
-        </Button>
-      </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Calendar</h1>
+              <p className="text-muted-foreground">
+                Manage your events and schedule.
+              </p>
+            </div>
+            <Button onClick={handleOpenDialog}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              New Event
+            </Button>
+          </div>
 
-      <BigCalendar
-        localizer={localizer}
-        events={filteredEvents}
-        startAccessor="start"
-        endAccessor="end"
-        style={{ height: '100%' }}
-        selectable
-        onSelectSlot={handleSelectSlot}
-        onSelectEvent={handleSelectEvent}
-        onRangeChange={handleRangeChange}
-        components={components}
-      />
+          <BigCalendar
+            localizer={localizer}
+            events={filteredEvents}
+            startAccessor="start"
+            endAccessor="end"
+            style={{ height: '100%' }}
+            selectable
+            onSelectSlot={handleSelectSlot}
+            onSelectEvent={handleSelectEvent}
+            onRangeChange={handleRangeChange}
+            components={components}
+          />
 
-      <NewEventDialog
-        isOpen={isNewEventDialogOpen}
-        onOpenChange={setIsNewEventDialogOpen}
-        defaultDate={selectedDate}
-        members={filteredMemberNames}
-        locations={localLocations}
-      />
+          <NewEventDialog
+            isOpen={isNewEventDialogOpen}
+            onOpenChange={setIsNewEventDialogOpen}
+            defaultDate={selectedDate}
+            members={filteredMemberNames}
+            locations={localLocations}
+          />
 
-      <EditEventDialog
-        isOpen={isEditDialogOpen}
-        onOpenChange={setIsEditDialogOpen}
-        event={selectedEvent}
-        members={filteredMemberNames}
-        locations={localLocations}
-      />
+          <EditEventDialog
+            isOpen={isEditDialogOpen}
+            onOpenChange={setIsEditDialogOpen}
+            event={selectedEvent}
+            members={filteredMemberNames}
+            locations={localLocations}
+          />
+        </>
+      )}
     </div>
   );
 }

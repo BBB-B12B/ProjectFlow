@@ -1,35 +1,11 @@
 // /home/user/studio/src/app/analytics/page.tsx
 import React from 'react';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore/lite';
+import { db } from '@/lib/firebase-lite';
+import { Project, Task } from '@/lib/types';
+import AnalyticsClient from './analytics-client';
 
-// Type definitions
-interface Task {
-  id: string;
-  TaskName: string;
-  Status: string;
-  Progress: number;
-  Assignee: string;
-  ProjectType: string;
-  projectId: string;
-  StartDate: string;
-  EndDate: string;
-  Effort: number;
-  Effect: number;
-  title?: string;
-  effort?: number;
-  effect?: number;
-  priority?: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  status?: string;
-  team?: string;
-  isDarkModeOnly?: boolean; // Add this field
-}
+export const runtime = 'edge'; // Ensure Edge compatibility
 
 // ฟังก์ชันดึงข้อมูล Task จาก Firebase
 async function getTasks(): Promise<Task[]> {
@@ -41,7 +17,7 @@ async function getTasks(): Promise<Task[]> {
       return {
         id: doc.id,
         TaskName: data.TaskName || '',
-        Status: data.Status || '',
+        Status: (data.Status || 'ยังไม่เริ่ม') as Task['Status'], // Cast to strict Enum
         Progress: data.Progress || 0,
         Assignee: data.Assignee || '',
         ProjectType: data.ProjectType || '',
@@ -77,6 +53,11 @@ async function getProjects(): Promise<Project[]> {
         status: data.status || '',
         team: data.team || '',
         isDarkModeOnly: data.isDarkModeOnly ?? false, // Fetch isDarkModeOnly, default to false
+        // Add missing required fields for Project type
+        startDate: data.StartDate || '',
+        endDate: data.EndDate || '',
+        totalTasks: 0, // Default for analytics view if not computed here
+        completedTasks: 0,
       } as Project;
     });
     return projectList;
@@ -85,9 +66,6 @@ async function getProjects(): Promise<Project[]> {
     return [];
   }
 }
-
-// Client Component to handle theme-based filtering
-import AnalyticsClient from './analytics-client';
 
 // Main Analytics Page Component (Server Component)
 export default async function AnalyticsPage() {
@@ -99,14 +77,6 @@ export default async function AnalyticsPage() {
 
   // Log for debugging
   console.log('Projects loaded:', projects.length);
-  console.log('Sample projects with isDarkModeOnly:', projects.slice(0, 3).map(p => ({ 
-    name: p.name, 
-    isDarkModeOnly: p.isDarkModeOnly 
-  })));
-  console.log('Sample tasks with projectId:', tasks.slice(0, 3).map(t => ({ 
-    TaskName: t.TaskName, 
-    projectId: t.projectId 
-  })));
 
   return (
     // AnalyticsClient will handle the div with min-h-screen bg-gray-50 p-6 and its children

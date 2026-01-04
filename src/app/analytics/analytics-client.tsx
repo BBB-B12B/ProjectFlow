@@ -203,14 +203,28 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
     })
   }, [logs, filters.projectId, filters.assignee])
 
+  // Robust Project Lookup Map (Case-Insensitive)
+  const projectLookupMap = useMemo(() => {
+    const map = new Map<string, string>()
+    initialProjects.forEach(p => {
+      map.set(p.id, p.name)
+      map.set(p.id.toLowerCase(), p.name) // Fallback for case mismatch
+    })
+    return map
+  }, [initialProjects])
+
   const projectRankingData = useMemo(() => {
     const map = new Map<string, number>()
     filteredLogs.forEach(l => map.set(l.projectId, (map.get(l.projectId) || 0) + l.hoursWorked))
     return Array.from(map.entries())
-      .map(([pid, h]) => ({ id: pid, name: initialProjects.find(p => p.id === pid)?.name || pid, hours: h }))
+      .map(([pid, h]) => {
+        // Try strict match, then lowercase, then return ID
+        const name = projectLookupMap.get(pid) || projectLookupMap.get(pid.toLowerCase()) || pid
+        return { id: pid, name, hours: h }
+      })
       .sort((a, b) => b.hours - a.hours)
       .slice(0, 10)
-  }, [filteredLogs, initialProjects])
+  }, [filteredLogs, projectLookupMap])
 
   const employeeRankingData = useMemo(() => {
     const map = new Map<string, number>()
@@ -242,17 +256,19 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
     const hoursMap = new Map<string, number>()
     filteredLogs.forEach(l => hoursMap.set(l.taskId, (hoursMap.get(l.taskId) || 0) + l.hoursWorked))
 
-    return filteredTasks.map(t => ({
-      ...t,
-      // If filtering by Assignee, show only that name in the table to avoid confusion
-      Assignee: filters.assignee ? filters.assignee : t.Assignee,
-      projectName: initialProjects.find(p => p.id === t.projectId)?.name || "Unknown",
-      totalHours: hoursMap.get(t.id) || 0
-    })).sort((a, b) => b.totalHours - a.totalHours) as any // Casting to avoid strict literal type check on Status
-  }, [filteredTasks, filteredLogs, initialProjects, filters.assignee])
+    return filteredTasks.map(t => {
+      const pName = t.projectId ? (projectLookupMap.get(t.projectId) || projectLookupMap.get(t.projectId.toLowerCase()) || "Unknown") : "Unknown"
+      return {
+        ...t,
+        Assignee: filters.assignee ? filters.assignee : t.Assignee,
+        projectName: pName,
+        totalHours: hoursMap.get(t.id) || 0
+      }
+    }).sort((a, b) => b.totalHours - a.totalHours) as any
+  }, [filteredTasks, filteredLogs, projectLookupMap, filters.assignee])
 
   const totalHours = useMemo(() => filteredLogs.reduce((acc, l) => acc + l.hoursWorked, 0), [filteredLogs])
-  const projectNamesMap = new Map(filteredProjects.map(p => [p.id, p.name]))
+  const projectNamesMap = projectLookupMap // Alias specifically if needed elsewhere, but mainly replaced usage above
 
   const handleTaskClick = useCallback((task: Task) => {
     setSelectedTask(task);
@@ -311,7 +327,7 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
         </div>
 
         {/* Global Filters (Active) w/ Manual Slicers */}
-        <Card className="bg-white/50 dark:bg-gray-800/50 backdrop-blur border-0 shadow-sm mb-6 relative z-50 overflow-visible">
+        <Card className="sticky top-20 z-40 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border shadow-sm mb-6 overflow-visible transition-all duration-300">
           <CardContent className="p-4">
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center gap-4">
@@ -457,7 +473,7 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <ProjectProgressChart
                 tasks={filteredTasks}
-                projectNamesMap={projectNamesMap}
+                projectNamesMap={projectLookupMap}
                 selectedProjectId={filters.projectId}
                 setSelectedProjectId={handleProjectFilter}
                 isHighlighted={activeFilterSource === 'progress-chart'}
@@ -481,7 +497,7 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
             <div className="grid grid-cols-1">
               <FilteredTasksTable
                 tasks={filteredTasks}
-                projectNamesMap={projectNamesMap}
+                projectNamesMap={projectLookupMap}
                 filters={filters}
                 onTaskClick={handleTaskClick}
               />

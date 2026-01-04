@@ -1,8 +1,10 @@
 import type { Project, Task } from '@/lib/types';
-import { collection, getDocs } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore/lite';
+import { db } from '@/lib/firebase-lite';
 import { ProjectsClientPage } from './projects-client-page';
 import { redirect } from 'next/navigation';
+
+export const runtime = 'edge';
 
 async function getProjects(): Promise<Project[]> {
     try {
@@ -30,7 +32,6 @@ async function getProjects(): Promise<Project[]> {
                     status: data.status || 'กำลังดำเนินการ',
                     team: data.team,
                     completedTasks,
-                    totalTasks,
                     totalTasks,
                     isDarkModeOnly: data.isDarkModeOnly || false,
                     customerId: data.customerId,
