@@ -182,7 +182,14 @@ export default function CustomerListClient() {
                 <AddCustomerDialog
                     isOpen={isAddOpen}
                     onOpenChange={setIsAddOpen}
-                    onSuccess={() => fetchCustomers(true)}
+                    onSuccess={() => {
+                        // Refresh cache immediately
+                        refreshCache();
+                        // If searching, trigger re-search
+                        if (searchTerm) {
+                            fetchCustomers(true);
+                        }
+                    }}
                 />
             </div>
 

@@ -11,11 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { CustomerFormDialog } from '@/components/customer-form-dialog';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mail, Phone, Building, MapPin, Calendar, Activity, Star, ChevronLeft, Pencil } from 'lucide-react';
+import { Mail, Phone, Building, MapPin, Calendar, Activity, Star, ChevronLeft, Pencil, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from '@/hooks/use-toast';
@@ -45,8 +46,13 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
 
     // Edit State
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
-    const [editForm, setEditForm] = useState<Partial<Customer>>({});
+    // isSubmittingEdit is managed by CustomerFormDialog internal state (mostly), but we can't see it from outside easily? 
+    // Actually the dialog prop `onSubmit` is async so dialog handles the loading state. 
+    // But we might want to manually close logic.
+    // The previous logic used `isSubmittingEdit` for the button loading state.
+    // CustomerFormDialog has its own loading state.
+    // We don't need `editForm` anymore.
+
 
     // When the rate dialog opens, pre-fill with the latest rating if available
     useEffect(() => {
@@ -71,7 +77,7 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                 if (docSnap.exists()) {
                     const data = { id: docSnap.id, ...docSnap.data() } as Customer;
                     setCustomer(data);
-                    setEditForm(data);
+                    // setEditForm(data); // Removed
                     // Fix: Sync ratings when customer data arrives
                     setRatings((data as any).ratings || []);
                 } else {
@@ -109,15 +115,17 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
         fetchCustomerData();
     }, [id]);
 
-    const handleUpdateCustomer = async () => {
+    const handleUpdateCustomer = async (formData: Partial<Customer>) => {
         if (!customer?.id) return;
-        setIsSubmittingEdit(true);
         try {
             await updateDoc(doc(db, 'customers', customer.id), {
-                ...editForm,
+                ...formData,
                 updatedAt: new Date().toISOString()
             });
-            setIsEditOpen(false);
+            // setIsEditOpen(false); // Dialog handles closing on submit? No, we closed it manually before? 
+            // In shared component: "await onSubmit(formData); onOpenChange(false);" -> It closes itself.
+            // But we should verify if we need to do anything else.
+
             toast({
                 title: "Success",
                 description: "Customer profile updated.",
@@ -129,8 +137,7 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                 description: "Failed to update profile. Check permissions.",
                 variant: "destructive",
             });
-        } finally {
-            setIsSubmittingEdit(false);
+            throw error; // Re-throw so dialog stays open/handles error state if it catches it
         }
     };
 
@@ -288,73 +295,17 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                         </DialogContent>
                     </Dialog>
 
-                    <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Pencil className="mr-2 h-4 w-4" /> Edit Profile
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-[425px]">
-                            <DialogHeader>
-                                <DialogTitle>Edit Customer Profile</DialogTitle>
-                                <DialogDescription>
-                                    Update customer details below.
-                                </DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-name" className="text-right">Name</Label>
-                                    <Input id="edit-name" value={editForm.name || ''} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="col-span-3" />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-company" className="text-right">Company</Label>
-                                    <Input id="edit-company" value={editForm.company || ''} onChange={(e) => setEditForm({ ...editForm, company: e.target.value })} className="col-span-3" />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-email" className="text-right">Email</Label>
-                                    <Input id="edit-email" type="email" value={editForm.email || ''} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="col-span-3" />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-phone" className="text-right">Phone</Label>
-                                    <Input id="edit-phone" value={editForm.phone || ''} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className="col-span-3" />
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-status" className="text-right">Status</Label>
-                                    <div className="col-span-3">
-                                        {/* Simple Select using default select for now or reuse Shadcn Select if imported */}
-                                        <select
-                                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                                            value={editForm.status || 'Lead'}
-                                            onChange={(e) => setEditForm({ ...editForm, status: e.target.value as any })}
-                                        >
-                                            <option value="Lead">Lead</option>
-                                            <option value="Active">Active</option>
-                                            <option value="Churn">Churn</option>
-                                            <option value="Inactive">Inactive</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="edit-os-customer" className="text-right">OS Customer</Label>
-                                    <div className="col-span-3 flex items-center space-x-2">
-                                        <Switch
-                                            id="edit-os-customer"
-                                            checked={editForm.isDarkModeOnly || false}
-                                            onCheckedChange={(checked) => setEditForm({ ...editForm, isDarkModeOnly: checked })}
-                                        />
-                                        <Label htmlFor="edit-os-customer" className="font-normal text-muted-foreground">
-                                            (Visible in Dark Mode only)
-                                        </Label>
-                                    </div>
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <LoadingButton onClick={handleUpdateCustomer} loading={isSubmittingEdit}>
-                                    Save Changes
-                                </LoadingButton>
-                            </DialogFooter>
-                        </DialogContent>
-                    </Dialog>
+                    <Button onClick={() => setIsEditOpen(true)}>
+                        <Pencil className="mr-2 h-4 w-4" /> Edit Profile
+                    </Button>
+
+                    <CustomerFormDialog
+                        isOpen={isEditOpen}
+                        onOpenChange={setIsEditOpen}
+                        mode="edit"
+                        initialData={customer || undefined}
+                        onSubmit={handleUpdateCustomer}
+                    />
                 </div>
             </div>
 
@@ -430,8 +381,57 @@ export default function CustomerDetailClient({ params }: CustomerDetailClientPro
                             </div>
                             <div className="flex items-center gap-3">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm">Last Contact: {customer.lastContactDate ? new Date(customer.lastContactDate).toLocaleDateString() : 'Never'}</span>
+                                <span suppressHydrationWarning className="text-sm">Last Contact: {customer.lastContactDate ? new Date(customer.lastContactDate).toLocaleDateString() : 'Never'}</span>
                             </div>
+
+                            {/* Social Media Section */}
+                            {(customer.lineId || customer.facebookName || customer.whatsappNumber) && (
+                                <div className="border-t pt-4 mt-4 space-y-3">
+                                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Social Media</h4>
+
+                                    {/* Line */}
+                                    {customer.lineId && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-4 w-4 flex items-center justify-center font-bold text-[10px] bg-green-500 text-white rounded-sm">L</div>
+                                            {customer.lineLink ? (
+                                                <a href={customer.lineLink} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline text-primary flex items-center gap-1">
+                                                    {customer.lineId} <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-sm">{customer.lineId}</span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Facebook */}
+                                    {customer.facebookName && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-4 w-4 flex items-center justify-center font-bold text-[10px] bg-blue-600 text-white rounded-sm">F</div>
+                                            {customer.facebookLink ? (
+                                                <a href={customer.facebookLink} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline text-primary flex items-center gap-1">
+                                                    {customer.facebookName} <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-sm">{customer.facebookName}</span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* WhatsApp */}
+                                    {customer.whatsappNumber && (
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-4 w-4 flex items-center justify-center font-bold text-[10px] bg-green-600 text-white rounded-sm">W</div>
+                                            {customer.whatsappLink ? (
+                                                <a href={customer.whatsappLink} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline text-primary flex items-center gap-1">
+                                                    {customer.whatsappNumber} <ExternalLink className="h-3 w-3" />
+                                                </a>
+                                            ) : (
+                                                <span className="text-sm">{customer.whatsappNumber}</span>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>

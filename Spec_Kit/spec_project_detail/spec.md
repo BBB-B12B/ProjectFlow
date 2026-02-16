@@ -16,26 +16,47 @@
 
 ### การบริหารจัดการโปรเจกต์ (Project Management)
 - **[F-002] แดชบอร์ดโปรเจกต์ (Project Dashboard)**
-  - แสดงรายการโปรเจกต์ทั้งหมดพร้อมสถานะ:
-    - `กำลังดำเนินการ` (Running)
-    - `เสร็จสิ้น` (Finished)
-    - `วางแผน` (Planned)
-    - `Archived`
-  - สรุปตัวเลข: งานที่เสร็จ vs งานทั้งหมด
-  - สร้าง/แก้ไข/ลบ โปรเจกต์ (CRUD)
-  - **Project Owner Selection**:
-    - ใช้ **Autocomplete** เลือกจากรายชื่อ Customers
-    - มีปุ่ม **Quick Add** สำหรับเพิ่ม Customer ใหม่ได้ทันทีในหน้าสร้าง/แก้ไขโปรเจกต์
+    - **Description**: ศูนย์กลางการบริหารจัดการโปรเจกต์ แสดงภาพรวมสถานะงาน และจัดการข้อมูลโปรเจกต์ (CRUD) พร้อมเชื่อมโยง Owner กับ Customer DB
+    - **User Flow**:
+        1. **View List**: User เข้าหน้า `/projects` -> ระบบแสดงโปรเจกต์แยกตามสถานะ (Running, Finished, etc.)
+        2. **Create Project**: User กด "New Project" -> กรอกฟอร์ม + เลือก Owner (Autocomplete) -> Submit -> ระบบสร้าง Record และ Update UI
+        3. **Quick Add Customer**: หาก Owner ไม่มีในระบบ กด "Quick Add Customer" -> กรอกชื่อ -> ระบบสร้าง Customer ใหม่และ Auto-select ให้ทันที
+        4. **GitHub Link Interaction**: บนการ์ดโปรเจกต์ แสดงไอคอน Clip Label ที่มุมซ้ายล่าง เมื่อคลิกจะแสดงรายการ Links ทั้งหมด (รองรับ Label + URL) ให้เลือกกด
+        5. **In-Progress Indicator**: บนการ์ดโปรเจกต์ แสดงไอคอน Hammer พร้อมตัวเลขจำนวนงานที่กำลังทำ (ไม่มี Popover/Tooltip)
+        6. **In-Progress Filter**: เพิ่มตัวเลือกกรองใน Dropdown "Group by" / "Sort by" สำหรับแสดงเฉพาะโปรเจกต์ที่มีงาน In-Progress
+        7. **Completion Indicator**: บนการ์ดโปรเจกต์ ใช้ไอคอน CheckCircle แทนข้อความ "Complete" เพื่อความกะทัดรัด (Format: `[Icon] X/Y`)
+        8. **Real-time Stats**: เมื่อมีการเปลี่ยนแปลงสถานะ Task ให้ทำการ Trigger Update ข้อมูลสถิติของ Project และ Refresh หน้า Projects List ทันที
+    - **Key Components**:
+        - `src/app/projects/page.tsx` (Edge Runtime Container)
+        - `src/app/projects/projects-client-page.tsx` (State & UI Logic)
+        - `src/components/new-project-dialog.tsx` (Form)
+        - `src/components/project-card.tsx` (Display Item)
+        - `src/components/ui/single-select-autocomplete.tsx` (Owner Selector)
+    - **Data Usage**:
+        - `Project`: `id`, `name`, `status`, `owner`, `customerId`, `category`
+        - `Customer`: `id`, `name` (Source for Owner)
+
 - **[F-003] การจัดการงานแบบ Kanban (Task Management)**
-  - สามารถย้ายสถานะงานได้ด้วยการ Drag & Drop
-  - **Real-time Collaboration**: แสดงรูปโปรไฟล์ของผู้ที่กำลังเปิดแก้ไขการ์ดงานนั้นๆ (Presence System / Anonymous Animals)
-  - แบ่งหมวดหมู่งานตาม Project Type (Main, Quick Win, Fill-in, Thankless)
-    - `QuickWin` (งานด่วนได้ผลเร็ว)
-    - `Fillin` (งานแทรก)
-    - `Thankless` (งานปิดทองหลังพระ)
-  - ติดตามสถานะ: `ยังไม่เริ่ม`, `กำลังดำเนินการ`, `ติดปัญหา`, `จบงานแล้ว`
-  - ข้อมูลระบุ: Effort (แรงที่ใช้), Effect (ผลลัพธ์), วันเริ่ม/จบ, ผู้รับผิดชอบ
-  - **การแสดงผล (Visualization)**: ใช้ Modular Chart Components (`src/components/charts/*`) แยกตามประเภทกราฟ (Pie, Bar, Scatter) เพื่อลดขนาดไฟล์และเพิ่มความเร็วในการโหลด
+    - **Description**: ระบบจัดการงานย่อยภายในโปรเจกต์ในรูปแบบ Kanban Board รองรับ Drag & Drop, Real-time Presence, และการจัดหมวดหมู่แบบ Matrix
+    - **User Flow**:
+        1. **View Board**: User เข้าหน้า `/project/[id]` -> ระบบแสดง Tasks แยกตาม Column (Status)
+        2. **Drag & Drop**: User ลากการ์ดข้าม Column -> ระบบ Update Status (`Progress`) ทันที (Optimistic UI)
+        3. **Edit Task**: User คลิกที่การ์ด -> เปิด Dialog แก้ไข (Effort, Effect, Assignee) -> Save
+        4. **Real-time Awareness**: เห็น Avatar เพื่อนโผล่ขึ้นมาเมื่อมีการแก้ไขการ์ดเดียวกัน
+    - **Key Components**:
+        - `src/app/project/[id]/page.tsx` (Data Fetcher)
+        - `src/components/project-details-client.tsx` (Board Logic, DND Context)
+        - `src/components/task-card.tsx` (Draggable Item)
+        - `src/components/new-task-dialog.tsx` & `edit-task-dialog.tsx`
+    - **Data Usage**:
+        - `Task`: `projectId`, `status`, `effort`, `effect`, `progress`
+        - `Presence`: `userId`, `taskId` (Real-time tracking)
+    - **[F-014] กลุ่มผู้รับผิดชอบ (Assignee Groups)**
+    - **Description**: ระบบจัดการกลุ่มผู้ใช้งานเพื่อความสะดวกในการมอบหมายงาน
+    - **Features**:
+        - **Create Group**: สร้างกลุ่มใหม่จากชื่อและสมาชิก
+        - **Assign Group**: เลือกกลุ่มในช่อง Assignee -> ระบบจะแตกสมาชิกรายคนให้อัตโนมัติ (แต่เก็บชื่อกลุ่มไว้แสดงผล)
+        - **Edit Group**: แก้ไขชื่อกลุ่มและสมาชิกในกลุ่มได้ (Changes reflect on new assignments)
 
 ### เครื่องมือเพิ่มประสิทธิภาพ (Productivity Tools)
 - **[F-004] การติดตามเวลาและความคืบหน้า (Time & Progress Tracking)**
@@ -48,6 +69,18 @@
     - **Dual Update**: เมื่อบันทึก ระบบจะ save ลง 2 ที่พร้อมกัน:
       1. `projectTrackingProgress` (History Log): เก็บประวัติว่าวันนี้นาย A ทำงาน B ไปกี่ ชม.
       2. `tasks` (Master Data): อัปเดต `% Progress` ล่าสุดของงานนั้นทันที เพื่อให้ Project Manager เห็นสถานะจริง
+    - **Gallery Upload**: สามารถอัปโหลดรูปภาพได้โดยตรงจากหน้า **Project Gallery** (ไม่ต้องผูกกับ Task) โดยระบบจะบันทึกเป็น "General Project Attachment".
+    - **Image Optimization**: ระบบจะทำการ Resize รูปภาพฝั่ง Client ก่อนอัปโหลดเพื่อประหยัดพื้นที่จัดเก็บและลดระยะเวลาอัปโหลด.
+- **[F-015] การแนบรูปภาพและแกลเลอรีโปรเจกต์ (Task Image Upload & Project Gallery)**
+  - **Description**: ระบบแนบรูปภาพความคืบหน้างานรายวัน และแสดงผลในรูปแบบแกลเลอรีรวมของโปรเจกต์
+  - **Features**:
+    - **Task Attachment**: แนบรูปได้หลายรูปในแต่ละวันของการ Tracking (เก็บลง R2 Storage)
+    - **Project Gallery**: ดูรูปภาพทั้งหมดของโปรเจกต์ผ่านปุ่ม "Files" บนการ์ดโปรเจกต์
+  - **Data Usage**:
+    - `ProjectTrackingProgress.attachments`: เก็บ URL ของรูปภาพ (`string[]`)
+  - **Key Components**:
+    - `src/app/tracking/tracking-client.tsx` (Upload UI)
+    - `src/components/project-files-gallery.tsx` (Gallery View)
 - **[F-006] ปฏิทินและตารางงาน (Calendar & Scheduling)**
   - แสดงงานและเหตุการณ์ในรูปแบบปฏิทิน (Month/Week/Day)
   - **Live Presence**: เห็นว่าใครกำลังเปิดดูหรือแก้ไข Event ไหนอยู่ในหน้าปฏิทิน
@@ -56,6 +89,18 @@
     - กรองลูกค้า OS (`isDarkModeOnly`) ตาม Dark Mode (Additive Logic: Dark Mode เห็นครบ, Light Mode ไม่เห็น OS)
   - **Event Filtering**:
     - **Events (Project/Task)**: ใช้ Mutually Exclusive Logic (Dark=OS Only, Light=Standard Only)
+  - **New Features**:
+    - **Duplicate Event**: คัดลอก Event เดิมเพื่อสร้างใหม่ (Reset Data/Time)
+    - **Recurring Events**: รองรับการสร้าง Event แบบ Daily, Weekly, Monthly, Yearly (Client-side expansion)
+    - **Refinement**: Recurrence End Date แยกอิสระจาก Event End Date (Decoupled)
+    - **Mutations (Edit/Delete)**:
+      - **Series**: Edit/Delete Master Doc (Result: Changes all future instances).
+      - **UI Flow**:
+        - กด "Save" -> ระบบถาม (Prompt): "Save This Only" หรือ "Save Series".
+      - **Instance**:
+        - **Delete**: Add date to `recurrence.exceptions[]`.
+        - **Edit**: Create Exception on Master + Create New Single Event on that date.
+
 
       - **Events (Project/Task)**: ใช้ Mutually Exclusive Logic (Dark=OS Only, Light=Standard Only)
 - **[F-010] ระบบวิเคราะห์ข้อมูล (Analytics Dashboard)** (`src/app/analytics`)
@@ -185,6 +230,10 @@ erDiagram
         string status "Enum: กำลังดำเนินการ, เสร็จสิ้น, วางแผน, Archived"
         string team "ทีมรับผิดชอบ"
         string owner "เจ้าของโปรเจกต์"
+        string category "หมวดหมู่"
+        string githubLink "ลิงก์ GitHub Repository (Deprecated)"
+        object[] links "รายการลิงก์ภายนอก [{label, url}]"
+        int inProgressTasks "จำนวนงานที่กำลังทำ"
         int completedTasks
         int totalTasks
     }

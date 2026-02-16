@@ -71,9 +71,24 @@ export async function fetchMembersAndLocations() {
         const events = eventSnapshot.docs.map((doc: any) => doc.data() as { location?: string });
         const locations = Array.from(new Set(events.map(e => e.location).filter(Boolean) as string[]));
 
-        return { members: allMembers, locations };
+        // 4. Fetch Assignee Groups
+        const groupsSnapshot = await getDocs(collection(db, "assignee_groups")).catch(e => {
+            console.error("Error fetching assignee groups:", e);
+            return { docs: [] };
+        });
+
+        const groups = groupsSnapshot.docs.map((doc: any) => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                name: data.name,
+                members: (data.members || []) as string[],
+            };
+        });
+
+        return { members: allMembers, locations, groups };
     } catch (error) {
         console.error("Fatal error in fetchMembersAndLocations:", error);
-        return { members: [], locations: [] };
+        return { members: [], locations: [], groups: [] };
     }
 }

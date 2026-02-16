@@ -3,7 +3,8 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
-import { updateEvent, deleteEvent, CalendarEvent, getAllTasksWithProjectDetails, TaskWithProjectDetails } from './actions';
+import { updateEvent, deleteEvent, deleteRecurringInstance, updateRecurringInstance, CalendarEvent, getAllTasksWithProjectDetails, TaskWithProjectDetails } from './actions';
+import type { AssigneeGroup } from '@/lib/types';
 import {
   Dialog,
   DialogContent,
@@ -28,9 +29,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from '@/components/ui/textarea';
-import { MultiSelectAutocomplete } from '@/components/ui/multi-select-autocomplete';
+import { MemberSelectorWithGroup } from '@/components/ui/member-selector-with-group';
 import { SingleSelectAutocomplete } from '@/components/ui/single-select-autocomplete';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Copy } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { doc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { getAnonymousUser } from '@/lib/anonymous-animals';
@@ -43,6 +44,8 @@ interface EditEventDialogProps {
   event: CalendarEvent | null;
   members: string[];
   locations: string[];
+  groups: AssigneeGroup[];
+  onDuplicate: (event: CalendarEvent) => void;
 }
 
 export function EditEventDialog({
@@ -51,18 +54,26 @@ export function EditEventDialog({
   event,
   members,
   locations,
+  groups,
+  onDuplicate,
 }: EditEventDialogProps) {
   const [state, formAction, isSaving] = useActionState(updateEvent, initialState);
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
   const router = useRouter();
   const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
+  const [isSaveTypeOpen, setIsSaveTypeOpen] = useState(false); // [T-170] Save Type Dialog
   const [isPending, startTransition] = useTransition();
 
   const [tasks, setTasks] = useState<TaskWithProjectDetails[]>([]);
   const [selectedTask, setSelectedTask] = useState<TaskWithProjectDetails | null>(null);
 
-  const [currentUser] = useState(getAnonymousUser());
+  // T-153: Fix Hydration Mismatch by initializing inside useEffect
+  const [currentUser, setCurrentUser] = useState({ id: 'loading', name: 'Loading...', avatarUrl: '' });
+
+  useEffect(() => {
+    setCurrentUser(getAnonymousUser());
+  }, []);
 
   // State for unsaved changes warning
   const [isDirty, setIsDirty] = useState(false);
@@ -125,10 +136,21 @@ export function EditEventDialog({
     }
   }, [isOpen, event]);
 
-  const handleDeleteConfirm = () => {
-    if (event) {
+  // Recurrence Parsing
+  const isRecurringInstance = event?.id.includes('_recur_');
+  const originalId = isRecurringInstance ? event?.id.split('_recur_')[0] : event?.id;
+  const instanceDate = isRecurringInstance ? event?.id.split('_recur_')[1] : null;
+
+  const handleDeleteConfirm = (scope: 'instance' | 'series' = 'series') => {
+    if (event && originalId) {
       startTransition(async () => {
-        const result = await deleteEvent(event.id);
+        let result;
+        if (scope === 'instance' && instanceDate) {
+          result = await deleteRecurringInstance(originalId, instanceDate);
+        } else {
+          result = await deleteEvent(originalId);
+        }
+
         if (result.success) {
           toast({ title: "Success", description: result.message });
           router.refresh();
@@ -218,9 +240,129 @@ export function EditEventDialog({
       formData.delete("isDarkModeOnly");
     }
 
+    // Recurrence logic for Edit
+    if (isRecurringInstance && instanceDate) {
+      // If it's an instance, we assume the user wants to split unless they confirm otherwise.
+      // But for now, let's just make it simpler: We will intercept the submit and ask via Dialog?
+      // Or just assume "Series" by default if no change?
+      // Actually, if I modify an instance, I should ask.
+      // But formAction is direct.
+      // Let's implement a "Split Mode" toggle or just ask?
+
+      // Strategy:
+      // 1. If it's an instance, add hidden inputs for the split logic.
+      // 2. We need a way to distinguish Update Series vs Update Instance.
+      // Let's add two submit buttons in the dialog footer if it's recurring?
+      // Or just default to Series for now (Behavior 1) and Instance (Behavior 2)?
+
+      // Proper UX:
+      // Show a valid Dialog. But here we are inside handleSubmit.
+      // I will implement a visual choice in the footer instead.
+      // "Save to Series" vs "Save to This Event Only"
+
+      // I'll leave this default for now and handle the choice via button clicks.
+      // See the button changes below.
+    }
+
+    // Should we normalize the ID back to originalId if saving series?
+    // updateEvent expects ID. If we pass "recur_id", it won't find the doc.
+    // So we MUST pass originalId if updating series.
+
+    // Check which button was clicked? 
+    // We can use a hidden input 'recurrenceMode' set by the button.
+    const mode = formData.get('recurrenceMode');
+
+    if (isRecurringInstance && mode === 'instance' && instanceDate) {
+      // New Action for Instance Update
+      formData.append('originalEventId', originalId || "");
+      formData.append('instanceDate', instanceDate);
+      // Remove ID so it creates new? No, logic inside updateRecurringInstance handles it.
+      startTransition(async () => {
+        const res = await updateRecurringInstance(state, formData);
+        if (res.success) {
+          toast({ title: "Success", description: res.message });
+          router.refresh();
+          onOpenChange(false);
+          setIsDirty(false);
+        }
+      });
+      return;
+    }
+
+    // Default / Series Update
+    if (originalId) {
+      formData.set('id', originalId); // Ensure we target the master doc
+    }
+
     startTransition(() => {
       formAction(formData);
     });
+    setIsSaveTypeOpen(false);
+  };
+
+  const handleSaveTypeSelection = (mode: 'instance' | 'series') => {
+    // Manually construct FormData and submit with mode
+    if (formRef.current) {
+      const formData = new FormData(formRef.current);
+      formData.set('recurrenceMode', mode);
+
+      // We must handle the specific logic here because we are bypassing handleSubmit
+      const startDate = formData.get('startDate') as string;
+      const startTime = formData.get('startTime') as string;
+      const endDate = formData.get('endDate') as string;
+      const endTime = formData.get('endTime') as string;
+
+      if (startDate && startTime) {
+        const startDateTimeLocalString = `${startDate}T${startTime}`;
+        const startDateTimeLocal = new Date(startDateTimeLocalString);
+        formData.set('start', startDateTimeLocal.toISOString());
+      }
+      if (endDate && endTime) {
+        const endDateTimeLocalString = `${endDate}T${endTime}`;
+        const endDateTimeLocal = new Date(endDateTimeLocalString);
+        formData.set('end', endDateTimeLocal.toISOString());
+      }
+
+      if (selectedTask) {
+        formData.set("relatedTaskId", selectedTask.id);
+        formData.set("relatedTaskName", selectedTask.TaskName || "");
+        formData.set("relatedTaskProjectId", selectedTask.projectId);
+        formData.set("isDarkModeOnly", String(selectedTask.projectIsDarkModeOnly));
+      } else {
+        formData.delete("relatedTaskId");
+        formData.delete("relatedTaskName");
+        formData.delete("relatedTaskProjectId");
+        formData.delete("isDarkModeOnly");
+      }
+
+      // Instance Update Specifics
+      if (mode === 'instance' && instanceDate && originalId) {
+        formData.append('originalEventId', originalId);
+        formData.append('instanceDate', instanceDate);
+
+        startTransition(async () => {
+          const res = await updateRecurringInstance(state, formData);
+          if (res.success) {
+            toast({ title: "Success", description: res.message });
+            router.refresh();
+            onOpenChange(false);
+            setIsDirty(false);
+          }
+        });
+        setIsSaveTypeOpen(false);
+        return;
+      }
+
+      // Series Update Specifics
+      if (originalId) {
+        formData.set('id', originalId);
+      }
+
+      startTransition(() => {
+        formAction(formData);
+      });
+      setIsSaveTypeOpen(false);
+    }
   };
 
   return (
@@ -279,13 +421,13 @@ export function EditEventDialog({
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="members">Members</Label>
-                <MultiSelectAutocomplete
+                <MemberSelectorWithGroup
+                  label="Members"
                   options={members}
-                  placeholder="Select members..."
+                  groups={groups}
+                  value={event.members || []}
+                  onValueChange={() => setIsDirty(true)}
                   name="members"
-                  initialValue={event.members}
-                  onValueChange={() => setIsDirty(true)} // Mark as dirty on members change
                 />
               </div>
               <div className="space-y-2">
@@ -325,13 +467,34 @@ export function EditEventDialog({
               </div>
             </div>
             <DialogFooter className="justify-between">
-              <Button type="button" variant="destructive" size="icon" onClick={() => setIsDeleteAlertOpen(true)}>
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Delete Event</span>
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant="destructive" size="icon" onClick={() => setIsDeleteAlertOpen(true)}>
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete Event</span>
+                </Button>
+                <Button type="button" variant="outline" onClick={() => {
+                  if (event) onDuplicate(event);
+                }}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate
+                </Button>
+              </div>
               <div className="flex gap-2">
                 <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
-                <LoadingButton type="submit" loading={isSaving}>Save Changes</LoadingButton>
+
+                {/* [T-170] Unified Save Button */}
+                <LoadingButton
+                  type={isRecurringInstance ? "button" : "submit"}
+                  loading={isSaving}
+                  onClick={(e) => {
+                    if (isRecurringInstance) {
+                      e.preventDefault();
+                      setIsSaveTypeOpen(true);
+                    }
+                  }}
+                >
+                  Save Changes
+                </LoadingButton>
               </div>
             </DialogFooter>
           </form>
@@ -341,16 +504,52 @@ export function EditEventDialog({
       <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogTitle>Delete Event?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete this event.
+              {isRecurringInstance
+                ? "This is a recurring event. Do you want to delete only this occurrence or the entire series?"
+                : "This action cannot be undone. This will permanently delete this event."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteConfirm} disabled={isPending}>
-              {isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
+            {isRecurringInstance ? (
+              <>
+                <AlertDialogAction onClick={() => handleDeleteConfirm('instance')} disabled={isPending}>
+                  Delete this occurrence
+                </AlertDialogAction>
+                <AlertDialogAction onClick={() => handleDeleteConfirm('series')} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  Delete entire series
+                </AlertDialogAction>
+              </>
+            ) : (
+              <AlertDialogAction onClick={() => handleDeleteConfirm('series')} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            )}
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* [T-170] Save Type Selection Dialog */}
+      <AlertDialog open={isSaveTypeOpen} onOpenChange={setIsSaveTypeOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Edit Recurring Event</AlertDialogTitle>
+            <AlertDialogDescription>
+              This is a recurring event. How would you like to save your changes?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex flex-col gap-2 py-2">
+            <Button onClick={() => handleSaveTypeSelection('instance')}>
+              Save This Event Only
+            </Button>
+            <Button variant="secondary" onClick={() => handleSaveTypeSelection('series')}>
+              Save Entire Series
+            </Button>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -30,6 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { TaskAttachmentsDialog } from '@/components/task-attachments-dialog';
+import { Paperclip } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
@@ -43,6 +45,7 @@ import {
   updateDoc,
   serverTimestamp,
   writeBatch,
+  increment,
 } from 'firebase/firestore';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -62,7 +65,9 @@ interface ExtendedProjectTrackingProgress extends ProjectTrackingProgress {
     editedBy: string;
     previousHours: number;
     previousProgress: number;
+    previousAttachments?: string[];
   }[];
+  attachments?: string[];
 }
 
 interface TaskChange {
@@ -71,23 +76,28 @@ interface TaskChange {
   progressPercentage: number;
   originalHours: number;
   originalProgress: number;
+  attachments?: string[];
 }
 
 const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   const [assignees, setAssignees] = useState<string[]>(initialAssignees);
+  const [assigneeGroups, setAssigneeGroups] = useState<AssigneeGroup[]>([]); // Store fetched groups
+  const [showCompleted, setShowCompleted] = useState<boolean>(true); // Default to true
   const [selectedAssignee, setSelectedAssignee] = useLocalStorage<string>('tracking_assignee', '');
   const [selectedProjectId, setSelectedProjectId] = useLocalStorage<string>('tracking_project', 'all');
   const [selectedDate, setSelectedDate] = useLocalStorage<string>('tracking_date', new Date().toISOString().split('T')[0]);
   const [tasks, setTasks] = useState<TaskWithProjectName[]>([]);
   const [trackingData, setTrackingData] = useState<
-    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }>
+    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[] }>
   >({});
   const [originalTrackingData, setOriginalTrackingData] = useState<
-    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }>
+    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[] }>
   >({});
   const [loading, setLoading] = useState<boolean>(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [pendingChanges, setPendingChanges] = useState<TaskChange[]>([]);
+  const [isAttachmentsDialogOpen, setIsAttachmentsDialogOpen] = useState(false);
+  const [activeAttachmentTaskId, setActiveAttachmentTaskId] = useState<string | null>(null);
 
   // 🚀 Enhanced caching with better structure
   const [projectsCache, setProjectsCache] = useState<Map<string, Project>>(new Map());
@@ -171,9 +181,10 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         const tasksRef = collection(db, 'tasks');
         const customersRef = collection(db, 'customers');
 
-        const [tasksSnapshot, customersSnapshot] = await Promise.all([
+        const [tasksSnapshot, customersSnapshot, groupsSnapshot] = await Promise.all([
           getDocs(tasksRef),
-          getDocs(customersRef)
+          getDocs(customersRef),
+          getDocs(collection(db, 'assignee_groups'))
         ]);
 
         // Process Customers to find OS ones
@@ -185,6 +196,13 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           }
         });
         setOsCustomers(osSet);
+
+        // Process Groups
+        const groups: AssigneeGroup[] = [];
+        groupsSnapshot.forEach(doc => {
+          groups.push({ id: doc.id, ...doc.data() } as AssigneeGroup);
+        });
+        setAssigneeGroups(groups);
 
         const uniqueAssignees = new Set<string>();
         tasksSnapshot.forEach((doc) => {
@@ -231,7 +249,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   // 🚀 Lightning fast tracking data processing from cache
   const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string, tasksSource: Task[], trackingSource: Map<string, ExtendedProjectTrackingProgress[]>) => {
     const today = new Date().toISOString().split('T')[0];
-    const currentTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean }> = {};
+    const currentTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[] }> = {};
 
     taskIds.forEach(taskId => {
       const taskTracking = trackingSource.get(taskId) || [];
@@ -255,7 +273,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         hoursWorked: specificDateData?.hoursWorked || 0,
         progressPercentage: specificDateData?.progressPercentage || latestProgress,
         totalHoursWorked: totalHoursWorkedForTask,
-        isBackdated: forDate !== today
+        isBackdated: forDate !== today,
+        attachments: specificDateData?.attachments || []
       };
     });
 
@@ -302,10 +321,19 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
             if (!task.Assignee) return false;
             const assignees = task.Assignee.split(',').map(name => name.trim());
 
-            // 1. Assignee Filter
-            if (!assignees.includes(assigneeName)) return false;
+            // 1. Assignee Filter (Direct OR Group)
+            const isDirectlyAssigned = assignees.includes(assigneeName);
 
-            // 2. OS Project Logic Filter
+            // Find groups this user belongs to
+            const userGroups = assigneeGroups.filter(g => g.members.includes(assigneeName)).map(g => g.name);
+            const isGroupAssigned = assignees.some(assigned => userGroups.includes(assigned));
+
+            if (!isDirectlyAssigned && !isGroupAssigned) return false;
+
+            // 🚀 Filter: Show ONLY "In Progress" tasks (กำลังดำเนินการ)
+            if (task.Status !== 'กำลังดำเนินการ') return false;
+
+            // 2. OS Project Logic Filter (Optimized)
             const project = projectsSource.get(task.projectId);
             if (!project) return true; // Keep tasks with missing projects (safe default)
 
@@ -387,11 +415,15 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         setLoading(false);
       }
     }, 150); // 150ms debounce
-  }, [initializeCache, allTasksCache, projectsCache, trackingCache, processTrackingDataFromCache]);
+  }, [initializeCache, allTasksCache, projectsCache, trackingCache, processTrackingDataFromCache, assigneeGroups]);
 
   // Effect for assignee/date changes
   useEffect(() => {
     debouncedFetchData(selectedAssignee, selectedDate);
+    // Reset project filter when assignee changes to avoid "invisible tasks"
+    if (selectedAssignee) {
+      setSelectedProjectId('all');
+    }
 
     return () => {
       if (debounceTimeoutRef.current) {
@@ -404,12 +436,12 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   }, [selectedAssignee, selectedDate, debouncedFetchData]);
 
   const handleInputChange = useCallback(
-    (taskId: string, field: 'hoursWorked' | 'progressPercentage', value: string) => {
+    (taskId: string, field: 'hoursWorked' | 'progressPercentage' | 'attachments', value: any) => {
       setTrackingData((prev) => ({
         ...prev,
         [taskId]: {
           ...prev[taskId],
-          [field]: value === '' ? 0 : parseFloat(value) || 0,
+          [field]: field === 'attachments' ? value : (value === '' ? 0 : parseFloat(value) || 0),
         },
       }));
     },
@@ -427,8 +459,9 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
       const hasHoursChanged = current.hoursWorked !== original.hoursWorked && current.hoursWorked > 0;
       const hasProgressChanged = current.progressPercentage !== original.progressPercentage;
+      const hasAttachmentsChanged = JSON.stringify(current.attachments || []) !== JSON.stringify(original.attachments || []);
 
-      if (hasHoursChanged || hasProgressChanged) {
+      if (hasHoursChanged || hasProgressChanged || hasAttachmentsChanged) {
         const task = tasks.find(t => t.id === taskId);
         if (task) {
           changes.push({
@@ -436,7 +469,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
             hoursWorked: current.hoursWorked,
             progressPercentage: current.progressPercentage,
             originalHours: original.hoursWorked,
-            originalProgress: original.progressPercentage
+            originalProgress: original.progressPercentage,
+            attachments: current.attachments
           });
         }
       }
@@ -503,6 +537,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
             date: selectedDate,
             hoursWorked: hoursWorked,
             progressPercentage: progressPercentage,
+            attachments: change.attachments || [],
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             editHistory: []
@@ -522,7 +557,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
             editedAt: new Date().toISOString(),
             editedBy: selectedAssignee,
             previousHours: existingData.hoursWorked,
-            previousProgress: existingData.progressPercentage
+            previousProgress: existingData.progressPercentage,
+            previousAttachments: existingData.attachments
           };
 
           const updatedEditHistory = [...(existingData.editHistory || []), editEntry];
@@ -530,6 +566,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           batch.update(doc(db, 'projectTrackingProgress', existingDoc.id), {
             hoursWorked: hoursWorked,
             progressPercentage: progressPercentage,
+            attachments: change.attachments || [],
             updatedAt: serverTimestamp(),
             editHistory: updatedEditHistory
           });
@@ -541,16 +578,30 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
             if (cachedItem) {
               cachedItem.hoursWorked = hoursWorked;
               cachedItem.progressPercentage = progressPercentage;
+              cachedItem.attachments = change.attachments || [];
               cachedItem.editHistory = updatedEditHistory;
             }
           }
         }
 
         if (!isBackdated || progressPercentage > (task.Progress || 0)) {
-          batch.update(doc(db, 'tasks', task.id), {
+          const taskRef = doc(db, 'tasks', task.id);
+          batch.update(taskRef, {
             Progress: progressPercentage,
           });
           updatedTaskIds.add(task.id);
+        }
+
+        // Increment project totalFiles if attachments are added
+        const newAttachments = change.attachments || [];
+        const oldAttachments = originalTrackingData[task.id]?.attachments || [];
+        const addedCount = newAttachments.length - oldAttachments.length;
+
+        if (addedCount > 0) {
+          const projectRef = doc(db, 'projects', task.projectId);
+          batch.update(projectRef, {
+            totalFiles: increment(addedCount)
+          });
         }
       });
 
@@ -740,7 +791,29 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
       )}
 
       {!loading && selectedAssignee && tasks.length === 0 && (
-        <p>No tasks assigned to {selectedAssignee}.</p>
+        <div className="text-center p-8 border border-dashed rounded-lg">
+          <p className="text-lg font-medium">No tasks found for {selectedAssignee}.</p>
+          <div className="text-sm text-muted-foreground mt-2 text-left bg-gray-50 dark:bg-gray-900 p-4 rounded overflow-auto max-h-60">
+            <p className="font-bold">Debug Info:</p>
+            <ul className="list-disc list-inside">
+              <li>Project Filter: {selectedProjectId === 'all' ? 'All Projects' : selectedProjectId}</li>
+              <li>Show Completed: {showCompleted ? 'Yes' : 'No'}</li>
+              <li>Visible Tasks: {filteredTasks.length}</li>
+              <li>Total Fetched Tasks: {tasks.length}</li>
+              <li>Direct Match: {allTasksCache.some(t => t.Assignee === selectedAssignee) ? 'Yes' : 'No'}</li>
+              <li><strong>All Assignees in Database:</strong> {Array.from(new Set(allTasksCache.map(t => t.Assignee))).sort().join(', ')}</li>
+            </ul>
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedProjectId('all')}
+              >
+                Reset Filters
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {!loading && selectedAssignee && tasks.length > 0 && (
@@ -758,6 +831,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
               <TableRow>
                 <TableHead>Project Name</TableHead>
                 <TableHead>Task Name</TableHead>
+                <TableHead className="w-[50px]">Files</TableHead>
                 <TableHead>Latest Progress (%)</TableHead>
                 <TableHead>Hours Worked</TableHead>
                 <TableHead>Total Hours Worked</TableHead>
@@ -796,7 +870,29 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
                     `}
                   >
                     <TableCell>{task.projectName}</TableCell>
-                    <TableCell>{task.TaskName}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span>{task.TaskName}</span>
+                        {currentTracking.attachments && currentTracking.attachments.length > 0 && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Paperclip className="h-3 w-3" /> {currentTracking.attachments.length} files
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setActiveAttachmentTaskId(task.id);
+                          setIsAttachmentsDialogOpen(true);
+                        }}
+                      >
+                        <Paperclip className={`h-4 w-4 ${currentTracking.attachments && currentTracking.attachments.length > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
+                      </Button>
+                    </TableCell>
                     <TableCell>{latestProgress}%</TableCell>
                     <TableCell>
                       <Input
@@ -936,6 +1032,19 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {activeAttachmentTaskId && (
+        <TaskAttachmentsDialog
+          isOpen={isAttachmentsDialogOpen}
+          onOpenChange={(open) => {
+            setIsAttachmentsDialogOpen(open);
+            if (!open) setActiveAttachmentTaskId(null);
+          }}
+          taskName={tasks.find(t => t.id === activeAttachmentTaskId)?.TaskName || 'Unknown Task'}
+          attachments={trackingData[activeAttachmentTaskId]?.attachments || []}
+          onAttachmentsChange={(newAttachments) => handleInputChange(activeAttachmentTaskId, 'attachments', newAttachments)}
+        />
+      )}
     </div>
   );
 };

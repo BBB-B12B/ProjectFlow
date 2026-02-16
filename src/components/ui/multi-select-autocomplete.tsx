@@ -1,15 +1,13 @@
-// /home/user/studio/src/components/ui/multi-select-autocomplete.tsx
-"use client";
-
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import { X as RemoveIcon, Check } from "lucide-react";
-// เปลี่ยน import จาก name-utils เป็น utils
+import { X as RemoveIcon, Check, Users } from "lucide-react";
 import {
     normalizeAssigneeName,
     formatAssigneeDisplayName,
     deduplicateAssignees
 } from "@/lib/utils";
+import type { AssigneeGroup } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface MultiSelectAutocompleteProps {
     options: string[];
@@ -17,6 +15,7 @@ interface MultiSelectAutocompleteProps {
     placeholder?: string;
     name?: string;
     onValueChange?: (value: string) => void;
+    groups?: AssigneeGroup[];
 }
 
 export function MultiSelectAutocomplete({
@@ -25,6 +24,7 @@ export function MultiSelectAutocomplete({
     placeholder,
     name,
     onValueChange,
+    groups = [],
 }: MultiSelectAutocompleteProps) {
     const inputRef = React.useRef<HTMLInputElement>(null);
     const [open, setOpen] = React.useState(false);
@@ -32,7 +32,7 @@ export function MultiSelectAutocomplete({
     const [inputValue, setInputValue] = React.useState("");
     const [highlightedIndex, setHighlightedIndex] = React.useState(-1);
 
-    // Normalize และ deduplicate options
+    // Normalize and deduplicate options
     const normalizedOptions = React.useMemo(() => {
         const optionMap = new Map<string, string>();
 
@@ -40,7 +40,6 @@ export function MultiSelectAutocomplete({
             const normalized = normalizeAssigneeName(option);
             const formatted = formatAssigneeDisplayName(option);
 
-            // เก็บเฉพาะตัวแรกที่พบ หรือเลือกตัวที่มี format ดีกว่า
             if (!optionMap.has(normalized) ||
                 (formatted.charAt(0) === formatted.charAt(0).toUpperCase() &&
                     optionMap.get(normalized)?.charAt(0) !== optionMap.get(normalized)?.charAt(0).toUpperCase())) {
@@ -51,6 +50,23 @@ export function MultiSelectAutocomplete({
         return Array.from(optionMap.values()).sort();
     }, [initialOptions]);
 
+    // Defensive check: Ensure groups is always an array
+    const safeGroups = React.useMemo(() => {
+        return Array.isArray(groups) ? groups.map(g => ({
+            ...g,
+            members: Array.isArray(g.members) ? g.members : []
+        })) : [];
+    }, [groups]);
+
+    const groupOptions = React.useMemo(() => {
+        return safeGroups.map(g => g.name).sort();
+    }, [safeGroups]);
+
+    const allOptions = React.useMemo(() => {
+        return [...groupOptions, ...normalizedOptions];
+    }, [groupOptions, normalizedOptions]);
+
+
     // Effect to synchronize the internal state with the initialValue prop
     React.useEffect(() => {
         let valueToSet: string[] = [];
@@ -58,19 +74,39 @@ export function MultiSelectAutocomplete({
             if (Array.isArray(initialValue)) {
                 valueToSet = initialValue;
             } else if (typeof initialValue === 'string' && initialValue) {
-                // Normalize และ deduplicate
                 const deduped = deduplicateAssignees(initialValue);
                 valueToSet = deduped.split(',').map(item => item.trim()).filter(item => item !== '');
             }
         }
 
+        // Check if selected members match a group
+        if (safeGroups.length > 0) {
+            const sortedSelected = [...valueToSet].sort().join(',');
+            const matchedGroup = safeGroups.find(g => {
+                const sortedMembers = [...g.members].sort().join(',');
+                return sortedMembers === sortedSelected;
+            });
+
+            // If matches exactly, we might want to show the group name visually? 
+            // Requirement: "Select group -> save members". "Display in Card -> Group Name".
+            // Requirement: "In dropdown list -> Group is blue".
+            // Requirement: "If group selected, save members".
+            // But here in the input box... "When assignee selected... Highlight blue between Personal and Group".
+
+            // Let's keep it simple: Expand to members in the background (value), but maybe show pill?
+            // Actually requirement says "When select Group, must save Assignee as members".
+            // So `selected` state should probably contain MEMBERS.
+            // But UI rendering logic in input might need to know.
+            // If we just save members, then `selected` is [A, B].
+        }
+
         if (JSON.stringify(valueToSet) !== JSON.stringify(selected)) {
             setSelected(valueToSet);
         }
-    }, [initialValue]);
+    }, [initialValue, safeGroups]);
 
     const updateSelected = (newSelected: string[]) => {
-        // Normalize ก่อนเก็บ
+        // Normalize
         const normalizedSelected = newSelected.map(formatAssigneeDisplayName);
         const uniqueSelected = [...new Set(normalizedSelected)];
 
@@ -82,21 +118,32 @@ export function MultiSelectAutocomplete({
 
     const handleSelect = (optionValue: string) => {
         setInputValue("");
-        const formattedValue = formatAssigneeDisplayName(optionValue);
 
-        // ตรวจสอบว่ามีอยู่แล้วหรือไม่ (case-insensitive)
-        const normalizedSelected = selected.map(normalizeAssigneeName);
-        const normalizedValue = normalizeAssigneeName(formattedValue);
+        // Check if it is a group
+        const group = safeGroups.find(g => g.name === optionValue);
 
-        if (normalizedSelected.includes(normalizedValue)) {
-            // ถ้ามีอยู่แล้ว ให้ลบออก
-            const newSelected = selected.filter(item =>
-                normalizeAssigneeName(item) !== normalizedValue
-            );
-            updateSelected(newSelected);
+        if (group) {
+            // Add all group members
+            // We need to verify if we are adding or removing.
+            // If group is clicked, we probably just ADD them.
+
+            // Logic: Combine existing selected with group members
+            const allMembers = [...selected, ...group.members];
+            updateSelected(allMembers);
         } else {
-            // ถ้ายังไม่มี ให้เพิ่มเข้าไป
-            updateSelected([...selected, formattedValue]);
+            // Normal user selection
+            const formattedValue = formatAssigneeDisplayName(optionValue);
+            const normalizedSelected = selected.map(normalizeAssigneeName);
+            const normalizedValue = normalizeAssigneeName(formattedValue);
+
+            if (normalizedSelected.includes(normalizedValue)) {
+                const newSelected = selected.filter(item =>
+                    normalizeAssigneeName(item) !== normalizedValue
+                );
+                updateSelected(newSelected);
+            } else {
+                updateSelected([...selected, formattedValue]);
+            }
         }
 
         setHighlightedIndex(-1);
@@ -118,12 +165,11 @@ export function MultiSelectAutocomplete({
         const formattedValue = formatAssigneeDisplayName(trimmedValue);
         const normalizedValue = normalizeAssigneeName(formattedValue);
 
-        // ตรวจสอบว่ามีอยู่แล้วหรือไม่
         const normalizedSelected = selected.map(normalizeAssigneeName);
         const normalizedOptionValues = normalizedOptions.map(normalizeAssigneeName);
 
         if (!normalizedSelected.includes(normalizedValue) &&
-            !normalizedOptions.includes(normalizedValue)) {
+            !normalizedOptionValues.includes(normalizedValue)) {
             updateSelected([...selected, formattedValue]);
         }
 
@@ -132,20 +178,39 @@ export function MultiSelectAutocomplete({
         setTimeout(() => inputRef.current?.focus(), 0);
     };
 
-    const filteredOptions = normalizedOptions.filter(option => {
+    const filteredOptions = allOptions.filter(option => {
+        // Filter logic need to be careful with Groups vs Users
+        // Option is a string name
         const normalizedOption = normalizeAssigneeName(option);
-        const normalizedSelected = selected.map(normalizeAssigneeName);
         const normalizedInput = normalizeAssigneeName(inputValue);
 
-        return !normalizedSelected.includes(normalizedOption) &&
-            normalizedOption.includes(normalizedInput);
+        // Check if matching input
+        if (!normalizedOption.includes(normalizedInput)) return false;
+
+        // Group Logic
+        const group = safeGroups.find(g => g.name === option);
+        if (group) {
+            // Only hide group if ALL its members are already selected
+            const allMembersSelected = group.members.every(m =>
+                selected.map(normalizeAssigneeName).includes(normalizeAssigneeName(m))
+            );
+            return !allMembersSelected;
+        }
+
+        // User Logic
+        // Hide user if already selected
+        // BUT also hide user if they are covered by a VISIBLE group pill?
+        // No, standard autocomplete usually hides selected items.
+        // If John is covered by Group A pill, 'John' is in 'selected'.
+        // So 'John' should be hidden from dropdown. This is correct.
+        const isSelected = selected.map(normalizeAssigneeName).includes(normalizedOption);
+        return !isSelected;
     });
 
     const showCreateOption = inputValue &&
-        !normalizedOptions.some(opt => normalizeAssigneeName(opt) === normalizeAssigneeName(inputValue)) &&
-        !selected.some(sel => normalizeAssigneeName(sel) === normalizeAssigneeName(inputValue));
+        !allOptions.some(opt => normalizeAssigneeName(opt) === normalizeAssigneeName(inputValue));
 
-    // สร้าง array ของตัวเลือกทั้งหมดที่แสดงใน dropdown
+    // Display options
     const allDisplayOptions = React.useMemo(() => {
         const opts = [...filteredOptions];
         if (showCreateOption) {
@@ -154,7 +219,7 @@ export function MultiSelectAutocomplete({
         return opts;
     }, [filteredOptions, showCreateOption, inputValue]);
 
-    // Reset highlighted index when options change
+    // Reset highlighted index
     React.useEffect(() => {
         if (allDisplayOptions.length > 0 && highlightedIndex >= allDisplayOptions.length) {
             setHighlightedIndex(0);
@@ -163,7 +228,7 @@ export function MultiSelectAutocomplete({
         }
     }, [allDisplayOptions.length, highlightedIndex]);
 
-    // Handle keyboard navigation
+    // Keyboard handlers (same as before)
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (!open) {
             if (e.key === 'ArrowDown' || e.key === 'Enter') {
@@ -232,6 +297,51 @@ export function MultiSelectAutocomplete({
         }
     };
 
+    // Check if current selection covers any groups (Subset Logic)
+    const { coveredGroups, visibleIndividualMembers } = React.useMemo(() => {
+        if (safeGroups.length === 0 || selected.length === 0) {
+            return { coveredGroups: [], visibleIndividualMembers: selected };
+        }
+
+        const normalizedSelectedSet = new Set(selected.map(normalizeAssigneeName));
+        const covered: AssigneeGroup[] = [];
+        const coveredMembersSet = new Set<string>();
+
+        // 1. Identify all covered groups
+        safeGroups.forEach(g => {
+            if (g.members.length === 0) return;
+
+            // Check if ALL members of this group are in the selection
+            const isCovered = g.members.every(member =>
+                normalizedSelectedSet.has(normalizeAssigneeName(member))
+            );
+
+            if (isCovered) {
+                covered.push(g);
+                g.members.forEach(m => coveredMembersSet.add(normalizeAssigneeName(m)));
+            }
+        });
+
+        // 2. Identify remaining individual members (those NOT covered by any group)
+        // NOTE: If a member is in 2 groups, and both groups are selected, they are 'covered' by both.
+        // If a member is in Group A (selected) and Group B (not selected), they are covered by Group A.
+        // We only show individual pills for people who are NOT in any of the *displayed* group pills.
+        const visible = selected.filter(member =>
+            !coveredMembersSet.has(normalizeAssigneeName(member))
+        );
+
+        return { coveredGroups: covered, visibleIndividualMembers: visible };
+    }, [selected, safeGroups]);
+
+    const handleRemoveGroup = (group: AssigneeGroup) => {
+        // Remove ALL members of this group from selection
+        const groupMembersSet = new Set(group.members.map(normalizeAssigneeName));
+        const newSelected = selected.filter(member =>
+            !groupMembersSet.has(normalizeAssigneeName(member))
+        );
+        updateSelected(newSelected);
+    };
+
     return (
         <div className="w-full">
             <input type="hidden" name={name} value={selected.join(', ')} />
@@ -240,7 +350,30 @@ export function MultiSelectAutocomplete({
                     className="flex flex-wrap gap-1.5 p-1.5"
                     onClick={() => inputRef.current?.focus()}
                 >
-                    {selected.map((value) => (
+                    {/* Render Covered Groups */}
+                    {coveredGroups.map(group => (
+                        <Badge
+                            key={`group-${group.name}`}
+                            variant="secondary"
+                            className="rounded-sm pr-1.5 bg-blue-100 text-blue-800 hover:bg-blue-200"
+                        >
+                            <Users className="w-3 h-3 mr-1" />
+                            {group.name}
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveGroup(group);
+                                }}
+                                className="ml-1 rounded-full p-0.5 outline-none hover:bg-blue-300"
+                            >
+                                <RemoveIcon className="h-3 w-3" />
+                            </button>
+                        </Badge>
+                    ))}
+
+                    {/* Render Remaining Individuals */}
+                    {visibleIndividualMembers.map((value) => (
                         <Badge
                             key={normalizeAssigneeName(value)}
                             variant="secondary"
@@ -261,6 +394,7 @@ export function MultiSelectAutocomplete({
                             </button>
                         </Badge>
                     ))}
+
                     <div className="flex-1" style={{ minWidth: '100px' }}>
                         <input
                             ref={inputRef}
@@ -305,16 +439,16 @@ export function MultiSelectAutocomplete({
                                     normalizeAssigneeName(sel) === normalizeAssigneeName(option)
                                 );
 
+                                const isGroup = safeGroups.some(g => g.name === option);
+
                                 return (
                                     <div
                                         key={`${normalizeAssigneeName(option)}-${index}`}
-                                        className={`
-                                            relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none
-                                            ${isHighlighted
-                                                ? 'bg-accent text-accent-foreground'
-                                                : 'hover:bg-accent hover:text-accent-foreground'
-                                            }
-                                        `}
+                                        className={cn(
+                                            "relative flex cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none",
+                                            isHighlighted ? "bg-accent text-accent-foreground" : "hover:bg-accent hover:text-accent-foreground",
+                                            isGroup ? "bg-blue-50/50 hover:bg-blue-100 text-blue-900 border-l-2 border-blue-500" : ""
+                                        )}
                                         onClick={() => {
                                             if (isCreateOption) {
                                                 handleCreate(inputValue);
@@ -325,10 +459,14 @@ export function MultiSelectAutocomplete({
                                         onMouseEnter={() => setHighlightedIndex(index)}
                                         onMouseDown={(e) => e.preventDefault()}
                                     >
-                                        <span>
-                                            {isCreateOption ? `Create "${formatAssigneeDisplayName(inputValue)}"` : option}
-                                        </span>
-                                        {!isCreateOption && isSelected && (
+                                        <div className="flex items-center">
+                                            {isGroup && <Users className="w-3 h-3 mr-2 text-blue-500" />}
+                                            <span>
+                                                {isCreateOption ? `Create "${formatAssigneeDisplayName(inputValue)}"` : option}
+                                                {isGroup && <span className="text-xs text-muted-foreground ml-2">({safeGroups.find(g => g.name === option)?.members.length} members)</span>}
+                                            </span>
+                                        </div>
+                                        {((!isCreateOption && isSelected) || (isGroup && false /* don't checkmark group? maybe */)) && (
                                             <Check className="h-4 w-4" />
                                         )}
                                     </div>

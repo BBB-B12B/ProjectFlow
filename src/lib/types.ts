@@ -11,9 +11,12 @@ export interface Project {
   completedTasks: number;
   totalTasks: number;
   isDarkModeOnly?: boolean;
+  category?: string;
+  githubLink?: string; // Deprecated
+  links?: { label: string; url: string; }[];
+  inProgressTasks?: number;
+  totalFiles?: number;
 }
-
-// ... existing Task interface ...
 
 export interface Customer {
   id: string;
@@ -32,6 +35,13 @@ export interface Customer {
   isDarkModeOnly?: boolean; // True if this customer belongs to OS (Dark Mode)
   totalProjects?: number;
   completedProjects?: number;
+  // Social Media Fields
+  lineId?: string;
+  lineLink?: string;
+  facebookName?: string;
+  facebookLink?: string;
+  whatsappNumber?: string;
+  whatsappLink?: string;
 }
 
 export interface CustomerRating {
@@ -56,6 +66,24 @@ export interface CustomerActivityLog {
   performedBy?: string; // User who performed the action
 }
 
+export type TaskStatus = 'ยังไม่เริ่ม' | 'กำลังดำเนินการ' | 'ติดปัญหา' | 'จบงานแล้ว' | 'หยุดงาน' | 'ยังไม่ได้เริ่ม';
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  isCompleted: boolean;
+}
+
+export interface TaskComment {
+  id: string;
+  text: string;
+  createdAt: string; // ISO String
+  createdBy: {
+    name: string;
+    avatarUrl?: string;
+  };
+}
+
 export interface Task {
   id: string;
   projectId: string;
@@ -64,7 +92,7 @@ export interface Task {
   Assignee?: string; // Changed Assignee to be a string directly
   StartDate: string;
   EndDate: string;
-  Status: 'ยังไม่เริ่ม' | 'กำลังดำเนินการ' | 'ติดปัญหา' | 'จบงานแล้ว';
+  Status: TaskStatus;
   Effort?: number;
   Effect?: number;
   Progress?: number;
@@ -72,6 +100,9 @@ export interface Task {
   Category?: string;
   Owner?: string; // Represents "Customer Group" (e.g., SME, Enterprise), NOT a specific person.
   Want?: string;
+  checklist?: ChecklistItem[];
+  comments?: TaskComment[];
+  Order?: number; // For manual sorting
 }
 
 export interface CalendarEvent {
@@ -88,9 +119,13 @@ export interface CalendarEvent {
   };
   relatedCustomerIds?: string[]; // Added: Link events to multiple customers
   isDarkModeOnly?: boolean;
+  recurrence?: {
+    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    interval: number;
+    endDate?: string; // ISO Date string
+    exceptions?: string[]; // ISO Date strings of skipped instances
+  };
 }
-
-
 
 export interface ProjectTrackingProgress {
   id: string;
@@ -102,6 +137,7 @@ export interface ProjectTrackingProgress {
   progressPercentage: number;
   createdAt: string; // วันที่สร้างข้อมูล
   updatedAt: string; // วันที่แก้ไขล่าสุด
+  attachments?: string[]; // URLs of uploaded files
   editHistory?: {
     editedAt: string;
     editedBy: string;
@@ -112,15 +148,22 @@ export interface ProjectTrackingProgress {
 
 export type ProjectType = 'Main' | 'QuickWin' | 'Fillin' | 'Thankless';
 
-// New interfaces for real-time presence
+// New interfaces for real-time presence (Lock System)
 export interface Editor {
   userName: string;
-  avatarUrl?: string;
-  lastSeen: any; // Firebase Timestamp
+  avatarUrl?: string; // Optional since it might not be available immediately
+  userId?: string; // Adding userId if it's needed
+  lastSeen?: any; // Firestore Timestamp
 }
 
 export interface Presence {
-  editors: {
-    [userId: string]: Editor;
-  };
+  editors?: Record<string, Editor>;
 }
+
+export interface AssigneeGroup {
+  id: string;
+  name: string;
+  members: string[]; // List of user names
+  projectId?: string; // Optional: Link to specific project if needed, or global
+}
+

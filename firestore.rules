@@ -32,7 +32,13 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-    // 6. Default Deny Class (ปิดท้ายเสมอ)
+
+    // 7. Rules for Assignee Groups
+    match /assignee_groups/{groupId} {
+      allow read, write: if true;
+    }
+
+    // 8. Default Deny Class (สำหรับการเข้าถึงนอกเหนือจากที่ระบุ)
     match /{path=**} {
       allow read, write: if false;
     }

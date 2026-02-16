@@ -1,4 +1,3 @@
-// /home/user/studio/src/components/edit-task-dialog.tsx
 "use client";
 
 import { useEffect, useState, useMemo, useActionState, useTransition } from "react";
@@ -28,10 +27,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import type { Task, ProjectType } from "@/lib/types";
+import type { Task, ProjectType, AssigneeGroup } from "@/lib/types";
 import { updateTask, createTask, deleteTask } from "@/app/project/[id]/actions";
 import { useToast } from "@/hooks/use-toast";
-import { MultiSelectAutocomplete } from "./ui/multi-select-autocomplete";
+import { MemberSelectorWithGroup } from "./ui/member-selector-with-group";
 import { Trash2 } from "lucide-react";
 import { db } from "@/lib/firebase";
 import { doc, setDoc, updateDoc, serverTimestamp, deleteField } from "firebase/firestore";
@@ -43,6 +42,7 @@ interface TaskDialogProps {
   task?: Task | null;
   projectId: string;
   assignees: string[];
+  assigneeGroups: AssigneeGroup[];
 }
 
 const initialFormData = {
@@ -65,13 +65,18 @@ function SubmitButton({ isEditMode }: { isEditMode: boolean }) {
   return <Button type="submit" disabled={pending}>{pending ? (isEditMode ? "Saving..." : "Creating...") : (isEditMode ? "Save changes" : "Create Task")}</Button>;
 }
 
-export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignees }: TaskDialogProps) {
+export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignees, assigneeGroups }: TaskDialogProps) {
   const isEditMode = !!task;
   const { toast } = useToast();
   const action = isEditMode ? updateTask : createTask;
   const [state, formAction] = useActionState(action, { success: false, message: "" });
   const [isDeletePending, startDeleteTransition] = useTransition();
-  const [currentUser] = useState(getAnonymousUser());
+  // T-153: Fix Hydration Mismatch by initializing inside useEffect
+  const [currentUser, setCurrentUser] = useState({ id: 'loading', name: 'Loading...', avatarUrl: '' });
+
+  useEffect(() => {
+    setCurrentUser(getAnonymousUser());
+  }, []);
 
   const [formData, setFormData] = useState(initialFormData);
   const [isDirty, setIsDirty] = useState(false);
@@ -182,11 +187,12 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
   };
 
   useEffect(() => {
-    if (state.success) {
+    // T-115 Fix: Defensive check for state
+    if (state?.success) {
       toast({ title: "Success!", description: `Task has been ${isEditMode ? 'updated' : 'created'}.` });
       setIsDirty(false);
       onOpenChange(false);
-    } else if (state.message) {
+    } else if (state?.message) {
       toast({ variant: "destructive", title: "Operation Failed", description: state.message });
     }
   }, [state, onOpenChange, toast, isEditMode]);
@@ -260,6 +266,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                   <span className="text-sm text-muted-foreground">{formData.Progress}%</span>
                 </div>
                 <Slider id="Progress" name="Progress" value={[formData.Progress]} max={100} step={1} onValueChange={handleSliderChange('Progress')} />
+                <input type="hidden" name="Progress" value={formData.Progress} />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
@@ -267,6 +274,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                   <span className="text-sm text-muted-foreground">{formData.Effect} / 10</span>
                 </div>
                 <Slider id="Effect" name="Effect" value={[formData.Effect]} max={10} step={1} onValueChange={handleSliderChange('Effect')} />
+                <input type="hidden" name="Effect" value={formData.Effect} />
               </div>
               <div className="space-y-2">
                 <div className="flex justify-between">
@@ -274,6 +282,7 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                   <span className="text-sm text-muted-foreground">{formData.Effort} / 10</span>
                 </div>
                 <Slider id="Effort" name="Effort" value={[formData.Effort]} max={10} step={1} onValueChange={handleSliderChange('Effort')} />
+                <input type="hidden" name="Effort" value={formData.Effort} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -290,25 +299,28 @@ export function EditTaskDialog({ isOpen, onOpenChange, task, projectId, assignee
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="ProjectType">Project Type</Label>
-                  <Select name="ProjectType" value={formData.ProjectType} onValueChange={handleSelectChange('ProjectType')}>
-                    <SelectTrigger><SelectValue placeholder="Select a type" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Main">Main</SelectItem>
-                      <SelectItem value="QuickWin">Quick Win</SelectItem>
-                      <SelectItem value="Fillin">Fill-in</SelectItem>
-                      <SelectItem value="Thankless">Thankless</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {/* T-126 Fix: Auto-calculated Project Type */}
+                  <div className="relative">
+                    <Input
+                      id="ProjectType"
+                      readOnly
+                      value={suggestedType}
+                      className="bg-muted text-muted-foreground cursor-not-allowed"
+                    />
+                    {/* Hidden input to ensure value is submitted */}
+                    <input type="hidden" name="ProjectType" value={suggestedType} />
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Assignee</Label>
-                  <MultiSelectAutocomplete
+                  <MemberSelectorWithGroup
+                    label="Assignee"
                     options={assignees}
-                    initialValue={formData.Assignee}
-                    name="Assignee"
+                    groups={assigneeGroups}
+                    value={formData.Assignee}
                     onValueChange={handleMultiSelectChange}
+                    name="Assignee"
                   />
                 </div>
                 <div className="space-y-2">

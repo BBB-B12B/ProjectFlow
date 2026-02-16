@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useToast } from "@/hooks/use-toast";
-import { createProject, getTeams, getCustomers } from "@/app/projects/actions";
+import { createProject, getTeams, getCustomers, getCategories } from "@/app/projects/actions";
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SingleSelectAutocomplete } from "@/components/ui/single-select-autocomplete";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, Trash2, Link as LinkIcon } from "lucide-react";
 import { AddCustomerDialog } from "@/components/add-customer-dialog";
 
 
@@ -64,20 +64,24 @@ export function NewProjectDialog({
   const { resolvedTheme } = useTheme(); // Use resolvedTheme to handle 'system' correctly
   const formRef = useRef<HTMLFormElement>(null);
   const [teams, setTeams] = useState<{ value: string; label: string; }[]>([]);
+  const [categories, setCategories] = useState<{ value: string; label: string; }[]>([]);
   const [allCustomers, setAllCustomers] = useState<{ value: string; label: string; isDarkModeOnly: boolean }[]>([]);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isFormDirty, setIsFormDirty] = useState(false);
   const [isConfirmCloseOpen, setIsConfirmCloseOpen] = useState(false);
+  const [links, setLinks] = useState<{ label: string; url: string }[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       getTeams().then(setTeams);
+      getCategories().then(setCategories);
       getCustomers().then((data) => setAllCustomers(data as any)); // Type assertion just in case, actions ts update propagated
       const today = new Date().toISOString().split('T')[0];
       setStartDate(today);
       setEndDate(today);
+      setLinks([]);
       setIsFormDirty(false);
     }
   }, [isOpen]);
@@ -132,6 +136,51 @@ export function NewProjectDialog({
     }
   };
 
+  const addLink = () => {
+    setLinks([...links, { label: 'GitHub', url: '' }]);
+    setIsFormDirty(true);
+  };
+
+  const removeLink = (index: number) => {
+    const newLinks = [...links];
+    newLinks.splice(index, 1);
+    setLinks(newLinks);
+    setIsFormDirty(true);
+  };
+
+  const updateLink = (index: number, field: 'label' | 'url', value: string) => {
+    const newLinks = [...links];
+    newLinks[index][field] = value;
+    setLinks(newLinks);
+    setIsFormDirty(true);
+  };
+
+  const formActionWithLinks = async (formData: FormData) => {
+    // Append links as JSON string (or however your server allows arrays, but FormData is flat usually)
+    // BUT wait, server actions can handle complex data if we invoke it directly or serialize it.
+    // Trick: FormData doesn't support arrays natively well for server actions without dot notation or repeated keys.
+    // EASIER: Just submit form normally but hijack the action call to modify FormData?
+    // OR: Use hidden inputs for the array.
+
+    links.forEach((link, index) => {
+      formData.append(`links[${index}][label]`, link.label);
+      formData.append(`links[${index}][url]`, link.url);
+    });
+    // Wait, Zod (formData) parsing usually expects repeated keys or bracket notation.
+    // Let's standard Zod way: pass object directly if not using strict formData only.
+    // But useActionState expects `(state, formData) => ...`
+    // Let's use hidden inputs. It's the cleanest for simple forms without changing action signature deeply.
+
+    // Actually, let's just use the `bind` or manual invoke. 
+    // BUT simpler: Iterate and append to a new FormData object or just use hidden fields in the JSX.
+    return formAction(formData);
+  };
+
+  // Actually, actions.ts expects standardized formData. Zod's .parse(Object.fromEntries(formData)) flattens inputs!
+  // Object.fromEntries takes LAST value for same key. It does NOT handle arrays or `links[0][label]`.
+  // WE NEED TO MODIFY actions.ts to parse complex index keys OR send JSON string.
+  // Plan Modification: Send `links` as a JSON string in a hidden input is safest and easiest.
+
   console.log("Teams data being passed to SingleSelectAutocomplete:", teams);
 
   return (
@@ -159,6 +208,45 @@ export function NewProjectDialog({
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea id="description" name="description" placeholder="A brief description of the project..." onChange={() => setIsFormDirty(true)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="category">Category</Label>
+                <SingleSelectAutocomplete
+                  options={categories}
+                  placeholder="Select or create a category..."
+                  name="category"
+                  onValueChange={() => setIsFormDirty(true)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>External Links</Label>
+                {links.map((link, index) => (
+                  <div key={index} className="flex gap-2 items-center mb-2">
+                    <Input
+                      placeholder="Label"
+                      value={link.label}
+                      onChange={(e) => updateLink(index, 'label', e.target.value)}
+                      className="w-1/3"
+                    />
+                    <Input
+                      placeholder="URL"
+                      value={link.url}
+                      onChange={(e) => updateLink(index, 'url', e.target.value)}
+                      className="flex-1"
+                    />
+                    <Button type="button" variant="ghost" size="icon" onClick={() => removeLink(index)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={addLink} className="mt-1">
+                  <Plus className="h-4 w-4 mr-1" /> Add Link
+                </Button>
+                {/* Hidden Input to serialize links for Server Action */}
+                {/* We need to modify actions.ts to parsing JSON string for 'links' if we do this. */}
+                {/* Let's try the Zod-friendly approach: sending strict valid repeated keys? No, Zod-from-FormData is tricky. */}
+                {/* Best approach: Send JSON string "links_json" and parse it in action. */}
+                <input type="hidden" name="links" value={JSON.stringify(links)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="team">Team</Label>

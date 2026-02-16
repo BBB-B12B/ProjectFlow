@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/firebase-lite";
-import { collection, addDoc, getDocs, Timestamp, doc, updateDoc, deleteDoc } from "firebase/firestore/lite";
+import { collection, addDoc, getDocs, getDoc, Timestamp, doc, updateDoc, deleteDoc } from "firebase/firestore/lite";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { Task, Project } from "@/lib/types";
@@ -21,6 +21,12 @@ export interface CalendarEvent {
     projectId: string;
   };
   isDarkModeOnly?: boolean;
+  recurrence?: {
+    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    interval: number;
+    endDate?: string;
+    exceptions?: string[]; // ISO Date strings
+  };
 }
 
 // New interface for tasks with project details
@@ -63,6 +69,12 @@ const EventSchema = z.object({
   relatedTaskName: z.string().optional(),
   relatedTaskProjectId: z.string().optional(),
   isDarkModeOnly: z.preprocess((arg) => arg === 'true', z.boolean()).optional(),
+  recurrence: z.object({
+    frequency: z.enum(['daily', 'weekly', 'monthly', 'yearly']),
+    interval: z.number().min(1),
+    endDate: z.string().optional(),
+    exceptions: z.array(z.string()).optional(),
+  }).optional(),
 });
 
 const CreateEventSchema = EventSchema;
@@ -169,6 +181,70 @@ export async function deleteEvent(eventId: string): Promise<FormState> {
   }
 }
 
+export async function deleteRecurringInstance(originalEventId: string, date: string): Promise<FormState> {
+  if (!originalEventId || !date) {
+    return { success: false, message: "Event ID and Date are required." };
+  }
+  try {
+    const eventRef = doc(db, "events", originalEventId);
+    const snap = await getDoc(eventRef);
+
+    if (!snap.exists()) {
+      return { success: false, message: "Master event not found." };
+    }
+
+    const data = snap.data();
+    const currentRecurrence = data.recurrence || {};
+    const currentExceptions = currentRecurrence.exceptions || [];
+
+    // Avoid duplicates
+    if (!currentExceptions.includes(date)) {
+      const newExceptions = [...currentExceptions, date];
+      await updateDoc(eventRef, {
+        "recurrence.exceptions": newExceptions
+      });
+    }
+
+    revalidatePath("/calendar");
+    return { success: true, message: "Recurring instance deleted." };
+  } catch (error) {
+    console.error("Error deleting recurring instance:", error);
+    return { success: false, message: "Failed to delete instance." };
+  }
+}
+
+export async function updateRecurringInstance(prevState: any, formData: FormData): Promise<FormState> {
+  // Extract special fields for the split logic
+  const originalEventId = formData.get('originalEventId') as string;
+  const instanceDate = formData.get('instanceDate') as string; // ISO String of the instance being edited
+
+  if (!originalEventId || !instanceDate) {
+    return { success: false, message: "Missing generic recurrence data." };
+  }
+
+  // 1. "Delete" the old instance from the series
+  const deleteResult = await deleteRecurringInstance(originalEventId, instanceDate);
+  if (!deleteResult.success) {
+    return { success: false, message: "Failed to update series exceptions." };
+  }
+
+  // 2. Create the new event (Single)
+  // We reuse the createEvent logic but we need to ensure the form data is clean
+  // The formData passed here contains all fields for the NEW event.
+  // We just need to remove 'originalEventId' and 'instanceDate' to clean it up?
+  // Actually createEvent validates fields, extras are ignored usually unless strict.
+  // Our Zod schema is strict? No, default z.object ignores unknown.
+  // But wait, createEvent function takes (prevState, formData).
+
+  // We can just call createEvent(prevState, formData).
+  // However, createEvent might rely on 'recurrence' field in FormData if the user chose to make THIS new event recurring?
+  // If the user editing the instance wants the NEW event to be recurring, that's fine.
+  // If the user wants it to be single, `recurrence` field should be empty in FormData.
+  // The UI should handle sending the right data.
+
+  return await createEvent(prevState, formData);
+}
+
 
 export async function getEvents(): Promise<CalendarEvent[]> {
   try {
@@ -186,6 +262,7 @@ export async function getEvents(): Promise<CalendarEvent[]> {
         location: data.location,
         relatedTask: data.relatedTask || undefined, // Include new field
         isDarkModeOnly: data.isDarkModeOnly || false, // Include new field
+        recurrence: data.recurrence || undefined, // Include recurrence
       };
     });
   } catch (error) {

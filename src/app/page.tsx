@@ -3,6 +3,9 @@ import { redirect } from 'next/navigation';
 import { db } from '@/lib/firebase-lite';
 import { seedData } from './seed/actions';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
+
 export default async function HomePage() {
   const projectsCol = collection(db, 'projects');
   const projectSnapshot = await getDocs(projectsCol);

@@ -28,11 +28,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from '@/components/ui/textarea';
-import { MultiSelectAutocomplete } from '@/components/ui/multi-select-autocomplete';
+import { MemberSelectorWithGroup } from '@/components/ui/member-selector-with-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { SingleSelectAutocomplete } from '@/components/ui/single-select-autocomplete';
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, Timestamp } from "firebase/firestore";
-import type { Task, Project } from "@/lib/types";
+import type { Task, Project, AssigneeGroup } from "@/lib/types";
 
 interface CalendarEvent {
   id: string;
@@ -62,6 +69,8 @@ interface NewEventDialogProps {
   defaultDate: Date | null;
   members: string[];
   locations: string[];
+  groups: AssigneeGroup[];
+  initialData?: Partial<CalendarEvent> | null;
 }
 
 export function NewEventDialog({
@@ -70,6 +79,8 @@ export function NewEventDialog({
   defaultDate,
   members,
   locations,
+  groups,
+  initialData,
 }: NewEventDialogProps) {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -80,16 +91,43 @@ export function NewEventDialog({
   const [selectedTask, setSelectedTask] = useState<TaskWithProjectDetails | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<string>("");
   const { theme } = useTheme();
+  // Recurrence State
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('weekly');
+  const [recurrenceInterval, setRecurrenceInterval] = useState(1);
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>("");
+
+
+  // Auto-Sync State
+  const [eventEndDate, setEventEndDate] = useState<string>("");
+
+
+
+  useEffect(() => {
+    // Initialize eventEndDate when dialog opens or defaults change
+    if (isOpen) {
+      setEventEndDate(formatDateToYYYYMMDD(defaultDate));
+    }
+  }, [isOpen, defaultDate]);
+
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
-    if (!isOpen) {
-      formRef.current?.reset();
-      setIsDirty(false);
-      setSelectedTask(null);
-      setSelectedLocation("");
+    if (isOpen) {
+      if (initialData) {
+        // Pre-fill from initialData (Duplicate Mode)
+        // Note: Dates are NOT set from initialData as per requirement
+        setSelectedLocation(initialData.location || "");
+        // Task pre-filling handled in the tasks fetch effect
+      } else {
+        // Reset (New Mode)
+        formRef.current?.reset();
+        setIsDirty(false);
+        setSelectedTask(null);
+        setSelectedLocation("");
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   // Fetch tasks client-side to avoid Edge/SES issues
   useEffect(() => {
@@ -118,6 +156,13 @@ export function NewEventDialog({
             });
           });
           setTasks(tasksWithDetails);
+
+          // If duplication, try to set the selected task once tasks are loaded
+          if (initialData?.relatedTask) {
+            const preSelected = tasksWithDetails.find(t => t.id === initialData.relatedTask?.id);
+            if (preSelected) setSelectedTask(preSelected);
+          }
+
         } catch (error) {
           console.error("Error fetching tasks for dropdown:", error);
           toast({ title: "Error", description: "Failed to load tasks.", variant: "destructive" });
@@ -125,7 +170,7 @@ export function NewEventDialog({
       };
       fetchTasksAndProjects();
     }
-  }, [isOpen, toast]);
+  }, [isOpen, toast, initialData]);
 
   const formatDateToYYYYMMDD = (date: Date | null) => {
     if (!date) return '';
@@ -211,6 +256,14 @@ export function NewEventDialog({
           end: Timestamp.fromDate(end),
         };
 
+        if (isRecurring) {
+          eventData.recurrence = {
+            frequency: recurrenceFrequency,
+            interval: recurrenceInterval,
+            endDate: recurrenceEndDate ? new Date(recurrenceEndDate).toISOString() : undefined
+          };
+        }
+
         if (selectedTask) {
           eventData.relatedTask = {
             id: selectedTask.id,
@@ -246,11 +299,11 @@ export function NewEventDialog({
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="title">Event Title</Label>
-                <Input id="title" name="title" required />
+                <Input id="title" name="title" defaultValue={initialData?.title || ""} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
-                <Textarea id="description" name="description" />
+                <Textarea id="description" name="description" defaultValue={initialData?.description || ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="relatedTask">Related Task (Optional)</Label>
@@ -282,11 +335,13 @@ export function NewEventDialog({
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="members">Members</Label>
-                <MultiSelectAutocomplete
+                <MemberSelectorWithGroup
+                  label="Members"
                   options={members}
+                  groups={groups}
                   placeholder="Select members..."
                   name="members"
+                  value={initialData?.members || []}
                 />
               </div>
               <div className="space-y-2">
@@ -315,7 +370,14 @@ export function NewEventDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="endDate">End Date</Label>
-                  <Input id="endDate" name="endDate" type="date" defaultValue={formatDateToYYYYMMDD(defaultDate)} required />
+                  <Input
+                    id="endDate"
+                    name="endDate"
+                    type="date"
+                    value={eventEndDate}
+                    onChange={(e) => setEventEndDate(e.target.value)}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="endTime">End Time</Label>
@@ -325,6 +387,60 @@ export function NewEventDialog({
               <div className="flex items-center space-x-2">
                 <Checkbox id="allDay" name="allDay" value="true" />
                 <Label htmlFor="allDay">All day event</Label>
+              </div>
+
+              {/* Recurrence UI */}
+              <div className="space-y-4 pt-2 border-t">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="isRecurring"
+                    checked={isRecurring}
+                    onCheckedChange={(checked) => setIsRecurring(checked as boolean)}
+                  />
+                  <Label htmlFor="isRecurring">Repeat Event</Label>
+                </div>
+
+                {isRecurring && (
+                  <div className="pl-6 space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Frequency</Label>
+                        <Select
+                          value={recurrenceFrequency}
+                          onValueChange={(val: any) => setRecurrenceFrequency(val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="yearly">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Interval (Every X)</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={recurrenceInterval}
+                          onChange={(e) => setRecurrenceInterval(parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Date</Label>
+                      <Input
+                        type="date"
+                        value={recurrenceEndDate}
+                        onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                        required={isRecurring}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

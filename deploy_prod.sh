@@ -59,6 +59,11 @@ rsync -a --exclude '.next' --exclude '.vercel' --exclude 'node_modules' "$PROJEC
 # Safest is to use absolute path for source.
 ln -s "$PROJECT_DIR/node_modules" "$TEMP_DIR/node_modules"
 
+# Copy env files explicitly to ensure they are picked up
+cp "$PROJECT_DIR/.env" "$TEMP_DIR/" 2>/dev/null || true
+cp "$PROJECT_DIR/.env.local" "$TEMP_DIR/" 2>/dev/null || true
+echo "   - Environment variables copied."
+
 
 cd $TEMP_DIR
 echo "🏗️  Running Cloudflare Next-on-Pages Build (in temp)..."
@@ -123,4 +128,4 @@ echo ""
 echo "----------------------------------------"
 
 # Optional: Uncomment to auto-deploy if you have CLOUDFLARE_API_TOKEN set or are logged in
-# npx wrangler pages deploy .vercel/output/static
+npx wrangler pages deploy .vercel/output/static --project-name project-management-system

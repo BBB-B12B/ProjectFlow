@@ -1,5 +1,7 @@
 "use server";
 
+
+
 import { db } from "@/lib/firebase-lite";
 import { collection, addDoc, writeBatch, doc, query, where, getDocs, updateDoc, getDoc } from "firebase/firestore/lite";
 import { revalidatePath } from "next/cache";
@@ -14,6 +16,16 @@ const CreateProjectSchema = z.object({
     taskName: z.string().min(1, "First task name is required."),
     team: z.string().optional(),
     owner: z.string().optional(),
+    category: z.string().optional(),
+    githubLink: z.string().optional(),
+    links: z.string().transform((str, ctx) => {
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+            ctx.addIssue({ code: 'custom', message: 'Invalid JSON for links' });
+            return z.NEVER;
+        }
+    }).pipe(z.array(z.object({ label: z.string(), url: z.string() }))).optional(),
 });
 
 const UpdateProjectSchema = z.object({
@@ -22,19 +34,35 @@ const UpdateProjectSchema = z.object({
     description: z.string().optional(),
     team: z.string().optional(),
     owner: z.string().optional(),
+    category: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    githubLink: z.string().optional(),
+    links: z.string().transform((str, ctx) => {
+        try {
+            return JSON.parse(str);
+        } catch (e) {
+            // Allow empty or undefined
+            if (!str) return [];
+            ctx.addIssue({ code: 'custom', message: 'Invalid JSON for links' });
+            return z.NEVER;
+        }
+    }).pipe(z.array(z.object({ label: z.string(), url: z.string() }))).optional(),
 });
 
 export async function createProject(prevState: any, formData: FormData) {
-    const validatedFields = CreateProjectSchema.safeParse(
-        Object.fromEntries(formData.entries())
-    );
+    const rawData = Object.fromEntries(formData.entries());
+    // Convert empty links string to "[]" to avoid JSON parse error on empty
+    if (rawData.links === "") rawData.links = "[]";
+
+    const validatedFields = CreateProjectSchema.safeParse(rawData);
 
     if (!validatedFields.success) {
         console.error("Validation Error:", validatedFields.error.flatten().fieldErrors);
         return { success: false, message: "Invalid form data." };
     }
 
-    const { name, description, startDate, endDate, taskName, team, owner } = validatedFields.data;
+    const { name, description, startDate, endDate, taskName, team, owner, category, githubLink, links } = validatedFields.data;
 
     if (new Date(endDate) < new Date(startDate)) {
         return { success: false, message: "End date cannot be before the start date." };
@@ -76,6 +104,9 @@ export async function createProject(prevState: any, formData: FormData) {
             isDarkModeOnly: isDarkModeOnly,
             totalTasks: 0,
             completedTasks: 0,
+            category: category || "",
+            githubLink: githubLink || "",
+            links: links || [],
         });
 
         const taskRef = doc(collection(db, "tasks"));
@@ -109,16 +140,17 @@ export async function createProject(prevState: any, formData: FormData) {
 }
 
 export async function updateProject(prevState: any, formData: FormData) {
-    const validatedFields = UpdateProjectSchema.safeParse(
-        Object.fromEntries(formData.entries())
-    );
+    const rawData = Object.fromEntries(formData.entries());
+    if (rawData.links === "") rawData.links = "[]";
+
+    const validatedFields = UpdateProjectSchema.safeParse(rawData);
 
     if (!validatedFields.success) {
         console.error("Validation Error:", validatedFields.error.flatten().fieldErrors);
         return { success: false, message: "Invalid form data." };
     }
 
-    const { projectId, name, description, team, owner } = validatedFields.data;
+    const { projectId, name, description, team, owner, category, startDate, endDate, githubLink, links } = validatedFields.data;
 
     try {
         const isDarkModeOnly = team?.trim().toUpperCase() === 'OS';
@@ -150,6 +182,11 @@ export async function updateProject(prevState: any, formData: FormData) {
             owner: newOwnerName,
             customerId: newCustomerId || oldCustomerId, // Update if new valid customer found, else keep old? Or should we clear? Assume keep/update.
             isDarkModeOnly: isDarkModeOnly,
+            category: category || "",
+            startDate: startDate || oldProjectData?.startDate || "", // Update if provided, else keep old
+            endDate: endDate || oldProjectData?.endDate || "",
+            githubLink: githubLink || oldProjectData?.githubLink || "",
+            links: links || oldProjectData?.links || [],
         });
 
         if (newCustomerId) await recalculateCustomerStats(newCustomerId);
@@ -194,6 +231,22 @@ export async function getCustomers(): Promise<{ value: string; label: string; }[
             .sort((a, b) => a.label.localeCompare(b.label));
     } catch (error) {
         console.error("Error fetching customers:", error);
+        return [];
+    }
+}
+
+export async function getCategories(): Promise<{ value: string; label: string; }[]> {
+    try {
+        const snapshot = await getDocs(collection(db, "projects"));
+        const projects = snapshot.docs.map(doc => doc.data() as Project);
+        const categories = new Set(projects.map(project => project.category).filter(Boolean) as string[]);
+
+        return Array.from(categories).map(cat => ({
+            value: cat,
+            label: cat
+        })).sort((a, b) => a.label.localeCompare(b.label));
+    } catch (error) {
+        console.error("Error fetching categories:", error);
         return [];
     }
 }
@@ -275,5 +328,23 @@ export async function unarchiveProject(projectId: string) {
     } catch (error) {
         console.error("Error unarchiving project:", error);
         return { success: false, message: "Failed to unarchive project." };
+    }
+}
+
+
+import { recalculateProjectStats } from "@/app/project/[id]/actions";
+
+export async function syncAllProjectsStats() {
+    try {
+        const snapshot = await getDocs(collection(db, "projects"));
+        const projectIds = snapshot.docs.map(doc => doc.id);
+
+        await Promise.all(projectIds.map(id => recalculateProjectStats(id)));
+
+        revalidatePath("/projects");
+        return { success: true, message: "All projects synced successfully." };
+    } catch (error) {
+        console.error("Error syncing projects:", error);
+        return { success: false, message: "Failed to sync projects." };
     }
 }

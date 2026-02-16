@@ -39,7 +39,7 @@ export function getAnonymousUser(): AnonymousUser {
     let userName = localStorage.getItem('anonymousUserName');
     let userAvatar = localStorage.getItem('anonymousUserAvatar');
 
-    if (userId && userName && userAvatar) {
+    if (userId && userName && userAvatar && !userAvatar.startsWith('/api/avatars')) {
       console.log("getAnonymousUser: Loading existing user from localStorage. ID:", userId);
       return { id: userId, name: userName, avatarUrl: userAvatar };
     }
@@ -47,7 +47,7 @@ export function getAnonymousUser(): AnonymousUser {
     // If not found, generate new user data
     userId = crypto.randomUUID(); // Generate a unique ID
     userName = animals[Math.floor(Math.random() * animals.length)]; // Pick a random animal name
-    userAvatar = `/api/avatars/${userName.toLowerCase().replace(/\s/g, '')}.png`; // Simple avatar URL (placeholder)
+    userAvatar = `https://ui-avatars.com/api/?name=${userName}&background=random&color=fff&rounded=true`; // Use UI Avatars
 
     // Store new user data in localStorage
     localStorage.setItem('anonymousUserId', userId);
@@ -63,6 +63,6 @@ export function getAnonymousUser(): AnonymousUser {
   return {
     id: 'server-user',
     name: 'ServerBot',
-    avatarUrl: '/api/avatars/serverbot.png',
+    avatarUrl: 'https://ui-avatars.com/api/?name=ServerBot&background=000&color=fff&rounded=true',
   };
 }
