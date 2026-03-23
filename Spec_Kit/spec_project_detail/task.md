@@ -210,6 +210,14 @@
   - **Type**: Optimization
 - [x] [T-140] **Implement Analytics Filter Toggle**: เพิ่มปุ่มซ่อน/แสดง Filter ในหน้า Analytics เพื่อแก้ปัญหาบังหน้าจอบนมือถือ
   - **Type**: Feature/UX
+- [x] [T-185] **Implement Daily Report Analysis Tab**: เพิ่มแท็บ Daily Report Analysis เพื่อสรุปการลงเวลาของทีมงานแยกตามวัน/บุคคล สามารถดูรายละเอียดงานย่อยได้ <!-- id: 185 -->
+  - **Type**: Feature
+  - **Traceability**: [F-010]
+  - **Error Logs**:
+    - **[T-185-EX-1]**: Server Component passes non-plain object (Firestore Timestamp) out of AssigneeGroups causing console error.
+      1. **Root Cause**: `getAssigneeGroups` in `analytics/page.tsx` directly returned Firebase Document data containing `createdAt` objects.
+      2. **Action**: Manually mapped and extracted only necessary plain static fields (`id`, `name`, `description`, `members`) from the Server Component before passing as props.
+      3. **Status**: Fixed
 
 
 
@@ -250,6 +258,23 @@
   - **Type**: Feature/UX
 - [x] [T-106] **Optimize Tracking Data Fetching**: แก้ไขปัญหาตารางโหลดซ้อน 2 รอบ (Redundant Fetching) <!-- id: 6 -->
   - **Type**: Bug/Optimization
+- [x] [T-184] **Enhance Daily Tracking Validation and Display**: ปรับปรุงการตรวจสอบ Progress ย้อนหลัง, แสดงผลงาน Done ในอดีต, เรียงลำดับตาม Project
+  - **Type**: Feature/UX
+  - **Priority**: High
+  - **Description**:
+      1. ล็อก Input Progress ไม่ให้ข้ามขอบเขตในอดีตและอนาคต
+      2. ปรับสถานะเป็น "จบงานแล้ว" อัตโนมัติเมื่อ Progress = 100%
+      3. แสดงงานที่เคยลงเวลาในอดีตแม้สถานะปัจจุบันจะ Done แล้ว
+      4. จัดเรียงตารางตาม Project Name และลดหลั่นตาม Progress
+  - **Traceability**: [F-004]
+  - **Error Logs**:
+    - **[T-184-EX-1]**: ข้อมูลการลงเวลาของ Task ที่ใช้งานร่วมกัน (เช่น "ลา", "ประชุม" ของโปรเจกต์ "พิธีกรรม") สูญหายเมื่อดูย้อนหลัง
+      1. **Root Cause**: ฟังก์ชัน `confirmSave` อัปเดตข้อมูลแบบ Batch แต่ Query หา Existing Tracking record เดิมโดยระบุแค่ `taskId` กับ `date` ขาด `trackerName` ทำให้ถ้ามีคนลงเวลาย้อนหลังงานเดียวกันในวันเดียวกัน จะไปทับ(Overwrite) Record ของคนก่อนหน้า
+      2. **Action**: เพิ่มเงื่อนไข `where('trackerName', '==', selectedAssignee)` ใน Firestore Query ตอนกด Save
+      3. **Status**: Fixed
+- [x] [T-186] **Refactor Tracking Progress to Global Scope**: เปลี่ยนการคำนวณ Min/Max/Latest Progress ให้อิงจากประวัติของทุกคน (Global History) ไม่ใช่แค่ของคนลงเวลา
+  - **Type**: Feature/Refactor
+  - **Traceability**: [F-004]
 - [ ] [T-031] ปรับปรุงระบบบันทึกเวลาทำงาน (Time Tracking Log)
 
 ### 📍 Page: Customers (`src/app/customers`)

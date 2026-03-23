@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTheme } from 'next-themes';
-import { ProjectTrackingProgress, Task, Project } from '@/lib/types';
+import { ProjectTrackingProgress, Task, Project, AssigneeGroup } from '@/lib/types';
 import { useLocalStorage } from "@/hooks/use-local-storage";
 import {
   Select,
@@ -57,7 +57,7 @@ interface TrackingClientProps {
   initialAssignees?: string[]; // Made optional for backward compatibility
 }
 
-interface ExtendedProjectTrackingProgress extends ProjectTrackingProgress {
+interface ExtendedProjectTrackingProgress extends Omit<ProjectTrackingProgress, 'createdAt' | 'updatedAt'> {
   createdAt?: any;
   updatedAt?: any;
   editHistory?: {
@@ -88,10 +88,10 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   const [selectedDate, setSelectedDate] = useLocalStorage<string>('tracking_date', new Date().toISOString().split('T')[0]);
   const [tasks, setTasks] = useState<TaskWithProjectName[]>([]);
   const [trackingData, setTrackingData] = useState<
-    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[] }>
+    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[]; minAllowedProgress?: number; maxAllowedProgress?: number; latestProgressAtDate?: number }>
   >({});
   const [originalTrackingData, setOriginalTrackingData] = useState<
-    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[] }>
+    Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[]; minAllowedProgress?: number; maxAllowedProgress?: number; latestProgressAtDate?: number }>
   >({});
   const [loading, setLoading] = useState<boolean>(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
@@ -135,7 +135,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
       // Cache tasks
       const fetchedTasks: Task[] = [];
-      allTasksSnapshot.forEach((doc) => {
+      allTasksSnapshot.forEach((doc: any) => {
         const data = doc.data();
         const task = { id: doc.id, ...data } as Task;
         task.Assignee = data.Assignee as string;
@@ -145,7 +145,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
       // Cache projects
       const projectsMap = new Map<string, Project>();
-      allProjectsSnapshot.forEach((doc) => {
+      allProjectsSnapshot.forEach((doc: any) => {
         const data = doc.data();
         const project = { id: doc.id, ...data } as Project;
         projectsMap.set(doc.id, project);
@@ -247,34 +247,53 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   }, [assignees, osCustomers, theme]);
 
   // 🚀 Lightning fast tracking data processing from cache
-  const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string, tasksSource: Task[], trackingSource: Map<string, ExtendedProjectTrackingProgress[]>) => {
+  const processTrackingDataFromCache = useCallback((taskIds: string[], forDate: string, tasksSource: Task[], trackingSource: Map<string, ExtendedProjectTrackingProgress[]>, assigneeName: string) => {
     const today = new Date().toISOString().split('T')[0];
-    const currentTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[] }> = {};
+    const currentTrackingData: Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[]; minAllowedProgress: number; maxAllowedProgress: number; latestProgressAtDate: number }> = {};
 
     taskIds.forEach(taskId => {
-      const taskTracking = trackingSource.get(taskId) || [];
+      const taskTracking = (trackingSource.get(taskId) || []) as ExtendedProjectTrackingProgress[];
       let totalHoursWorkedForTask = 0;
-      let latestProgress = 0;
-      let specificDateData = null;
-
-      // Find task progress from tasksSource
-      const task = tasksSource.find(t => t.id === taskId);
-      latestProgress = task?.Progress || 0;
+      let specificDateData: any = null;
+      let minAllowedProgress = 0;
+      let maxAllowedProgress = 100;
+      let latestProgressAtDate = 0;
 
       taskTracking.forEach(track => {
-        totalHoursWorkedForTask += track.hoursWorked;
-        if (track.date === forDate) {
-          specificDateData = track;
+        // 1. Assignee specific data (Hours and specific date entry)
+        if (track.trackerName === assigneeName) {
+          totalHoursWorkedForTask += track.hoursWorked;
+          if (track.date === forDate) {
+            specificDateData = track;
+          }
         }
-        latestProgress = Math.max(latestProgress, track.progressPercentage);
+
+        // 2. Global data calculation for Progress (Any Assignee)
+        if (track.date < forDate) {
+          minAllowedProgress = Math.max(minAllowedProgress, track.progressPercentage);
+        }
+        if (track.date > forDate) {
+          maxAllowedProgress = Math.min(maxAllowedProgress, track.progressPercentage);
+        }
+        if (track.date <= forDate) {
+          latestProgressAtDate = Math.max(latestProgressAtDate, track.progressPercentage);
+        }
       });
+
+      let activeProgress = specificDateData?.progressPercentage;
+      if (activeProgress === undefined) {
+        activeProgress = latestProgressAtDate;
+      }
 
       currentTrackingData[taskId] = {
         hoursWorked: specificDateData?.hoursWorked || 0,
-        progressPercentage: specificDateData?.progressPercentage || latestProgress,
+        progressPercentage: activeProgress,
         totalHoursWorked: totalHoursWorkedForTask,
         isBackdated: forDate !== today,
-        attachments: specificDateData?.attachments || []
+        attachments: specificDateData?.attachments || [],
+        minAllowedProgress,
+        maxAllowedProgress,
+        latestProgressAtDate
       };
     });
 
@@ -315,6 +334,29 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         const projectsSource = freshData?.projects || projectsCache;
         const trackingSource = freshData?.tracking || trackingCache;
 
+        // 🚀 Optimized: Fetch ALL tracking data globally to calculate accurate min/max progress
+        const trackingRef = collection(db, 'projectTrackingProgress');
+        const trackingSnapshot = await getDocs(trackingRef); // NO FILTER
+
+        const newTrackingSource = new Map(); // Fresh map, ignoring old cache
+        const assigneeTasksWithHoursOnDate = new Set<string>();
+
+        trackingSnapshot.forEach(doc => {
+          const track = doc.data() as ExtendedProjectTrackingProgress;
+          if (!newTrackingSource.has(track.taskId)) {
+            newTrackingSource.set(track.taskId, []);
+          }
+          const existing = newTrackingSource.get(track.taskId) || [];
+          if (!existing.some(e => e.id === track.id)) {
+            existing.push(track);
+          }
+          newTrackingSource.set(track.taskId, existing);
+
+          if (track.trackerName === assigneeName && track.date === forDate && (track.hoursWorked || 0) > 0) {
+            assigneeTasksWithHoursOnDate.add(track.taskId);
+          }
+        });
+
         // Filter tasks using local variables (not stale state)
         const tasksWithProjectName = tasksSource
           .filter(task => {
@@ -330,8 +372,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
             if (!isDirectlyAssigned && !isGroupAssigned) return false;
 
-            // 🚀 Filter: Show ONLY "In Progress" tasks (กำลังดำเนินการ)
-            if (task.Status !== 'กำลังดำเนินการ') return false;
+            // 🚀 Filter: Show ONLY "In Progress" tasks OR tasks that have hours logged by THIS user on this specific date
+            if (task.Status !== 'กำลังดำเนินการ' && !assigneeTasksWithHoursOnDate.has(task.id)) return false;
 
             // 2. OS Project Logic Filter (Optimized)
             const project = projectsSource.get(task.projectId);
@@ -358,44 +400,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           return;
         }
 
-        // Process tracking data
         const taskIds = tasksWithProjectName.map(task => task.id);
-
-        // 🚀 Optimized: Fetch ALL tracking data for this assignee
-        // This is more efficient than fetching by task chunks (avoids 'in' query limits and index issues)
-        // and allows us to calculate "Total Hours" correctly for this user.
-        const trackingRef = collection(db, 'projectTrackingProgress');
-
-        // Single simple query - cleaner and likely satisfies security rules better
-        const trackingSnapshot = await getDocs(query(
-          trackingRef,
-          where('trackerName', '==', assigneeName)
-        ));
-
-        // Update local tracking source map
-        // We create a fresh map for this user because we have their FULL history now.
-        // Merging isn't strictly necessary if strict 'trackerName' filter is used, 
-        // but let's be safe and just map what we got.
-        const newTrackingSource = new Map(trackingSource);
-
-        trackingSnapshot.forEach(doc => {
-          const track = doc.data() as ExtendedProjectTrackingProgress;
-          // Only add if it relates to one of our relevant projects/tasks? 
-          // Creating a map by TaskID effectively filters it to relevant tasks later.
-
-          if (!newTrackingSource.has(track.taskId)) {
-            newTrackingSource.set(track.taskId, []);
-          }
-
-          const existing = newTrackingSource.get(track.taskId) || [];
-          if (!existing.some(e => e.id === track.id)) {
-            existing.push(track);
-          }
-          newTrackingSource.set(track.taskId, existing);
-        });
-
-
-        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate, tasksSource, newTrackingSource);
+        const currentTrackingData = processTrackingDataFromCache(taskIds, forDate, tasksSource, newTrackingSource, assigneeName);
 
         setTrackingData(currentTrackingData);
         setOriginalTrackingData({ ...currentTrackingData });
@@ -437,13 +443,29 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
   const handleInputChange = useCallback(
     (taskId: string, field: 'hoursWorked' | 'progressPercentage' | 'attachments', value: any) => {
-      setTrackingData((prev) => ({
-        ...prev,
-        [taskId]: {
-          ...prev[taskId],
-          [field]: field === 'attachments' ? value : (value === '' ? 0 : parseFloat(value) || 0),
-        },
-      }));
+      setTrackingData((prev) => {
+        const prevData = prev[taskId];
+        let finalValue = value;
+
+        if (field === 'progressPercentage') {
+          finalValue = value === '' ? 0 : parseFloat(value) || 0;
+          if (prevData) {
+            const minVal = prevData.minAllowedProgress || 0;
+            const maxVal = prevData.maxAllowedProgress !== undefined ? prevData.maxAllowedProgress : 100;
+            finalValue = Math.min(Math.max(finalValue, minVal), maxVal);
+          }
+        } else if (field === 'hoursWorked') {
+          finalValue = value === '' ? 0 : parseFloat(value) || 0;
+        }
+
+        return {
+          ...prev,
+          [taskId]: {
+            ...prevData,
+            [field]: finalValue,
+          },
+        };
+      });
     },
     [],
   );
@@ -519,7 +541,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
       // Batch all operations for better performance
       const existingTrackingQueries = await Promise.all(
         pendingChanges.map(change =>
-          getDocs(query(trackingRef, where('taskId', '==', change.task.id), where('date', '==', selectedDate)))
+          getDocs(query(trackingRef, where('taskId', '==', change.task.id), where('date', '==', selectedDate), where('trackerName', '==', selectedAssignee)))
         )
       );
 
@@ -584,10 +606,19 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           }
         }
 
-        if (!isBackdated || progressPercentage > (task.Progress || 0)) {
+        if (!isBackdated || progressPercentage >= (task.Progress || 0)) {
+          const taskRef = doc(db, 'tasks', task.id);
+          const updateData: any = { Progress: progressPercentage };
+          if (progressPercentage === 100) {
+            updateData.Status = 'จบงานแล้ว';
+          }
+          batch.update(taskRef, updateData);
+          updatedTaskIds.add(task.id);
+        } else if (progressPercentage === 100) {
           const taskRef = doc(db, 'tasks', task.id);
           batch.update(taskRef, {
-            Progress: progressPercentage,
+            Progress: 100,
+            Status: 'จบงานแล้ว'
           });
           updatedTaskIds.add(task.id);
         }
@@ -661,16 +692,29 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   }), [trackingData, tasks, changedTasks, projectsCache]);
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter(task => {
-      // 1. Hide 100% Completed Tasks
-      if ((task.Progress || 0) === 100) return false;
+    const filtered = tasks.filter(task => {
+      // 1. Hide 100% Completed Tasks unless it has hours on selectedDate
+      const currentTracking = trackingData[task.id];
+      const hasHoursOnDate = currentTracking && currentTracking.hoursWorked > 0;
+
+      if (task.Status === 'จบงานแล้ว' && !hasHoursOnDate) return false;
 
       // 2. Filter by Project
       if (selectedProjectId && selectedProjectId !== 'all' && task.projectId !== selectedProjectId) return false;
 
       return true;
     });
-  }, [tasks, selectedProjectId]);
+
+    // 3. Sort by Project Name (Ascending) then by Progress (Descending)
+    return filtered.sort((a, b) => {
+      if (a.projectName < b.projectName) return -1;
+      if (a.projectName > b.projectName) return 1;
+
+      const progA = trackingData[a.id]?.progressPercentage || a.Progress || 0;
+      const progB = trackingData[b.id]?.progressPercentage || b.Progress || 0;
+      return progB - progA;
+    });
+  }, [tasks, selectedProjectId, trackingData]);
 
   return (
     <div className="container mx-auto p-4">
@@ -858,7 +902,9 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
                 const hasChanges = currentTracking.hoursWorked !== originalTracking.hoursWorked ||
                   currentTracking.progressPercentage !== originalTracking.progressPercentage;
 
-                const latestProgress = task.Progress || 0;
+                const minAllowed = currentTracking.minAllowedProgress || 0;
+                const maxAllowed = currentTracking.maxAllowedProgress !== undefined ? currentTracking.maxAllowedProgress : 100;
+                const latestProgressAtDate = currentTracking.latestProgressAtDate || 0;
                 const updateProgress = currentTracking.progressPercentage;
 
                 return (
@@ -893,7 +939,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
                         <Paperclip className={`h-4 w-4 ${currentTracking.attachments && currentTracking.attachments.length > 0 ? "text-blue-500" : "text-muted-foreground"}`} />
                       </Button>
                     </TableCell>
-                    <TableCell>{latestProgress}%</TableCell>
+                    <TableCell>{latestProgressAtDate}%</TableCell>
                     <TableCell>
                       <Input
                         type="number"
@@ -925,8 +971,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
                           }
                         }}
                         className={`w-24 ${hasChanges ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}
-                        min="0"
-                        max="100"
+                        min={minAllowed}
+                        max={maxAllowed}
                       />
                     </TableCell>
                   </TableRow>

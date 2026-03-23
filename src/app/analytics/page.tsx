@@ -2,7 +2,7 @@
 import React from 'react';
 import { collection, getDocs } from 'firebase/firestore/lite';
 import { db } from '@/lib/firebase-lite';
-import { Project, Task } from '@/lib/types';
+import { Project, Task, AssigneeGroup } from '@/lib/types';
 import AnalyticsClient from './analytics-client';
 
 export const runtime = 'edge'; // Ensure Edge compatibility
@@ -67,12 +67,33 @@ async function getProjects(): Promise<Project[]> {
   }
 }
 
+// ฟังก์ชันดึงข้อมูล Assignee Groups
+async function getAssigneeGroups(): Promise<AssigneeGroup[]> {
+  try {
+    const groupsCol = collection(db, 'assignee_groups');
+    const snapshot = await getDocs(groupsCol);
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name || '',
+        description: data.description || '',
+        members: data.members || []
+      } as AssigneeGroup;
+    });
+  } catch (error) {
+    console.error('Error fetching assignee groups:', error);
+    return [];
+  }
+}
+
 // Main Analytics Page Component (Server Component)
 export default async function AnalyticsPage() {
-  // Fetch both tasks and projects data
-  const [tasks, projects] = await Promise.all([
+  // Fetch tasks, projects, and assignee groups
+  const [tasks, projects, assigneeGroups] = await Promise.all([
     getTasks(),
-    getProjects()
+    getProjects(),
+    getAssigneeGroups()
   ]);
 
   // Log for debugging
@@ -80,6 +101,10 @@ export default async function AnalyticsPage() {
 
   return (
     // AnalyticsClient will handle the div with min-h-screen bg-gray-50 p-6 and its children
-    <AnalyticsClient initialTasks={tasks} initialProjects={projects} />
+    <AnalyticsClient
+      initialTasks={tasks}
+      initialProjects={projects}
+      initialAssigneeGroups={assigneeGroups}
+    />
   );
 }

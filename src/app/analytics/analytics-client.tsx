@@ -17,12 +17,13 @@ import {
 import { ProjectWorkloadChart, EmployeeWorkloadChart } from "@/components/analytics/workload-charts"
 import { WorkHoursTrendChart } from "@/components/analytics/trend-chart"
 import { TaskPerformanceTable } from "@/components/analytics/task-performance-table"
+import { DailyReportAnalysisTable } from "@/components/analytics/daily-report-table"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { EditTaskDialog } from "@/components/edit-task-dialog"
 import { Loader2, FilterX, CalendarIcon } from "lucide-react"
 import { format, getISOWeek, getYear } from "date-fns"
-import { ProjectTrackingProgress, Task, Project } from "@/lib/types"
+import { ProjectTrackingProgress, Task, Project, AssigneeGroup } from "@/lib/types"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -35,6 +36,7 @@ import { cn } from "@/lib/utils"
 interface AnalyticsClientProps {
   initialTasks: Task[]
   initialProjects: Project[]
+  initialAssigneeGroups: AssigneeGroup[]
 }
 
 interface FilterState {
@@ -46,7 +48,7 @@ interface FilterState {
   progressRange: { min: number; max: number }
 }
 
-export default function AnalyticsClient({ initialTasks, initialProjects }: AnalyticsClientProps) {
+export default function AnalyticsClient({ initialTasks, initialProjects, initialAssigneeGroups }: AnalyticsClientProps) {
   const { theme, systemTheme } = useTheme()
   const currentTheme = theme === "system" ? systemTheme : theme
 
@@ -449,9 +451,10 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
 
         {/* Tabs */}
         <Tabs defaultValue="overview" className="w-full space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-            <TabsTrigger value="overview">Task Overview</TabsTrigger>
-            <TabsTrigger value="workload">Workload Analysis</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-1 md:grid-cols-3 lg:w-[600px] h-auto p-1 bg-muted/50">
+            <TabsTrigger value="overview" className="whitespace-normal py-2 h-auto text-sm">Task Overview</TabsTrigger>
+            <TabsTrigger value="workload" className="whitespace-normal py-2 h-auto text-sm">Workload Analysis</TabsTrigger>
+            <TabsTrigger value="daily-report" className="whitespace-normal py-2 h-auto text-sm">Daily Report Analysis</TabsTrigger>
           </TabsList>
 
           {/* Tab 1: Overview */}
@@ -539,6 +542,15 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
               />
             </div>
           </TabsContent>
+
+          {/* Tab 3: Daily Report */}
+          <TabsContent value="daily-report" className="space-y-6">
+            <DailyReportAnalysisTable
+              logs={filteredLogs}
+              tasks={filteredTasks}
+              projectNamesMap={projectLookupMap}
+            />
+          </TabsContent>
         </Tabs>
 
       </div>
@@ -549,6 +561,7 @@ export default function AnalyticsClient({ initialTasks, initialProjects }: Analy
         task={selectedTask}
         projectId={selectedTask?.projectId || ''}
         assignees={assignees}
+        assigneeGroups={initialAssigneeGroups}
       />
     </div>
   )

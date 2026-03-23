@@ -4,20 +4,19 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PlusCircle, Image, Upload, Eye, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, Image, Upload, Eye, Download, ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { collection, query, where, getDocs, orderBy, limit, addDoc, serverTimestamp, doc, updateDoc, increment } from 'firebase/firestore';
 import { ProjectTrackingProgress } from '@/lib/types';
 import { format } from 'date-fns';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { resizeImage } from '@/lib/image-utils';
-import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { deleteProjectFile } from '@/app/actions/file-actions'; // Import Server Action
-import { Trash2 } from 'lucide-react'; // Import Trash icon
+import { deleteProjectFile } from '@/app/actions/file-actions';
 
 interface ProjectFilesGalleryProps {
     isOpen: boolean;
@@ -292,7 +291,8 @@ export function ProjectFilesGallery({
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent
-                className="sm:max-w-[800px] h-[80vh] flex flex-col p-0 overflow-hidden relative"
+                className="sm:max-w-[800px] h-[80vh] flex flex-col p-0 overflow-hidden bg-background"
+                onDragEnter={handleDragEnter}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -327,6 +327,9 @@ export function ProjectFilesGallery({
                             ({files.length} images)
                         </span>
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Gallery for {projectName}
+                    </DialogDescription>
                     <div className="flex items-center gap-2">
                         {uploading && <span className="text-xs text-muted-foreground flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Uploading...</span>}
                         <ImageUpload

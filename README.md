@@ -11,6 +11,14 @@
 
 ## 🚀 Getting Started
 
+### Environment Setup (External SSD)
+เนื่องจากการพัฒนาโปรเจกต์นี้ทำงานบน External SSD (`/Volumes/BriteBrain/Projects`) และมีการแยกเก็บเครื่องมือต่างๆ ไว้ ตรวจสอบให้แน่ใจว่าได้ชี้ path ไปยังเครื่องมือ (เช่น `nvm`) ให้ถูกต้องก่อนเริ่มงาน:
+
+```bash
+export NVM_DIR="/Volumes/BriteBrain/IDE/nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+```
+
 ### Prerequisites
 - Node.js (v18+)
 - Firebase CLI

@@ -65,10 +65,13 @@
   - **OS Project Filtering**:
       - **Dark Mode**: แสดงเฉพาะ Tasks ของ OS Project
       - **Light Mode**: แสดงเฉพาะ Tasks ของ Standard Project
-  - **Logic**:
+    - **Logic**:
     - **Dual Update**: เมื่อบันทึก ระบบจะ save ลง 2 ที่พร้อมกัน:
       1. `projectTrackingProgress` (History Log): เก็บประวัติว่าวันนี้นาย A ทำงาน B ไปกี่ ชม.
       2. `tasks` (Master Data): อัปเดต `% Progress` ล่าสุดของงานนั้นทันที เพื่อให้ Project Manager เห็นสถานะจริง
+    - **Historic Validation**: บังคับให้การลง Progress ต้องอยู่ระหว่างผลงานล่าสุดของวันก่อนหน้า และผลงานที่เคยลงในรอบวันถัดไป (min/max locking)
+    - **Auto-Completion**: หากมีการระบุ Progress = 100% ระบบจะปรับสถานะของ Task เป็น "จบงานแล้ว" อัตโนมัติทันที
+    - **Historic Visibility**: เมื่อดูข้อมูลแบบย้อนหลัง (Backdated) งานที่ถูกกำหนดว่า "จบงานแล้ว" ในปัจจุบัน จะยังคงแสดงขึ้นมาให้เห็นหากว่าวันนั้นๆ เคยมีการบันทึกเวลางานไว้ เพื่อป้องกันผลรวมชั่วโมงคลาดเคลื่อน
     - **Gallery Upload**: สามารถอัปโหลดรูปภาพได้โดยตรงจากหน้า **Project Gallery** (ไม่ต้องผูกกับ Task) โดยระบบจะบันทึกเป็น "General Project Attachment".
     - **Image Optimization**: ระบบจะทำการ Resize รูปภาพฝั่ง Client ก่อนอัปโหลดเพื่อประหยัดพื้นที่จัดเก็บและลดระยะเวลาอัปโหลด.
 - **[F-015] การแนบรูปภาพและแกลเลอรีโปรเจกต์ (Task Image Upload & Project Gallery)**
@@ -76,6 +79,9 @@
   - **Features**:
     - **Task Attachment**: แนบรูปได้หลายรูปในแต่ละวันของการ Tracking (เก็บลง R2 Storage)
     - **Project Gallery**: ดูรูปภาพทั้งหมดของโปรเจกต์ผ่านปุ่ม "Files" บนการ์ดโปรเจกต์
+    - **Data Traceability (Cross-Assignee Logic)**: 
+      - Min/Max Allowed Progress และ Latest Progress ถูกคำนวณจาก Global History (การลงเวลาของ **ทุกคน**) เสมอ เพื่อให้การคำนวณ Progress อิงตามความสำเร็จของเนื้องานนั้น ๆ เป็นหลัก
+      - แต่ `Hours Worked` (ชั่วโมงการทำงาน) ยังคงเป็นรายบุคคล (`assigneeName`) ในวันที่เลือกเท่านั้น
   - **Data Usage**:
     - `ProjectTrackingProgress.attachments`: เก็บ URL ของรูปภาพ (`string[]`)
   - **Key Components**:
@@ -116,6 +122,11 @@
          - **Employee Ranking**: ใครทำงานหนักที่สุด (Top Performers)
          - **Trend**: แนวโน้มการทำงานรายสัปดาห์/เดือน
          - **Performance Table**: ตารางรายละเอียดงานพร้อม Hours Worked สะสม
+    3. **Daily Report Analysis (มุมมองบันทึกรายวัน)**:
+       - **Focus**: สรุปยอดชั่วโมงสุทธิต่อวันรายบุคคล
+       - **Visuals**:
+         - **Daily Summary Table**: ตารางสรุปเวลา สภานะจบวัน (ครบ/ไม่ครบ 8 ชม.)
+         - **Expandable Details**: ขยายกดดูรายชื่อโปรเจกต์และงานที่ทำในวันนั้น
   - **Interactivity**:
     - **Global Filtering**: ระบบกรองข้อมูลกลาง (Header) ส่งผลต่อกราฟในทุก Tabs
       - **Slicers**: Project, Status, Assignee, Date Range.
