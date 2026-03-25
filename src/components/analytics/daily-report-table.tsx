@@ -3,6 +3,7 @@ import { ProjectTrackingProgress, Task } from "@/lib/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { ChevronDown, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react"
 import { format } from "date-fns"
 
@@ -30,6 +31,8 @@ export function DailyReportAnalysisTable({
     dateRange
 }: DailyReportAnalysisTableProps) {
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
+    const [assigneeFilter, setAssigneeFilter] = useState<string>("all")
+    const [statusFilter, setStatusFilter] = useState<string>("all")
 
     // Optimize task lookup
     const taskLookup = useMemo(() => {
@@ -128,6 +131,19 @@ export function DailyReportAnalysisTable({
         return sortedArray
     }, [logs, allAssignees, dateRange])
 
+    const finalData = useMemo(() => {
+        return groupedData.filter(group => {
+            if (assigneeFilter !== "all" && group.trackerName !== assigneeFilter) return false;
+
+            if (statusFilter !== "all") {
+                if (statusFilter === "complete" && group.totalHours < 8) return false;
+                if (statusFilter === "incomplete" && (group.totalHours >= 8 || group.totalHours === 0)) return false;
+                if (statusFilter === "missing" && group.totalHours > 0) return false;
+            }
+            return true;
+        })
+    }, [groupedData, assigneeFilter, statusFilter])
+
     const toggleRow = (id: string) => {
         setExpandedRows(prev => {
             const next = new Set(prev)
@@ -140,7 +156,7 @@ export function DailyReportAnalysisTable({
         })
     }
 
-    if (groupedData.length === 0) {
+    if (finalData.length === 0) {
         return (
             <Card>
                 <CardContent className="p-8 text-center text-muted-foreground">
@@ -152,8 +168,33 @@ export function DailyReportAnalysisTable({
 
     return (
         <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 gap-4">
                 <CardTitle className="text-lg">Daily Report Summary</CardTitle>
+                <div className="flex items-center gap-2">
+                    <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
+                        <SelectTrigger className="w-[140px] sm:w-[150px] h-9">
+                            <SelectValue placeholder="All Assignees" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Assignees</SelectItem>
+                            {allAssignees.map(a => (
+                                <SelectItem key={a} value={a}>{a}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger className="w-[140px] sm:w-[150px] h-9">
+                            <SelectValue placeholder="All Statuses" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Statuses</SelectItem>
+                            <SelectItem value="complete">ครบ 8 ชม.</SelectItem>
+                            <SelectItem value="incomplete">ไม่ครบ 8 ชม.</SelectItem>
+                            <SelectItem value="missing">ผิดปกติ (0.0h)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
             </CardHeader>
             <CardContent className="p-0">
                 <div className="rounded-md border-0 sm:border m-0 sm:m-4 overflow-hidden">
@@ -168,7 +209,7 @@ export function DailyReportAnalysisTable({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {groupedData.map(group => {
+                            {finalData.map(group => {
                                 const isExpanded = expandedRows.has(group.id)
                                 const isComplete = group.totalHours >= 8
 

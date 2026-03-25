@@ -128,6 +128,7 @@
          - **Daily Summary Table**: ตารางสรุปเวลา สภานะจบวัน (ครบ/ไม่ครบ 8 ชม.)
          - **Expandable Details**: ขยายกดดูรายชื่อโปรเจกต์และงานที่ทำในวันนั้น
        - **Missing Logs Detection**: ระบบตรวจสอบวันทำการ (จันทร์-ศุกร์) ที่ไม่มีข้อมูลการลงเวลา และสร้าง Dummy Log ร้องเตือนสถานะเป็น "ผิดปกติ (0.0h)" เพื่อติดตามพนักงานที่ลืมลงเวลา
+       - **Local Filters**: ตารางรองรับการกรองแสดงผล 2 เงื่อนไข (Assignee, Daily Status) โดยการกรองนี้ทำงานเฉพาะในระดับคอมโพเนนต์เท่านั้น
   - **Interactivity**:
     - **Global Filtering**: ระบบกรองข้อมูลกลาง (Header) ส่งผลต่อกราฟในทุก Tabs
       - **Slicers**: Project, Status, Assignee, Date Range.

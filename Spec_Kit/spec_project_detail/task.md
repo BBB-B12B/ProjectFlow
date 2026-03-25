@@ -221,6 +221,9 @@
 - [x] [T-187] **Daily Report Missing Logs Detection**: ตรวจสอบและแสดงรายการวันที่ไม่ได้ลงเวลา (เฉพาะจันทร์-ศุกร์) โดยระบุสถานะ "ผิดปกติ (0 ชม.)" ในแท็บ Daily Report Analysis
   - **Type**: Feature
   - **Traceability**: [F-010]
+- [x] [T-188] **Implement Daily Report Local Filters**: เพิ่มตัวกรอง (Assignee, Daily Status) ภายในหน้ารายงาน Daily Report เพื่อค้นหาคนขาดงานได้ง่ายขึ้น
+  - **Type**: Feature/UX
+  - **Traceability**: [F-010]
 
 
 
