@@ -10,6 +10,8 @@ interface DailyReportAnalysisTableProps {
     logs: ProjectTrackingProgress[]
     tasks: Task[]
     projectNamesMap: Map<string, string>
+    allAssignees: string[]
+    dateRange: { start: Date | null; end: Date | null }
 }
 
 interface GroupedDailyLog {
@@ -23,7 +25,9 @@ interface GroupedDailyLog {
 export function DailyReportAnalysisTable({
     logs,
     tasks,
-    projectNamesMap
+    projectNamesMap,
+    allAssignees,
+    dateRange
 }: DailyReportAnalysisTableProps) {
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
@@ -37,10 +41,16 @@ export function DailyReportAnalysisTable({
     // Group logs by Date + Assignee
     const groupedData = useMemo(() => {
         const groupMap = new Map<string, GroupedDailyLog>()
+        let minDateMs = Infinity
+        let maxDateMs = -Infinity
 
         logs.forEach(log => {
             // Ensure we have hours worked
             if (!log.hoursWorked || log.hoursWorked <= 0) return
+
+            const logTime = new Date(log.date).getTime()
+            if (logTime < minDateMs) minDateMs = logTime
+            if (logTime > maxDateMs) maxDateMs = logTime
 
             const key = `${log.date}_${log.trackerName}`
             if (!groupMap.has(key)) {
@@ -58,6 +68,50 @@ export function DailyReportAnalysisTable({
             group.entries.push(log)
         })
 
+        // Check for missing dates
+        let startDate = dateRange?.start
+        let endDate = dateRange?.end
+
+        if (!startDate && logs.length > 0) startDate = new Date(minDateMs)
+        if (!endDate && logs.length > 0) endDate = new Date(maxDateMs)
+
+        if (!startDate) {
+            startDate = new Date()
+            startDate.setDate(startDate.getDate() - 7) // Default to last 7 days
+        }
+        if (!endDate) {
+            endDate = new Date()
+        }
+
+        const start = new Date(startDate)
+        start.setHours(0, 0, 0, 0)
+        let end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+        const today = new Date()
+        today.setHours(23, 59, 59, 999)
+
+        if (end > today) end = today
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            const dayOfWeek = d.getDay()
+            // Skip weekends (0 = Sunday, 6 = Saturday)
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue
+
+            const dateStr = format(d, 'yyyy-MM-dd')
+            allAssignees.forEach(assignee => {
+                const key = `${dateStr}_${assignee}`
+                if (!groupMap.has(key)) {
+                    groupMap.set(key, {
+                        id: key,
+                        date: dateStr,
+                        trackerName: assignee,
+                        totalHours: 0,
+                        entries: []
+                    })
+                }
+            })
+        }
+
         // Convert to array and sort by Date (Desc) then Assignee
         const sortedArray = Array.from(groupMap.values()).sort((a, b) => {
             if (a.date !== b.date) {
@@ -72,7 +126,7 @@ export function DailyReportAnalysisTable({
         })
 
         return sortedArray
-    }, [logs])
+    }, [logs, allAssignees, dateRange])
 
     const toggleRow = (id: string) => {
         setExpandedRows(prev => {
@@ -122,13 +176,15 @@ export function DailyReportAnalysisTable({
                                     <React.Fragment key={group.id}>
                                         {/* Main Row */}
                                         <TableRow
-                                            className={`cursor-pointer hover:bg-muted/50 transition-colors ${isExpanded ? 'bg-muted/30' : ''}`}
-                                            onClick={() => toggleRow(group.id)}
+                                            className={`transition-colors ${group.entries.length > 0 ? 'cursor-pointer hover:bg-muted/50' : ''} ${isExpanded ? 'bg-muted/30' : ''}`}
+                                            onClick={() => group.entries.length > 0 && toggleRow(group.id)}
                                         >
                                             <TableCell>
-                                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                                </Button>
+                                                {group.entries.length > 0 ? (
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                                    </Button>
+                                                ) : null}
                                             </TableCell>
                                             <TableCell className="font-medium">
                                                 {format(new Date(group.date), "EEE, MMM dd, yyyy")}
@@ -139,15 +195,20 @@ export function DailyReportAnalysisTable({
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex justify-center items-center">
-                                                    {isComplete ? (
+                                                    {group.totalHours >= 8 ? (
                                                         <span className="flex items-center text-green-600 dark:text-green-400 text-sm font-medium">
                                                             <CheckCircle2 className="w-4 h-4 mr-1" />
                                                             ครบ 8 ชม.
                                                         </span>
-                                                    ) : (
+                                                    ) : group.totalHours > 0 ? (
                                                         <span className="flex items-center text-amber-600 dark:text-amber-400 text-sm font-medium">
                                                             <AlertCircle className="w-4 h-4 mr-1" />
                                                             ไม่ครบ 8 ชม.
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center text-red-600 dark:text-red-400 text-sm font-medium">
+                                                            <AlertCircle className="w-4 h-4 mr-1" />
+                                                            ผิดปกติ (0.0h)
                                                         </span>
                                                     )}
                                                 </div>

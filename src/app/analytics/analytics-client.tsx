@@ -549,6 +549,8 @@ export default function AnalyticsClient({ initialTasks, initialProjects, initial
               logs={filteredLogs}
               tasks={filteredTasks}
               projectNamesMap={projectLookupMap}
+              allAssignees={filters.assignee && filters.assignee !== 'all' ? [filters.assignee] : assignees}
+              dateRange={filters.dateRange}
             />
           </TabsContent>
         </Tabs>

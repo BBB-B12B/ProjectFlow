@@ -218,6 +218,9 @@
       1. **Root Cause**: `getAssigneeGroups` in `analytics/page.tsx` directly returned Firebase Document data containing `createdAt` objects.
       2. **Action**: Manually mapped and extracted only necessary plain static fields (`id`, `name`, `description`, `members`) from the Server Component before passing as props.
       3. **Status**: Fixed
+- [x] [T-187] **Daily Report Missing Logs Detection**: ตรวจสอบและแสดงรายการวันที่ไม่ได้ลงเวลา (เฉพาะจันทร์-ศุกร์) โดยระบุสถานะ "ผิดปกติ (0 ชม.)" ในแท็บ Daily Report Analysis
+  - **Type**: Feature
+  - **Traceability**: [F-010]
 
 
 
