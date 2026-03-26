@@ -1,11 +1,26 @@
+"use client"
+
 import React, { useState, useMemo } from "react"
 import { ProjectTrackingProgress, Task } from "@/lib/types"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { ChevronDown, ChevronRight, CheckCircle2, AlertCircle } from "lucide-react"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { ChevronDown, ChevronRight, CheckCircle2, AlertCircle, Loader2 } from "lucide-react"
 import { format } from "date-fns"
+import dynamic from "next/dynamic"
+import { useRouter } from "next/navigation"
+
+const TrackingClient = dynamic(() => import("@/app/tracking/tracking-client"), { 
+    ssr: false,
+    loading: () => (
+        <div className="flex flex-col h-64 items-center justify-center gap-4 mt-8 bg-muted/20 border border-muted/30 rounded-lg">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">Synchronizing Tracking Data...</span>
+        </div>
+    )
+})
 
 interface DailyReportAnalysisTableProps {
     logs: ProjectTrackingProgress[]
@@ -13,6 +28,7 @@ interface DailyReportAnalysisTableProps {
     projectNamesMap: Map<string, string>
     allAssignees: string[]
     dateRange: { start: Date | null; end: Date | null }
+    onRefreshLogs?: () => Promise<void> | void;
 }
 
 interface GroupedDailyLog {
@@ -28,11 +44,14 @@ export function DailyReportAnalysisTable({
     tasks,
     projectNamesMap,
     allAssignees,
-    dateRange
+    dateRange,
+    onRefreshLogs
 }: DailyReportAnalysisTableProps) {
+    const router = useRouter()
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
     const [assigneeFilter, setAssigneeFilter] = useState<string>("all")
     const [statusFilter, setStatusFilter] = useState<string>("all")
+    const [editingRecord, setEditingRecord] = useState<{ assignee: string, date: string } | null>(null)
 
     // Optimize task lookup
     const taskLookup = useMemo(() => {
@@ -217,12 +236,15 @@ export function DailyReportAnalysisTable({
                                     <React.Fragment key={group.id}>
                                         {/* Main Row */}
                                         <TableRow
-                                            className={`transition-colors ${group.entries.length > 0 ? 'cursor-pointer hover:bg-muted/50' : ''} ${isExpanded ? 'bg-muted/30' : ''}`}
-                                            onClick={() => group.entries.length > 0 && toggleRow(group.id)}
+                                            className={`transition-colors cursor-pointer hover:bg-muted/50 ${isExpanded ? 'bg-muted/30' : ''}`}
+                                            onClick={() => setEditingRecord({ assignee: group.trackerName, date: group.date })}
                                         >
-                                            <TableCell>
+                                            <TableCell onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (group.entries.length > 0) toggleRow(group.id);
+                                            }}>
                                                 {group.entries.length > 0 ? (
-                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={(e) => { e.stopPropagation(); toggleRow(group.id); }}>
                                                         {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                                                     </Button>
                                                 ) : null}
@@ -316,6 +338,26 @@ export function DailyReportAnalysisTable({
                     </Table>
                 </div>
             </CardContent>
+
+            <Dialog open={!!editingRecord} onOpenChange={(open) => !open && setEditingRecord(null)}>
+                <DialogContent className="max-w-[95vw] w-[1200px] max-h-[90vh] overflow-y-auto p-0 border-0">
+                    <DialogTitle className="sr-only">Edit Tracking Log</DialogTitle>
+                    {editingRecord && (
+                        <div className="bg-background rounded-lg p-2 sm:p-4">
+                            <TrackingClient 
+                                isPopup={true} 
+                                preselectedAssignee={editingRecord.assignee} 
+                                preselectedDate={editingRecord.date} 
+                                onSaveSuccess={async () => {
+                                    if (onRefreshLogs) await onRefreshLogs();
+                                    router.refresh();
+                                    setEditingRecord(null);
+                                }}
+                            />
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </Card>
     )
 }

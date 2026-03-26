@@ -224,7 +224,27 @@
 - [x] [T-188] **Implement Daily Report Local Filters**: เพิ่มตัวกรอง (Assignee, Daily Status) ภายในหน้ารายงาน Daily Report เพื่อค้นหาคนขาดงานได้ง่ายขึ้น
   - **Type**: Feature/UX
   - **Traceability**: [F-010]
-
+- [x] [T-189] **Implement Daily Report Quick Edit via Tracking Popup**: เพิ่มสิทธิ์การกดแก้ไข Progress รายวัน (Tracking Popup) ผ่านตาราง Daily Report Analysis ได้โดยตรง (Reuse TrackingClient component)
+  - **Type**: Feature/UX
+  - **Traceability**: [F-010]
+  - **Error Logs**:
+    - **[T-189-EX-1]**: Tracking Popup shows "Not Started" and "Cancelled" tasks.
+      1. **Root Cause**: The filter restricting visibility to `task.Status === 'กำลังดำเนินการ'` was previously removed entirely to allow "Completed" backdated tasks to show up, which unintentionally allowed all other statuses to pass through.
+      2. **Action**: Re-introduced an `isEligibleStatus` check that strictly allows only tasks that are (1) currently In Progress, (2) currently Completed but were NOT 100% on the selected backdate, or (3) already have registered working hours on the selected date.
+      3. **Status**: Fixed
+    - **[T-189-EX-2]**: `TypeError: Cannot read properties of undefined (reading 'default')` when loading the Analytics page.
+      1. **Root Cause**: Next.js attempted to Server-Side Render (SSR) the `TrackingClient` inside the Edge runtime (since `/analytics` is an Edge route). `TrackingClient` imports the full Firebase SDK which breaks Edge compatibilities during SSR.
+      2. **Action**: Replaced the static `import` with `next/dynamic` and `ssr: false` in `daily-report-table.tsx` to ensure `TrackingClient` is strictly rendered on the client browser.
+      3. **Status**: Fixed
+- [x] [T-190] **Implement Continuous Tracking Project Logic**: ตั้งค่าให้ Project 'พิธีกรรม (เฉพาะแผนก DBD)' แสดงผลในหน้าลงเวลาเสมอ และไม่อนุญาตให้อัปเดต Progress
+  - **Type**: Feature/UX
+  - **Traceability**: [F-004]
+- [x] [T-191] **Improve Tracking Client Status Sync & Loading UI**: แก้ปัญหาหน้าต่าง Tracking กระพริบ 3 ครั้งตอนโหลดให้แสดง Spinner และเพิ่ม Refresh Data ของตาราง Analytics หลังกด Save
+  - **Type**: Bugfix/UX
+  - **Traceability**: [F-010], [F-004]
+    - **[T-191-EX-1]**: แก้ปัญหาการโหลด 2 จังหวะ (1st Flicker) จาก Next.js `dynamic() import` ของ `TrackingClient` ในหน้า Popup โดยเปลี่ยน `loading: () => ...` ให้เป็น Component Spinner หน้าตาเหมือนตัว Loader หลักแทน ทำให้ UI โหลดแบบเนียนไร้รอยต่อ
+    - **[T-191-EX-2]**: ลบข้อความ "Processing..." และป้องกันไม่ให้ตารางข้อมูลหายไปจากหน้าจอระหว่างที่ดึงข้อมูลใหม่ (เช่น ตอนเปลี่ยนวันที่ออโต้รีเฟรช 150ms) ដោយใช้เทคนิคหรี่แสง 50% (Opacity) ค้างโครงสร้างตารางเดิมไว้แทนการ Unmount เพื่อป้องกันไม่ให้หน้าจอกระตุก 3 ครั้ง
+    - **[T-191-EX-3]**: ล็อกลำดับขั้นตอนโหลด Popup ครั้งแรก (Initial Load) ให้แสดง Spinner แช่ยาวเป็นเนื้อเดียวจนกว่าการดึงข้อมูลรายชื่อพนักงาน (`Assignees`), ฟิลเตอร์ทีม (`dependenciesLoaded`), และตาราง (`debouncedFetchData`) จะครบ 100% เพื่อป้องกันไม่ให้ตารางโผล่มาก่อนกำหนดแล้วโดนฟังก์ชันโหลดข้อมูลทับจนตารางกระตุก
 
 
 ### 📍 Page: Tracking (`src/app/tracking`)
@@ -277,6 +297,10 @@
     - **[T-184-EX-1]**: ข้อมูลการลงเวลาของ Task ที่ใช้งานร่วมกัน (เช่น "ลา", "ประชุม" ของโปรเจกต์ "พิธีกรรม") สูญหายเมื่อดูย้อนหลัง
       1. **Root Cause**: ฟังก์ชัน `confirmSave` อัปเดตข้อมูลแบบ Batch แต่ Query หา Existing Tracking record เดิมโดยระบุแค่ `taskId` กับ `date` ขาด `trackerName` ทำให้ถ้ามีคนลงเวลาย้อนหลังงานเดียวกันในวันเดียวกัน จะไปทับ(Overwrite) Record ของคนก่อนหน้า
       2. **Action**: เพิ่มเงื่อนไข `where('trackerName', '==', selectedAssignee)` ใน Firestore Query ตอนกด Save
+      3. **Status**: Fixed
+    - **[T-184-EX-2]**: Progress input jumps to 100% when typing and backdated 100% tasks are incorrectly hidden.
+      1. **Root Cause**: Immediate `onChange` clamping disrupted multi-digit typing. Tasks were proactively hidden based on their `current` status being "จบงานแล้ว" rather than evaluating their historical progress up to the requested date.
+      2. **Action**: Moved boundary clamping to `onBlur` for inputs. Rewrote filtering logic to compute `isCompletedAsOfDate` and accurately hide tasks based on their specific date context.
       3. **Status**: Fixed
 - [x] [T-186] **Refactor Tracking Progress to Global Scope**: เปลี่ยนการคำนวณ Min/Max/Latest Progress ให้อิงจากประวัติของทุกคน (Global History) ไม่ใช่แค่ของคนลงเวลา
   - **Type**: Feature/Refactor

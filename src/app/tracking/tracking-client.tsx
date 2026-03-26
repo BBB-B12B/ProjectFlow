@@ -31,7 +31,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { TaskAttachmentsDialog } from '@/components/task-attachments-dialog';
-import { Paperclip } from 'lucide-react';
+import { Paperclip, Loader2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { db } from '@/lib/firebase';
@@ -47,6 +47,7 @@ import {
   writeBatch,
   increment,
 } from 'firebase/firestore';
+// @ts-expect-error Types missing for uuid
 import { v4 as uuidv4 } from 'uuid';
 
 interface TaskWithProjectName extends Task {
@@ -54,7 +55,11 @@ interface TaskWithProjectName extends Task {
 }
 
 interface TrackingClientProps {
-  initialAssignees?: string[]; // Made optional for backward compatibility
+  initialAssignees?: string[];
+  preselectedAssignee?: string;
+  preselectedDate?: string;
+  isPopup?: boolean;
+  onSaveSuccess?: () => void;
 }
 
 interface ExtendedProjectTrackingProgress extends Omit<ProjectTrackingProgress, 'createdAt' | 'updatedAt'> {
@@ -79,13 +84,24 @@ interface TaskChange {
   attachments?: string[];
 }
 
-const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
+const TrackingClient = ({ initialAssignees = [], preselectedAssignee, preselectedDate, isPopup, onSaveSuccess }: TrackingClientProps) => {
   const [assignees, setAssignees] = useState<string[]>(initialAssignees);
   const [assigneeGroups, setAssigneeGroups] = useState<AssigneeGroup[]>([]); // Store fetched groups
   const [showCompleted, setShowCompleted] = useState<boolean>(true); // Default to true
-  const [selectedAssignee, setSelectedAssignee] = useLocalStorage<string>('tracking_assignee', '');
-  const [selectedProjectId, setSelectedProjectId] = useLocalStorage<string>('tracking_project', 'all');
-  const [selectedDate, setSelectedDate] = useLocalStorage<string>('tracking_date', new Date().toISOString().split('T')[0]);
+
+  const [localAssignee, setLocalAssignee] = useLocalStorage<string>('tracking_assignee', '');
+  const [localProjectId, setLocalProjectId] = useLocalStorage<string>('tracking_project', 'all');
+  const [localDate, setLocalDate] = useLocalStorage<string>('tracking_date', new Date().toISOString().split('T')[0]);
+
+  const selectedAssignee = isPopup ? preselectedAssignee || '' : localAssignee;
+  const setSelectedAssignee = isPopup ? () => {} : setLocalAssignee;
+
+  const selectedProjectId = localProjectId;
+  const setSelectedProjectId = isPopup ? () => {} : setLocalProjectId;
+
+  const selectedDate = isPopup ? preselectedDate || '' : localDate;
+  const setSelectedDate = isPopup ? () => {} : setLocalDate;
+
   const [tasks, setTasks] = useState<TaskWithProjectName[]>([]);
   const [trackingData, setTrackingData] = useState<
     Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[]; minAllowedProgress?: number; maxAllowedProgress?: number; latestProgressAtDate?: number }>
@@ -94,6 +110,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
     Record<string, { hoursWorked: number; progressPercentage: number; totalHoursWorked: number; isBackdated?: boolean; attachments?: string[]; minAllowedProgress?: number; maxAllowedProgress?: number; latestProgressAtDate?: number }>
   >({});
   const [loading, setLoading] = useState<boolean>(false);
+  const [isInitialLoading, setIsInitialLoading] = useState<boolean>(true);
   const [showConfirmDialog, setShowConfirmDialog] = useState<boolean>(false);
   const [pendingChanges, setPendingChanges] = useState<TaskChange[]>([]);
   const [isAttachmentsDialogOpen, setIsAttachmentsDialogOpen] = useState(false);
@@ -173,6 +190,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   // 🚀 Added: OS Customer Filtering
   const { theme } = useTheme();
   const [osCustomers, setOsCustomers] = useState<Set<string>>(new Set());
+  const [dependenciesLoaded, setDependenciesLoaded] = useState(false);
 
   // Fetch assignees and customers on mount
   useEffect(() => {
@@ -219,6 +237,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         });
 
         setAssignees(Array.from(uniqueAssignees).sort());
+        setDependenciesLoaded(true);
 
         // Also initialize main cache if not already done
         if (!cacheInitialized) {
@@ -338,7 +357,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         const trackingRef = collection(db, 'projectTrackingProgress');
         const trackingSnapshot = await getDocs(trackingRef); // NO FILTER
 
-        const newTrackingSource = new Map(); // Fresh map, ignoring old cache
+        const newTrackingSource = new Map<string, ExtendedProjectTrackingProgress[]>(); // Fresh map, ignoring old cache
         const assigneeTasksWithHoursOnDate = new Set<string>();
 
         trackingSnapshot.forEach(doc => {
@@ -372,11 +391,39 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
             if (!isDirectlyAssigned && !isGroupAssigned) return false;
 
-            // 🚀 Filter: Show ONLY "In Progress" tasks OR tasks that have hours logged by THIS user on this specific date
-            if (task.Status !== 'กำลังดำเนินการ' && !assigneeTasksWithHoursOnDate.has(task.id)) return false;
+            // Compute historical completion status
+            const taskTracking = (newTrackingSource.get(task.id) || []) as ExtendedProjectTrackingProgress[];
+            let maxProgressUpToDate = 0;
+            taskTracking.forEach(track => {
+              if (track.date <= forDate) {
+                maxProgressUpToDate = Math.max(maxProgressUpToDate, track.progressPercentage);
+              }
+            });
+
+            const hasHoursOnDate = assigneeTasksWithHoursOnDate.has(task.id);
+            const today = new Date().toISOString().split('T')[0];
+            const isCompletedAsOfDate = (forDate === today) 
+              ? (task.Status === 'จบงานแล้ว' || task.Progress === 100)
+              : (maxProgressUpToDate >= 100);
+
+            const project = projectsSource.get(task.projectId);
+            const isContinuousProject = project?.name === 'พิธีกรรม (เฉพาะแผนก DBD)';
+
+            // 🚀 Filter logic: Visibility Base Rules
+            const isCurrentlyInProgress = task.Status === 'กำลังดำเนินการ';
+            const isCurrentlyCompleted = task.Status === 'จบงานแล้ว';
+            
+            const isEligibleStatus = hasHoursOnDate || isCurrentlyInProgress || (isCurrentlyCompleted && !isCompletedAsOfDate);
+
+            // Bypass status checks entirely if it's a continuous project
+            if (!isContinuousProject) {
+              if (!isEligibleStatus) return false;
+
+              // Failsafe: Hide tasks that were completed as of this date AND have no logged hours today
+              if (isCompletedAsOfDate && !hasHoursOnDate) return false;
+            }
 
             // 2. OS Project Logic Filter (Optimized)
-            const project = projectsSource.get(task.projectId);
             if (!project) return true; // Keep tasks with missing projects (safe default)
 
             if (theme === 'dark') {
@@ -419,12 +466,14 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         }
       } finally {
         setLoading(false);
+        setIsInitialLoading(false);
       }
     }, 150); // 150ms debounce
   }, [initializeCache, allTasksCache, projectsCache, trackingCache, processTrackingDataFromCache, assigneeGroups]);
 
   // Effect for assignee/date changes
   useEffect(() => {
+    if (!dependenciesLoaded) return;
     debouncedFetchData(selectedAssignee, selectedDate);
     // Reset project filter when assignee changes to avoid "invisible tasks"
     if (selectedAssignee) {
@@ -439,7 +488,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         abortControllerRef.current.abort();
       }
     };
-  }, [selectedAssignee, selectedDate, debouncedFetchData]);
+  }, [selectedAssignee, selectedDate, debouncedFetchData, dependenciesLoaded]);
 
   const handleInputChange = useCallback(
     (taskId: string, field: 'hoursWorked' | 'progressPercentage' | 'attachments', value: any) => {
@@ -448,14 +497,11 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         let finalValue = value;
 
         if (field === 'progressPercentage') {
-          finalValue = value === '' ? 0 : parseFloat(value) || 0;
-          if (prevData) {
-            const minVal = prevData.minAllowedProgress || 0;
-            const maxVal = prevData.maxAllowedProgress !== undefined ? prevData.maxAllowedProgress : 100;
-            finalValue = Math.min(Math.max(finalValue, minVal), maxVal);
-          }
+          finalValue = value === '' ? '' : parseFloat(value);
+          if (isNaN(finalValue as number)) finalValue = 0;
         } else if (field === 'hoursWorked') {
-          finalValue = value === '' ? 0 : parseFloat(value) || 0;
+          finalValue = value === '' ? '' : parseFloat(value);
+          if (isNaN(finalValue as number)) finalValue = 0;
         }
 
         return {
@@ -665,6 +711,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
       setPendingChanges([]);
       console.timeEnd('Save operation');
+      if (onSaveSuccess) onSaveSuccess();
     } catch (error) {
       console.error('Error saving tracking data:', error);
       toast({
@@ -693,13 +740,9 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
 
   const filteredTasks = useMemo(() => {
     const filtered = tasks.filter(task => {
-      // 1. Hide 100% Completed Tasks unless it has hours on selectedDate
-      const currentTracking = trackingData[task.id];
-      const hasHoursOnDate = currentTracking && currentTracking.hoursWorked > 0;
+      // 100% Completed tasks filtering is now handled robustly inside debouncedFetchData
 
-      if (task.Status === 'จบงานแล้ว' && !hasHoursOnDate) return false;
-
-      // 2. Filter by Project
+      // 1. Filter by Project
       if (selectedProjectId && selectedProjectId !== 'all' && task.projectId !== selectedProjectId) return false;
 
       return true;
@@ -717,8 +760,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
   }, [tasks, selectedProjectId, trackingData]);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-3xl font-bold mb-6">Daily Tracking</h1>
+    <div className={isPopup ? "" : "container mx-auto p-4"}>
+      {!isPopup && <h1 className="text-3xl font-bold mb-6">Daily Tracking</h1>}
 
       {/* Loading indicator */}
       {loading && !cacheInitialized && (
@@ -731,7 +774,16 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         </div>
       )}
 
-      {/* Summary Panel */}
+      {(isInitialLoading || !dependenciesLoaded) && (
+        <div className="flex flex-col h-64 items-center justify-center gap-4 mt-8 bg-muted/20 border border-muted/30 rounded-lg">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <span className="text-sm text-muted-foreground">Synchronizing Tracking Data...</span>
+        </div>
+      )}
+
+      {!(isInitialLoading || !dependenciesLoaded) && (
+        <>
+          {/* Summary Panel */}
       {!loading && selectedAssignee && tasks.length > 0 && (
         <div className="fixed top-24 right-4 z-10">
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg border border-gray-200 dark:border-gray-700 min-w-[200px]">
@@ -769,72 +821,92 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         </div>
       )}
 
-      <div className="mb-6 flex gap-4 items-end">
-        <div>
-          <Label htmlFor="assignee-select" className="mb-2 block">
-            Select Tracking Person:
-          </Label>
-          <Select onValueChange={setSelectedAssignee} value={selectedAssignee}>
-            <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="Select an assignee" />
-            </SelectTrigger>
-            <SelectContent>
-              {filteredAssignees.map((assignee) => (
-                <SelectItem key={assignee} value={assignee}>
-                  {assignee}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="project-select" className="mb-2 block">
-            Filter by Project:
-          </Label>
-          <Select onValueChange={setSelectedProjectId} value={selectedProjectId}>
-            <SelectTrigger className="w-[280px]">
-              <SelectValue placeholder="All Projects" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {summary.uniqueProjects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <Label htmlFor="date-select" className="mb-2 block">
-            Date to Track:
-          </Label>
-          <Input
-            id="date-select"
-            type="date"
-            value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="w-[180px]"
-            max={new Date().toISOString().split('T')[0]}
-          />
-        </div>
-
-        {selectedDate !== new Date().toISOString().split('T')[0] && (
-          <div className="px-3 py-2 bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400 rounded-md text-sm">
-            📅 Backdated Entry
+      {isPopup ? (
+        <div className="mb-6 flex flex-col gap-2">
+          <h2 className="text-xl font-bold">Tracking: {selectedAssignee}</h2>
+          <div className="text-sm text-muted-foreground mb-4">Date: {new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}</div>
+          <div>
+            <Label htmlFor="project-select-popup" className="mb-2 block">
+              Filter by Project:
+            </Label>
+            <Select onValueChange={setSelectedProjectId} value={selectedProjectId}>
+              <SelectTrigger id="project-select-popup" className="w-[280px]">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {summary.uniqueProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="mb-6 flex gap-4 items-end">
+          <div>
+            <Label htmlFor="assignee-select" className="mb-2 block">
+              Select Tracking Person:
+            </Label>
+            <Select onValueChange={setSelectedAssignee} value={selectedAssignee}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="Select an assignee" />
+              </SelectTrigger>
+              <SelectContent>
+                {filteredAssignees.map((assignee) => (
+                  <SelectItem key={assignee} value={assignee}>
+                    {assignee}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {loading && cacheInitialized && (
-        <div className="flex items-center justify-center py-8">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Processing...</div>
+          <div>
+            <Label htmlFor="project-select" className="mb-2 block">
+              Filter by Project:
+            </Label>
+            <Select onValueChange={setSelectedProjectId} value={selectedProjectId}>
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder="All Projects" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {summary.uniqueProjects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <Label htmlFor="date-select" className="mb-2 block">
+              Date to Track:
+            </Label>
+            <Input
+              id="date-select"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-[180px]"
+              max={new Date().toISOString().split('T')[0]}
+            />
+          </div>
+
+          {selectedDate !== new Date().toISOString().split('T')[0] && (
+            <div className="px-3 py-2 bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400 rounded-md text-sm">
+              📅 Backdated Entry
+            </div>
+          )}
         </div>
       )}
 
-      {!loading && selectedAssignee && tasks.length === 0 && (
+      <div className={loading ? 'opacity-50 pointer-events-none transition-opacity duration-200 min-h-[400px]' : 'transition-opacity duration-200 min-h-[400px]'}>
+        {selectedAssignee && tasks.length === 0 && (
         <div className="text-center p-8 border border-dashed rounded-lg">
           <p className="text-lg font-medium">No tasks found for {selectedAssignee}.</p>
           <div className="text-sm text-muted-foreground mt-2 text-left bg-gray-50 dark:bg-gray-900 p-4 rounded overflow-auto max-h-60">
@@ -860,7 +932,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         </div>
       )}
 
-      {!loading && selectedAssignee && tasks.length > 0 && (
+      {selectedAssignee && tasks.length > 0 && (
         <div>
           <h2 className="text-2xl font-semibold mb-4">
             Tasks for {selectedAssignee}
@@ -947,6 +1019,12 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
                         onChange={(e) =>
                           handleInputChange(task.id, 'hoursWorked', e.target.value)
                         }
+                        onBlur={(e) => {
+                          let val = parseFloat(e.target.value);
+                          if (isNaN(val)) val = 0;
+                          val = Math.max(0, val); // Must be non-negative
+                          handleInputChange(task.id, 'hoursWorked', val);
+                        }}
                         onFocus={(e) => {
                           if (e.target.value === '0') {
                             e.target.select();
@@ -959,21 +1037,33 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
                     </TableCell>
                     <TableCell>{currentTracking.totalHoursWorked.toFixed(2)}</TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        value={updateProgress}
-                        onChange={(e) =>
-                          handleInputChange(task.id, 'progressPercentage', e.target.value)
-                        }
-                        onFocus={(e) => {
-                          if (e.target.value === '0') {
-                            e.target.select();
+                      {task.projectName === 'พิธีกรรม (เฉพาะแผนก DBD)' ? (
+                         <span className="inline-flex items-center justify-center px-2 py-1 rounded-md text-[11px] font-medium bg-gray-100/80 text-gray-600 dark:bg-gray-800/80 dark:text-gray-400 border border-gray-200 dark:border-gray-700">
+                           Continuous
+                         </span>
+                      ) : (
+                        <Input
+                          type="number"
+                          value={updateProgress}
+                          onChange={(e) =>
+                            handleInputChange(task.id, 'progressPercentage', e.target.value)
                           }
-                        }}
-                        className={`w-24 ${hasChanges ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}
-                        min={minAllowed}
-                        max={maxAllowed}
-                      />
+                          onBlur={(e) => {
+                            let val = parseFloat(e.target.value);
+                            if (isNaN(val)) val = 0;
+                            val = Math.max(minAllowed, Math.min(val, maxAllowed));
+                            handleInputChange(task.id, 'progressPercentage', val);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value === '0') {
+                              e.target.select();
+                            }
+                          }}
+                          className={`w-24 ${hasChanges ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : ''}`}
+                          min={minAllowed}
+                          max={maxAllowed}
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -1079,6 +1169,7 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
         </DialogContent>
       </Dialog>
 
+      </div>
       {activeAttachmentTaskId && (
         <TaskAttachmentsDialog
           isOpen={isAttachmentsDialogOpen}
@@ -1090,6 +1181,8 @@ const TrackingClient = ({ initialAssignees = [] }: TrackingClientProps) => {
           attachments={trackingData[activeAttachmentTaskId]?.attachments || []}
           onAttachmentsChange={(newAttachments) => handleInputChange(activeAttachmentTaskId, 'attachments', newAttachments)}
         />
+      )}
+        </>
       )}
     </div>
   );

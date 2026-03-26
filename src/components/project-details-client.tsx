@@ -332,7 +332,7 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                     const pending = currentPending[t.id];
                     if (pending) {
                         // Tolerance check for float precision
-                        if (Math.abs(t.Order - pending.expectedOrder) < 0.0001) {
+                        if (Math.abs((t.Order || 0) - pending.expectedOrder) < 0.0001) {
                             delete pendingMovesRef.current[t.id];
                         }
                     }

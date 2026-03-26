@@ -34,7 +34,7 @@ export function TaskPrioritizationMatrix({
     };
 
     const groupedTasks = tasks
-        .filter(task => (task.Effort > 0 || task.Effect > 0) && task.TaskName)
+        .filter(task => ((task.Effort || 0) > 0 || (task.Effect || 0) > 0) && task.TaskName)
         .reduce((acc: Record<string, Task[]>, task) => {
             const key = `${task.Effort || 0}-${task.Effect || 0}`;
             if (!acc[key]) {

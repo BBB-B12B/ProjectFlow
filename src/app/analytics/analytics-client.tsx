@@ -76,22 +76,23 @@ export default function AnalyticsClient({ initialTasks, initialProjects, initial
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
 
   // Fetch Logs
-  useEffect(() => {
-    async function fetchLogs() {
-      try {
-        setLoadingLogs(true)
-        const qLogs = query(collection(db, 'projectTrackingProgress'), orderBy('date', 'desc'))
-        const querySnapshot = await getDocs(qLogs)
-        const logsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ProjectTrackingProgress[]
-        setLogs(logsData)
-      } catch (error) {
-        console.error("Error fetching logs:", error)
-      } finally {
-        setLoadingLogs(false)
-      }
+  const fetchLogs = useCallback(async () => {
+    try {
+      setLoadingLogs(true)
+      const qLogs = query(collection(db, 'projectTrackingProgress'), orderBy('date', 'desc'))
+      const querySnapshot = await getDocs(qLogs)
+      const logsData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as ProjectTrackingProgress[]
+      setLogs(logsData)
+    } catch (error) {
+      console.error("Error fetching logs:", error)
+    } finally {
+      setLoadingLogs(false)
     }
-    fetchLogs()
   }, [])
+
+  useEffect(() => {
+    fetchLogs()
+  }, [fetchLogs])
 
   // Filter Logic (Same as before)
   const updateFilter = useCallback((key: keyof FilterState, value: any, source?: string) => {
@@ -551,6 +552,7 @@ export default function AnalyticsClient({ initialTasks, initialProjects, initial
               projectNamesMap={projectLookupMap}
               allAssignees={filters.assignee && filters.assignee !== 'all' ? [filters.assignee] : assignees}
               dateRange={filters.dateRange}
+              onRefreshLogs={fetchLogs}
             />
           </TabsContent>
         </Tabs>
