@@ -16,6 +16,7 @@ export interface Project {
   links?: { label: string; url: string; }[];
   inProgressTasks?: number;
   totalFiles?: number;
+  tasks?: Task[];
 }
 
 export interface Customer {

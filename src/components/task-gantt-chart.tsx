@@ -18,20 +18,25 @@ const CustomGanttTooltip = ({ active, payload }: any) => {
 
       return (
         <div className="overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md w-max">
-            <p className="font-bold">{data.name}</p>
-            <p className="text-muted-foreground border-b pb-1 mb-1">
-              {data.rangeForTooltip ? `Due: ${format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy")}` : 'Date not set'}
-            </p>
-            <div className="space-y-1 mt-2">
+            <p className="font-bold border-b pb-1 mb-1">{data.name}</p>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-muted-foreground">เริ่ม:</span>
+                <span className="font-medium">{data.rangeForTooltip ? format(new Date(data.rangeForTooltip[0]), "MMM d, yyyy") : '-'}</span>
+              </div>
+              <div className="flex justify-between items-center gap-4">
+                <span className="text-muted-foreground">จบ:</span>
+                <span className="font-medium">{data.rangeForTooltip ? format(new Date(data.rangeForTooltip[1]), "MMM d, yyyy") : '-'}</span>
+              </div>
               <div className="flex justify-between items-center gap-4">
                 <span className="text-muted-foreground">Assignee:</span>
                 <span className="font-medium">{data.Assignee || 'Unassigned'}</span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-4">
                   <span className="text-muted-foreground">Type:</span>
                   <span className="font-medium">{data.ProjectType}</span>
               </div>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center gap-4">
                 <span className="text-muted-foreground">Progress:</span>
                 <span className="font-medium">{data.Progress || 0}%</span>
               </div>
@@ -67,20 +72,25 @@ const CustomYAxisTick = (props: any) => {
     );
 };
 
-const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; timeframe: string; onTaskClick: (task: Task) => void; }) => {
+const TaskGanttChart = ({ tasks, timeframe, onTaskClick, rangeStart, rangeEnd }: { tasks: Task[]; timeframe: string; onTaskClick: (task: Task) => void; rangeStart?: string; rangeEnd?: string; }) => {
   if (!tasks || tasks.length === 0) {
     return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No tasks to display.</p></div>;
   }
   
-  const validTasks = tasks.filter(t => t.StartDate && t.EndDate);
+  // T-192: เรียงแถวตามวันเริ่ม (StartDate) จากเร็วสุดไปช้าสุด ให้งานที่เริ่มก่อนอยู่บนสุด
+  const validTasks = tasks
+    .filter(t => t.StartDate && t.EndDate)
+    .sort((a, b) => new Date(a.StartDate).getTime() - new Date(b.StartDate).getTime());
 
   if (validTasks.length === 0) {
     return <div className="flex h-[400px] w-full items-center justify-center"><p className="text-muted-foreground">No tasks with valid dates.</p></div>;
   }
 
   const allDates = validTasks.flatMap(t => [new Date(t.StartDate), new Date(t.EndDate)]);
-  let minDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-  let maxDate = new Date(Math.max(...allDates.map(d => d.getTime())));
+  // T-192: ถ้ามีช่วงกรอง (rangeStart/rangeEnd) ให้ยึดแกนเวลาตามช่วงนั้น (ต้นปี–ปลายปี) แทน auto-scale ตามข้อมูล
+  const hasRange = !!(rangeStart && rangeEnd);
+  let minDate = hasRange ? new Date(rangeStart!) : new Date(Math.min(...allDates.map(d => d.getTime())));
+  let maxDate = hasRange ? new Date(rangeEnd!) : new Date(Math.max(...allDates.map(d => d.getTime())));
 
   if (timeframe === 'weekly') {
     minDate = startOfWeek(minDate, { weekStartsOn: 1 });
@@ -89,17 +99,24 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     minDate = startOfMonth(minDate);
     maxDate = endOfMonth(maxDate);
   }
-  
+
+  const totalChartDuration = (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const chartData = validTasks.map(task => {
     const startDate = new Date(task.StartDate)
     const endDate = new Date(task.EndDate)
-    
-    const offsetDuration = (startDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)
-    const totalDuration = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24) + 1
-    
+
+    // T-192: Clip แท่งให้อยู่ในกรอบแกน — งานที่เริ่มก่อน/จบหลังช่วงกรองจะถูกตัดที่ขอบ (จบที่ปลายปี)
+    const clampedStart = hasRange && startDate < minDate ? new Date(minDate) : startDate;
+    const clampedEnd = hasRange && endDate > maxDate ? new Date(maxDate) : endDate;
+
+    const offsetDuration = (clampedStart.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24)
+    const rawDuration = (clampedEnd.getTime() - clampedStart.getTime()) / (1000 * 60 * 60 * 24) + 1
+    const totalDuration = Math.min(rawDuration, totalChartDuration - offsetDuration)
+
     const isCompleted = (task.Progress || 0) === 100;
     const dueDate = parseISO(task.EndDate);
     const isOverdue = (isPast(dueDate) && !isToday(dueDate)) && !isCompleted;
@@ -108,13 +125,13 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
     if (isCompleted) {
         timeElapsedDuration = totalDuration;
     }
-    else if (today < startDate) {
+    else if (today < clampedStart) {
         timeElapsedDuration = 0;
     } else {
-        const elapsedDays = differenceInDays(today, startDate) + 1;
+        const elapsedDays = differenceInDays(today, clampedStart) + 1;
         timeElapsedDuration = Math.min(elapsedDays, totalDuration);
     }
-    if (today > endDate && !isCompleted) {
+    if (today > clampedEnd && !isCompleted) {
         timeElapsedDuration = totalDuration;
     }
     
@@ -161,7 +178,6 @@ const TaskGanttChart = ({ tasks, timeframe, onTaskClick }: { tasks: Task[]; time
   };
   
   const ticks = getTicks();
-  const totalChartDuration = (maxDate.getTime() - minDate.getTime()) / (1000 * 60 * 60 * 24);
 
   const tickFormatter = (dayOffset: number) => {
     const date = addDays(minDate, dayOffset);

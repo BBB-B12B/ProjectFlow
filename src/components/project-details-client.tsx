@@ -22,6 +22,7 @@ import { updateTaskStatus, updateTaskOrder } from '@/app/project/[id]/actions';
 import { useToast } from '@/hooks/use-toast';
 import { EditTaskDialog } from './edit-task-dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { BackButton } from './back-button';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
@@ -257,6 +258,12 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
     const [assigneeGroups, setAssigneeGroups] = useState<AssigneeGroup[]>([]);
     const { toast } = useToast();
     const [timeframe, setTimeframe] = useState('monthly');
+    // T-192: State ช่วงวันที่สำหรับกรอง Gantt — Default Start = วันแรกของเดือนปัจจุบัน, End = สิ้นปีปัจจุบัน (กด "ล้าง" = แสดงทั้งหมด)
+    const [ganttStartDate, setGanttStartDate] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    });
+    const [ganttEndDate, setGanttEndDate] = useState(() => `${new Date().getFullYear()}-12-31`);
     const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
     const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
@@ -285,6 +292,21 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
         });
         return merged.sort((a, b) => (a.Order || 0) - (b.Order || 0));
     }, [serverTasks, pendingMovesVersion]);
+
+    // T-192: กรองงานตามช่วงวันที่ก่อนส่งเข้า Gantt (Overlap logic: งานแสดงเมื่อช่วงเวลาคาบเกี่ยวกับตัวกรอง)
+    const ganttTasks = useMemo(() => {
+        if (!ganttStartDate && !ganttEndDate) return tasks; // ไม่เลือกวันที่ = แสดงทั้งหมด
+        const filterStart = ganttStartDate ? new Date(ganttStartDate) : null;
+        const filterEnd = ganttEndDate ? new Date(ganttEndDate) : null;
+        return tasks.filter(t => {
+            if (!t.StartDate || !t.EndDate) return false; // ไม่มีวันที่ = ซ่อนเมื่อมีการกรอง
+            const start = new Date(t.StartDate);
+            const end = new Date(t.EndDate);
+            if (filterStart && end < filterStart) return false; // จบก่อนช่วงกรอง
+            if (filterEnd && start > filterEnd) return false;   // เริ่มหลังช่วงกรอง
+            return true;
+        });
+    }, [tasks, ganttStartDate, ganttEndDate]);
 
     useEffect(() => {
         const handleMouseMove = (e: MouseEvent) => {
@@ -681,7 +703,17 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                     <TabsContent value="gantt" className="mt-4">
                         <Card>
                             <CardHeader>
-                                <div className="flex items-center justify-end">
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                    {/* T-192: ตัวกรองช่วงวันที่ (Start/End) — ค่าว่าง = แสดงทั้งหมด */}
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <Label htmlFor="gantt-start" className="text-sm text-muted-foreground">ช่วงวันที่:</Label>
+                                        <Input id="gantt-start" type="date" value={ganttStartDate} onChange={(e) => setGanttStartDate(e.target.value)} className="h-9 w-auto" />
+                                        <span className="text-muted-foreground">–</span>
+                                        <Input id="gantt-end" type="date" value={ganttEndDate} onChange={(e) => setGanttEndDate(e.target.value)} className="h-9 w-auto" />
+                                        {(ganttStartDate || ganttEndDate) && (
+                                            <Button variant="ghost" size="sm" onClick={() => { setGanttStartDate(''); setGanttEndDate(''); }}>ล้าง</Button>
+                                        )}
+                                    </div>
                                     <RadioGroup defaultValue="monthly" onValueChange={setTimeframe} className="flex items-center gap-4">
                                         <div className="flex items-center space-x-2">
                                             <RadioGroupItem value="monthly" id="monthly" />
@@ -695,7 +727,7 @@ export function ProjectDetailsClient({ project, tasks: initialTasks, assignees }
                                 </div>
                             </CardHeader>
                             <CardContent className="p-4 pt-0">
-                                <DynamicTaskGanttChart tasks={tasks} timeframe={timeframe} onTaskClick={handleEditTask} />
+                                <DynamicTaskGanttChart tasks={ganttTasks} timeframe={timeframe} onTaskClick={handleEditTask} rangeStart={ganttStartDate || undefined} rangeEnd={ganttEndDate || undefined} />
                             </CardContent>
                         </Card>
                     </TabsContent>

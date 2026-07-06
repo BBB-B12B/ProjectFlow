@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useMemo } from 'react';
 import type { Project } from '@/lib/types';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { PlusCircle, MoreHorizontal, Archive, Loader2, Calendar, ArrowUpDown, CalendarClock, FolderKanban, Paperclip, ExternalLink, Hammer, CheckCircle2 } from 'lucide-react';
 import { NewProjectDialog } from '@/components/new-project-dialog';
 import { EditProjectDialog } from '@/components/edit-project-dialog';
@@ -82,6 +83,12 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
     const [galleryProject, setGalleryProject] = useState<{ id: string, name: string } | null>(null);
 
     const [timeframe, setTimeframe] = useState('monthly');
+    // T-192: State ช่วงวันที่สำหรับกรอง Gantt — Default Start = วันแรกของเดือนปัจจุบัน, End = สิ้นปีปัจจุบัน (กด "ล้าง" = แสดงทั้งหมด)
+    const [ganttStartDate, setGanttStartDate] = useState(() => {
+        const now = new Date();
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    });
+    const [ganttEndDate, setGanttEndDate] = useState(() => `${new Date().getFullYear()}-12-31`);
     const [isDeleteAlertOpen, setIsDeleteAlertOpen] = useState(false);
     const [isArchiveAlertOpen, setIsArchiveAlertOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
@@ -143,6 +150,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                     team: data.team,
                     completedTasks: initialProjectData?.completedTasks || 0,
                     totalTasks: initialProjectData?.totalTasks || 0,
+                    tasks: initialProjectData?.tasks || [],
                     isDarkModeOnly: data.isDarkModeOnly || false,
                     customerId: data.customerId,
                     owner: data.owner,
@@ -204,6 +212,21 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
             return 0;
         });
     }, [allProjects, theme, mounted, sortBy]);
+
+    // T-192: กรองโปรเจกต์ตามช่วงวันที่ก่อนส่งเข้า Gantt (Overlap logic; ค่าว่าง = แสดงทั้งหมด)
+    const ganttProjects = useMemo(() => {
+        if (!ganttStartDate && !ganttEndDate) return projects;
+        const filterStart = ganttStartDate ? new Date(ganttStartDate) : null;
+        const filterEnd = ganttEndDate ? new Date(ganttEndDate) : null;
+        return projects.filter(p => {
+            if (!p.startDate || !p.endDate) return false; // ไม่มีวันที่ = ซ่อนเมื่อมีการกรอง
+            const start = new Date(p.startDate);
+            const end = new Date(p.endDate);
+            if (filterStart && end < filterStart) return false; // จบก่อนช่วงกรอง
+            if (filterEnd && start > filterEnd) return false;   // เริ่มหลังช่วงกรอง
+            return true;
+        });
+    }, [projects, ganttStartDate, ganttEndDate]);
 
     // Grouping Logic for T-118
     const groupedProjects = useMemo(() => {
@@ -552,7 +575,17 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                 <TabsContent value="gantt" className="mt-4">
                     <Card>
                         <CardHeader>
-                            <div className="flex items-center justify-end">
+                            <div className="flex flex-wrap items-center justify-between gap-4">
+                                {/* T-192: ตัวกรองช่วงวันที่ (Start/End) — ค่าว่าง = แสดงทั้งหมด */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Label htmlFor="gantt-start" className="text-sm text-muted-foreground">ช่วงวันที่:</Label>
+                                    <Input id="gantt-start" type="date" value={ganttStartDate} onChange={(e) => setGanttStartDate(e.target.value)} className="h-9 w-auto" />
+                                    <span className="text-muted-foreground">–</span>
+                                    <Input id="gantt-end" type="date" value={ganttEndDate} onChange={(e) => setGanttEndDate(e.target.value)} className="h-9 w-auto" />
+                                    {(ganttStartDate || ganttEndDate) && (
+                                        <Button variant="ghost" size="sm" onClick={() => { setGanttStartDate(''); setGanttEndDate(''); }}>ล้าง</Button>
+                                    )}
+                                </div>
                                 <RadioGroup defaultValue="monthly" onValueChange={setTimeframe} className="flex items-center gap-4">
                                     <div className="flex items-center space-x-2">
                                         <RadioGroupItem value="monthly" id="monthly" />
@@ -566,7 +599,7 @@ export function ProjectsClientPage({ projects: initialProjects }: { projects: Pr
                             </div>
                         </CardHeader>
                         <CardContent className="p-4 pt-0">
-                            <ProjectGanttChart projects={projects} timeframe={timeframe} />
+                            <ProjectGanttChart projects={ganttProjects} timeframe={timeframe} rangeStart={ganttStartDate || undefined} rangeEnd={ganttEndDate || undefined} />
                         </CardContent>
                     </Card>
                 </TabsContent>

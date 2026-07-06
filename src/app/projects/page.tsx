@@ -33,6 +33,7 @@ async function getProjects(): Promise<Project[]> {
                     team: data.team,
                     completedTasks,
                     totalTasks,
+                    tasks: tasksForProject,
                     isDarkModeOnly: data.isDarkModeOnly || false,
                     customerId: data.customerId,
                     owner: data.owner,
